@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/russseaman/claude-memory/db"
+	"github.com/j33pguy/claude-memory/db"
 )
 
 // Recent provides the 10 most recent memories for a project.

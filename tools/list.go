@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/russseaman/claude-memory/db"
+	"github.com/j33pguy/claude-memory/db"
 )
 
 // List browses/filters memories without semantic search.

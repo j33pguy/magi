@@ -2,19 +2,22 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
 	mcpserver "github.com/mark3labs/mcp-go/server"
-	"github.com/russseaman/claude-memory/db"
-	"github.com/russseaman/claude-memory/embeddings"
-	"github.com/russseaman/claude-memory/resources"
-	"github.com/russseaman/claude-memory/tools"
+	"github.com/j33pguy/claude-memory/api"
+	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/claude-memory/resources"
+	"github.com/j33pguy/claude-memory/tools"
 )
 
 // Server is the claude-memory MCP server.
 type Server struct {
 	mcp      *mcpserver.MCPServer
+	httpAPI  *api.Server
 	dbClient *db.Client
 	embedder *embeddings.OnnxProvider
 	logger   *slog.Logger
@@ -59,6 +62,8 @@ func New(logger *slog.Logger) (*Server, error) {
 	s.registerTools()
 	s.registerResources()
 
+	s.httpAPI = api.NewServer(s.dbClient, s.embedder, logger.WithGroup("http"))
+
 	return s, nil
 }
 
@@ -88,6 +93,16 @@ func (s *Server) registerResources() {
 
 	prefs := &resources.Preferences{DB: s.dbClient}
 	s.mcp.AddResource(prefs.Resource(), prefs.Handle)
+}
+
+// ServeHTTP starts the HTTP API server. Blocks until the server stops.
+func (s *Server) ServeHTTP() error {
+	return s.httpAPI.Start()
+}
+
+// ShutdownHTTP gracefully stops the HTTP API server.
+func (s *Server) ShutdownHTTP(ctx context.Context) error {
+	return s.httpAPI.Shutdown(ctx)
 }
 
 // Run starts the MCP server on stdio.

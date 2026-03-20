@@ -1,4 +1,4 @@
-module github.com/russseaman/claude-memory
+module github.com/j33pguy/claude-memory
 
 go 1.25.5
 

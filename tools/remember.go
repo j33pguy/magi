@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/russseaman/claude-memory/db"
-	"github.com/russseaman/claude-memory/embeddings"
+	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/claude-memory/embeddings"
 )
 
 // Remember stores a new memory with auto-generated embedding.

@@ -9,10 +9,10 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/russseaman/claude-memory/chunking"
-	"github.com/russseaman/claude-memory/db"
-	"github.com/russseaman/claude-memory/embeddings"
-	"github.com/russseaman/claude-memory/migrate"
+	"github.com/j33pguy/claude-memory/chunking"
+	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/claude-memory/migrate"
 )
 
 func main() {
