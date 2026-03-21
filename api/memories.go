@@ -24,11 +24,12 @@ func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filter := &db.MemoryFilter{
-		Project: q.Get("project"),
-		Type:    q.Get("type"),
-		Tags:    tags,
-		Limit:   limit,
-		Offset:  offset,
+		Project:    q.Get("project"),
+		Type:       q.Get("type"),
+		Tags:       tags,
+		Limit:      limit,
+		Offset:     offset,
+		Visibility: "", // HTTP API: exclude private memories by default
 	}
 
 	memories, err := s.db.ListMemories(filter)

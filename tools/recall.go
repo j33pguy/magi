@@ -50,9 +50,10 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 	}
 
 	filter := &db.MemoryFilter{
-		Project: project,
-		Type:    memType,
-		Tags:    tags,
+		Project:    project,
+		Type:       memType,
+		Tags:       tags,
+		Visibility: "all", // MCP callers (Claude Code, Gilfoyle) see all including private
 	}
 
 	results, err := r.DB.SearchMemories(embedding, filter, topK)

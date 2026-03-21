@@ -23,6 +23,7 @@ func (s *Schema) run() error {
 		sql     string
 	}{
 		{1, migrationV1},
+		{2, migrationV2},
 	}
 
 	for _, m := range migrations {
@@ -111,4 +112,16 @@ CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type, archived_at);
 CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_memories_parent ON memories(parent_id);
 CREATE INDEX IF NOT EXISTS idx_tags_tag ON memory_tags(tag);
+`
+
+// migrationV2 adds visibility field for access control.
+// Values: "private" (owner only, never via HTTP API), "internal" (default, accessible within the system), "public" (no restrictions)
+// Private memories: MEMORY.md, USER.md, credentials, family info — never exposed via HTTP
+// Internal memories: code context, decisions, runbooks — accessible to all Claude instances
+// Public memories: shareable context, project docs — safe for any consumer
+const migrationV2 = `
+ALTER TABLE memories ADD COLUMN visibility TEXT NOT NULL DEFAULT 'internal'
+	CHECK(visibility IN ('private', 'internal', 'public'));
+
+CREATE INDEX IF NOT EXISTS idx_memories_visibility ON memories(visibility, archived_at);
 `

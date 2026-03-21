@@ -17,6 +17,9 @@ type Memory struct {
 	Embedding  []float32 `json:"embedding,omitempty"`
 	Project    string    `json:"project"`
 	Type       string    `json:"type"`
+	// Visibility controls access: "private" (owner only, never via HTTP API),
+	// "internal" (default, all Claude instances), "public" (any consumer)
+	Visibility string    `json:"visibility"`
 	Source     string    `json:"source"`
 	SourceFile string    `json:"sourceFile"`
 	ParentID   string    `json:"parentId"`
@@ -30,11 +33,14 @@ type Memory struct {
 
 // MemoryFilter defines search/filter criteria for listing memories.
 type MemoryFilter struct {
-	Project string
-	Type    string
-	Tags    []string
-	Limit   int
-	Offset  int
+	Project    string
+	Type       string
+	Tags       []string
+	Limit      int
+	Offset     int
+	// Visibility filters by access level. If empty, defaults to excluding "private"
+	// for HTTP API callers. Set to "all" to include private (MCP/internal use only).
+	Visibility string
 }
 
 // VectorResult wraps a Memory with its similarity distance.
@@ -48,9 +54,14 @@ func (c *Client) SaveMemory(m *Memory) (*Memory, error) {
 	now := time.Now().UTC().Format(time.DateTime)
 
 	var id string
+	visibility := m.Visibility
+	if visibility == "" {
+		visibility = "internal"
+	}
+
 	err := c.DB.QueryRow(`
-		INSERT INTO memories (content, summary, embedding, project, type, source, source_file, parent_id, chunk_index, created_at, updated_at, token_count)
-		VALUES (?, ?, vector32(?), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO memories (content, summary, embedding, project, type, visibility, source, source_file, parent_id, chunk_index, created_at, updated_at, token_count)
+		VALUES (?, ?, vector32(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id
 	`,
 		m.Content,
@@ -58,6 +69,7 @@ func (c *Client) SaveMemory(m *Memory) (*Memory, error) {
 		float32sToBytes(m.Embedding),
 		m.Project,
 		m.Type,
+		visibility,
 		nullString(m.Source),
 		nullString(m.SourceFile),
 		nullString(m.ParentID),
@@ -82,11 +94,11 @@ func (c *Client) GetMemory(id string) (*Memory, error) {
 	var summary, source, sourceFile, parentID, archivedAt sql.NullString
 
 	err := c.DB.QueryRow(`
-		SELECT id, content, summary, project, type, source, source_file, parent_id, chunk_index,
+		SELECT id, content, summary, project, type, visibility, source, source_file, parent_id, chunk_index,
 		       created_at, updated_at, archived_at, token_count
 		FROM memories WHERE id = ?
 	`, id).Scan(
-		&m.ID, &m.Content, &summary, &m.Project, &m.Type,
+		&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
 		&source, &sourceFile, &parentID, &m.ChunkIndex,
 		&m.CreatedAt, &m.UpdatedAt, &archivedAt, &m.TokenCount,
 	)
@@ -174,6 +186,16 @@ func (c *Client) ListMemories(filter *MemoryFilter) ([]*Memory, error) {
 			strings.Join(placeholders, ","),
 		))
 	}
+	// Default: exclude private memories (HTTP API callers).
+	// Pass Visibility="all" to include private (MCP/internal callers only).
+	if filter.Visibility != "all" {
+		if filter.Visibility != "" {
+			conditions = append(conditions, "m.visibility = ?")
+			args = append(args, filter.Visibility)
+		} else {
+			conditions = append(conditions, "m.visibility != 'private'")
+		}
+	}
 
 	limit := filter.Limit
 	if limit <= 0 {
@@ -181,7 +203,7 @@ func (c *Client) ListMemories(filter *MemoryFilter) ([]*Memory, error) {
 	}
 
 	query := fmt.Sprintf(`
-		SELECT m.id, m.content, m.summary, m.project, m.type, m.source, m.source_file,
+		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
 		       m.parent_id, m.chunk_index, m.created_at, m.updated_at, m.archived_at, m.token_count
 		FROM memories m
 		WHERE %s
@@ -230,6 +252,15 @@ func (c *Client) SearchMemories(embedding []float32, filter *MemoryFilter, topK 
 				strings.Join(placeholders, ","),
 			))
 		}
+		// Default: exclude private memories for HTTP API callers.
+		if filter.Visibility != "all" {
+			if filter.Visibility != "" {
+				conditions = append(conditions, "m.visibility = ?")
+				args = append(args, filter.Visibility)
+			} else {
+				conditions = append(conditions, "m.visibility != 'private'")
+			}
+		}
 	}
 
 	if topK <= 0 {
@@ -238,7 +269,7 @@ func (c *Client) SearchMemories(embedding []float32, filter *MemoryFilter, topK 
 	args = append(args, topK)
 
 	query := fmt.Sprintf(`
-		SELECT m.id, m.content, m.summary, m.project, m.type, m.source, m.source_file,
+		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
 		       m.parent_id, m.chunk_index, m.created_at, m.updated_at, m.archived_at, m.token_count,
 		       vector_distance_cos(m.embedding, vector32(?)) AS distance
 		FROM memories m
@@ -260,7 +291,7 @@ func (c *Client) SearchMemories(embedding []float32, filter *MemoryFilter, topK 
 		var distance float64
 
 		if err := rows.Scan(
-			&m.ID, &m.Content, &summary, &m.Project, &m.Type,
+			&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
 			&source, &sourceFile, &parentID, &m.ChunkIndex,
 			&m.CreatedAt, &m.UpdatedAt, &archivedAt, &m.TokenCount,
 			&distance,
@@ -296,7 +327,7 @@ func scanMemories(rows *sql.Rows) ([]*Memory, error) {
 		var summary, source, sourceFile, parentID, archivedAt sql.NullString
 
 		if err := rows.Scan(
-			&m.ID, &m.Content, &summary, &m.Project, &m.Type,
+			&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
 			&source, &sourceFile, &parentID, &m.ChunkIndex,
 			&m.CreatedAt, &m.UpdatedAt, &archivedAt, &m.TokenCount,
 		); err != nil {

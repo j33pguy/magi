@@ -9,12 +9,14 @@ import (
 )
 
 type rememberRequest struct {
-	Content string   `json:"content"`
-	Summary string   `json:"summary"`
-	Project string   `json:"project"`
-	Type    string   `json:"type"`
-	Tags    []string `json:"tags"`
-	Source  string   `json:"source"`
+	Content    string   `json:"content"`
+	Summary    string   `json:"summary"`
+	Project    string   `json:"project"`
+	Type       string   `json:"type"`
+	// Visibility: "private", "internal" (default), or "public"
+	Visibility string   `json:"visibility"`
+	Tags       []string `json:"tags"`
+	Source     string   `json:"source"`
 }
 
 func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
@@ -49,6 +51,7 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 		Embedding:  embedding,
 		Project:    req.Project,
 		Type:       req.Type,
+		Visibility: req.Visibility, // defaults to "internal" in SaveMemory if empty
 		Source:     req.Source,
 		TokenCount: len(req.Content) / 4,
 	}

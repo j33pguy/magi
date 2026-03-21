@@ -40,9 +40,10 @@ func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filter := &db.MemoryFilter{
-		Project: req.Project,
-		Type:    req.Type,
-		Tags:    req.Tags,
+		Project:    req.Project,
+		Type:       req.Type,
+		Tags:       req.Tags,
+		Visibility: "", // HTTP API: exclude private memories by default
 	}
 
 	results, err := s.db.SearchMemories(embedding, filter, req.TopK)
