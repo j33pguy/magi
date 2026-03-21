@@ -67,6 +67,35 @@ Before starting any task:
 
 ---
 
+## v0.2.1 — Project Context in Turso (no CLAUDE.md in repos)
+
+### The pattern
+Instead of committing `CLAUDE.md` to every project, store project instructions in Turso
+tagged as `type: project_context`. Clean repos, instructions travel with the memory.
+
+### How it works
+- Special memory type: `project_context` — highest priority in recall
+- Stored as: `remember("Use Go 1.21+. All errors wrapped. No globals.", type="project_context", project="j33pguy/IaC")`
+- On project detection, `memory://project-context` resource returns these immediately
+- Claude Code reads them before any other context
+
+### New MCP resource: `memory://project-context`
+Returns all `project_context` memories for the current project, formatted as instructions.
+Claude Code injects these at the top of context automatically.
+
+### Migration
+- Existing `CLAUDE.md` files can be imported: `claude-memory-import --type project_context --file CLAUDE.md`
+- After import: delete the file, add to `.gitignore` as a safety net
+- Instructions now invisible to anyone browsing the repo
+
+### Benefits
+- Repos stay clean — no AI instruction files visible
+- Instructions version-controlled inside Turso, not Git
+- Update instructions with `update_memory` without touching the repo
+- Different instructions per branch if needed (future)
+
+---
+
 ## v0.3 — Cross-Machine Identity
 
 ### The pattern
