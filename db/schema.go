@@ -24,6 +24,7 @@ func (s *Schema) run() error {
 	}{
 		{1, migrationV1},
 		{2, migrationV2},
+		{3, migrationV3},
 	}
 
 	for _, m := range migrations {
@@ -112,6 +113,33 @@ CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type, archived_at);
 CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_memories_parent ON memories(parent_id);
 CREATE INDEX IF NOT EXISTS idx_tags_tag ON memory_tags(tag);
+`
+
+// migrationV3 adds FTS5 full-text search over memory content.
+// Used for BM25 keyword search in hybrid retrieval (vector + keyword via RRF fusion).
+// Triggers keep the FTS index in sync with the memories table automatically.
+const migrationV3 = `
+CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+	content,
+	content='memories',
+	content_rowid='rowid'
+);
+
+-- Populate FTS from existing rows
+INSERT INTO memories_fts(rowid, content) SELECT rowid, content FROM memories;
+
+CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+	INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+	INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+	INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+	INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
 `
 
 // migrationV2 adds visibility field for access control.

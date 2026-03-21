@@ -10,7 +10,7 @@ import (
 	"github.com/j33pguy/claude-memory/embeddings"
 )
 
-// Recall performs semantic search over stored memories.
+// Recall performs hybrid search (BM25 + vector + RRF) over stored memories.
 type Recall struct {
 	DB       *db.Client
 	Embedder embeddings.Provider
@@ -19,9 +19,10 @@ type Recall struct {
 // Tool returns the MCP tool definition for recall.
 func (r *Recall) Tool() mcp.Tool {
 	return mcp.NewTool("recall",
-		mcp.WithDescription("Semantically search stored memories. Returns the most relevant memories based on meaning, not just keywords."),
+		mcp.WithDescription("Search stored memories using hybrid retrieval (BM25 keyword + semantic vector search fused via RRF). Returns the most relevant memories. Use 'projects' to query multiple namespaces at once (e.g. your agent namespace + crew:shared)."),
 		mcp.WithString("query", mcp.Required(), mcp.Description("Natural language search query")),
-		mcp.WithString("project", mcp.Description("Filter by project name")),
+		mcp.WithString("project", mcp.Description("Filter by a single project/namespace (e.g. 'agent:gilfoyle', 'crew:shared')")),
+		mcp.WithArray("projects", mcp.Description("Filter by multiple namespaces — results from any match (e.g. ['agent:dinesh','crew:shared'])"), mcp.WithStringItems()),
 		mcp.WithString("type",
 			mcp.Description("Filter by memory type"),
 			mcp.Enum("note", "decision", "audit", "runbook", "preference", "context", "security"),
@@ -39,11 +40,12 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 	}
 
 	project := request.GetString("project", "")
+	projects := request.GetStringSlice("projects", nil)
 	memType := request.GetString("type", "")
 	tags := request.GetStringSlice("tags", nil)
 	topK := request.GetInt("top_k", 5)
 
-	// Generate query embedding
+	// Generate query embedding for vector leg of hybrid search
 	embedding, err := r.Embedder.Embed(ctx, query)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("generating query embedding: %v", err)), nil
@@ -51,14 +53,15 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 
 	filter := &db.MemoryFilter{
 		Project:    project,
+		Projects:   projects,
 		Type:       memType,
 		Tags:       tags,
 		Visibility: "all", // MCP callers (Claude Code, Gilfoyle) see all including private
 	}
 
-	results, err := r.DB.SearchMemories(embedding, filter, topK)
+	results, err := r.DB.HybridSearch(embedding, query, filter, topK)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("searching memories: %v", err)), nil
+		return mcp.NewToolResultError(fmt.Sprintf("hybrid search: %v", err)), nil
 	}
 
 	if len(results) == 0 {

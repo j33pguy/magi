@@ -25,11 +25,19 @@ const (
 )
 
 // OnnxProvider generates embeddings using all-MiniLM-L6-v2 via ONNX runtime.
+// A single persistent session is reused across calls (sessions are not thread-safe;
+// access is serialized via mu).
 type OnnxProvider struct {
 	tokenizer *Tokenizer
-	modelPath string
+	session   *ort.AdvancedSession
 	logger    *slog.Logger
 	mu        sync.Mutex
+
+	// pre-allocated tensors reused across calls to avoid repeated alloc/free
+	inputIDsTensor *ort.Tensor[int64]
+	maskTensor     *ort.Tensor[int64]
+	typeTensor     *ort.Tensor[int64]
+	outputTensor   *ort.Tensor[float32]
 }
 
 // NewOnnxProvider creates a new ONNX embedding provider. Downloads the model
@@ -60,12 +68,11 @@ func NewOnnxProvider(logger *slog.Logger) (*OnnxProvider, error) {
 	// Initialize ONNX runtime
 	libPath := findOnnxRuntimeLib()
 	if libPath == "" {
-		return nil, fmt.Errorf("onnxruntime shared library not found; install via: brew install onnxruntime")
+		return nil, fmt.Errorf("onnxruntime shared library not found; set ONNXRUNTIME_LIB or install via your package manager")
 	}
 
 	ort.SetSharedLibraryPath(libPath)
 	if err := ort.InitializeEnvironment(); err != nil {
-		// Already initialized is OK
 		if !ort.IsInitialized() {
 			return nil, fmt.Errorf("initializing ONNX runtime: %w", err)
 		}
@@ -77,20 +84,66 @@ func NewOnnxProvider(logger *slog.Logger) (*OnnxProvider, error) {
 		return nil, fmt.Errorf("loading tokenizer: %w", err)
 	}
 
+	batchSize := int64(1)
+	seqLen := int64(maxTokenLen)
+
+	// Pre-allocate tensors once — reused across all inference calls.
+	inputIDsTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), make([]int64, batchSize*seqLen))
+	if err != nil {
+		return nil, fmt.Errorf("creating input_ids tensor: %w", err)
+	}
+	maskTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), make([]int64, batchSize*seqLen))
+	if err != nil {
+		inputIDsTensor.Destroy()
+		return nil, fmt.Errorf("creating attention_mask tensor: %w", err)
+	}
+	typeTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), make([]int64, batchSize*seqLen))
+	if err != nil {
+		inputIDsTensor.Destroy()
+		maskTensor.Destroy()
+		return nil, fmt.Errorf("creating token_type_ids tensor: %w", err)
+	}
+	outputTensor, err := ort.NewEmptyTensor[float32](ort.NewShape(batchSize, seqLen, int64(dimensions)))
+	if err != nil {
+		inputIDsTensor.Destroy()
+		maskTensor.Destroy()
+		typeTensor.Destroy()
+		return nil, fmt.Errorf("creating output tensor: %w", err)
+	}
+
+	// Create a single persistent session.
+	session, err := ort.NewAdvancedSession(
+		modelPath,
+		[]string{"input_ids", "attention_mask", "token_type_ids"},
+		[]string{"last_hidden_state"},
+		[]ort.Value{inputIDsTensor, maskTensor, typeTensor},
+		[]ort.Value{outputTensor},
+		nil,
+	)
+	if err != nil {
+		inputIDsTensor.Destroy()
+		maskTensor.Destroy()
+		typeTensor.Destroy()
+		outputTensor.Destroy()
+		return nil, fmt.Errorf("creating ONNX session: %w", err)
+	}
+
 	return &OnnxProvider{
-		tokenizer: tokenizer,
-		modelPath: modelPath,
-		logger:    logger,
+		tokenizer:      tokenizer,
+		session:        session,
+		logger:         logger,
+		inputIDsTensor: inputIDsTensor,
+		maskTensor:     maskTensor,
+		typeTensor:     typeTensor,
+		outputTensor:   outputTensor,
 	}, nil
 }
 
 // Embed generates an embedding for a single text.
 func (p *OnnxProvider) Embed(_ context.Context, text string) ([]float32, error) {
-	result, err := p.EmbedBatch(context.Background(), []string{text})
-	if err != nil {
-		return nil, err
-	}
-	return result[0], nil
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.embedLocked(text)
 }
 
 // EmbedBatch generates embeddings for multiple texts.
@@ -99,64 +152,33 @@ func (p *OnnxProvider) EmbedBatch(_ context.Context, texts []string) ([][]float3
 	defer p.mu.Unlock()
 
 	results := make([][]float32, len(texts))
-
 	for i, text := range texts {
-		tokens := p.tokenizer.Tokenize(text)
-
-		batchSize := int64(1)
-		seqLen := int64(maxTokenLen)
-
-		// Create input tensors
-		inputIDsTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), tokens.InputIDs)
+		emb, err := p.embedLocked(text)
 		if err != nil {
-			return nil, fmt.Errorf("creating input_ids tensor: %w", err)
+			return nil, fmt.Errorf("embedding text %d: %w", i, err)
 		}
-		defer inputIDsTensor.Destroy()
+		results[i] = emb
+	}
+	return results, nil
+}
 
-		maskTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), tokens.AttentionMask)
-		if err != nil {
-			return nil, fmt.Errorf("creating attention_mask tensor: %w", err)
-		}
-		defer maskTensor.Destroy()
+// embedLocked runs inference for one text. Caller must hold p.mu.
+func (p *OnnxProvider) embedLocked(text string) ([]float32, error) {
+	tokens := p.tokenizer.Tokenize(text)
 
-		typeTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), tokens.TokenTypeIDs)
-		if err != nil {
-			return nil, fmt.Errorf("creating token_type_ids tensor: %w", err)
-		}
-		defer typeTensor.Destroy()
+	// Copy token data into the pre-allocated tensor buffers.
+	copy(p.inputIDsTensor.GetData(), tokens.InputIDs)
+	copy(p.maskTensor.GetData(), tokens.AttentionMask)
+	copy(p.typeTensor.GetData(), tokens.TokenTypeIDs)
 
-		// Create output tensor
-		outputTensor, err := ort.NewEmptyTensor[float32](ort.NewShape(batchSize, seqLen, int64(dimensions)))
-		if err != nil {
-			return nil, fmt.Errorf("creating output tensor: %w", err)
-		}
-		defer outputTensor.Destroy()
-
-		// Create session and run
-		session, err := ort.NewAdvancedSession(
-			p.modelPath,
-			[]string{"input_ids", "attention_mask", "token_type_ids"},
-			[]string{"last_hidden_state"},
-			[]ort.Value{inputIDsTensor, maskTensor, typeTensor},
-			[]ort.Value{outputTensor},
-			nil,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("creating ONNX session: %w", err)
-		}
-		defer session.Destroy()
-
-		if err := session.Run(); err != nil {
-			return nil, fmt.Errorf("running inference: %w", err)
-		}
-
-		// Mean pooling with attention mask
-		raw := outputTensor.GetData()
-		embedding := meanPool(raw, tokens.AttentionMask, int(seqLen), dimensions)
-		results[i] = embedding
+	if err := p.session.Run(); err != nil {
+		return nil, fmt.Errorf("running inference: %w", err)
 	}
 
-	return results, nil
+	raw := p.outputTensor.GetData()
+	seqLen := int(maxTokenLen)
+	embedding := meanPool(raw, tokens.AttentionMask, seqLen, dimensions)
+	return embedding, nil
 }
 
 // Dimensions returns the embedding vector dimensions.
@@ -164,8 +186,25 @@ func (p *OnnxProvider) Dimensions() int {
 	return dimensions
 }
 
-// Destroy cleans up the ONNX runtime environment.
+// Destroy cleans up the ONNX session, tensors, and runtime environment.
 func (p *OnnxProvider) Destroy() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.session != nil {
+		p.session.Destroy()
+	}
+	if p.inputIDsTensor != nil {
+		p.inputIDsTensor.Destroy()
+	}
+	if p.maskTensor != nil {
+		p.maskTensor.Destroy()
+	}
+	if p.typeTensor != nil {
+		p.typeTensor.Destroy()
+	}
+	if p.outputTensor != nil {
+		p.outputTensor.Destroy()
+	}
 	ort.DestroyEnvironment()
 }
 
@@ -207,6 +246,11 @@ func meanPool(data []float32, mask []int64, seqLen, embDim int) []float32 {
 
 // findOnnxRuntimeLib searches common locations for the ONNX Runtime shared library.
 func findOnnxRuntimeLib() string {
+	// Env override takes priority
+	if v := os.Getenv("ONNXRUNTIME_LIB"); v != "" {
+		return v
+	}
+
 	var candidates []string
 
 	switch runtime.GOOS {
@@ -217,15 +261,14 @@ func findOnnxRuntimeLib() string {
 		}
 	case "linux":
 		candidates = []string{
+			// Fedora (dnf install onnxruntime)
+			"/usr/lib64/libonnxruntime.so",
+			"/usr/lib64/libonnxruntime.so.1",
+			// Ubuntu / Debian
 			"/usr/lib/libonnxruntime.so",
 			"/usr/local/lib/libonnxruntime.so",
 			"/usr/lib/x86_64-linux-gnu/libonnxruntime.so",
 		}
-	}
-
-	// Check ONNXRUNTIME_LIB env override
-	if v := os.Getenv("ONNXRUNTIME_LIB"); v != "" {
-		return v
 	}
 
 	for _, path := range candidates {
@@ -244,7 +287,7 @@ func downloadIfMissing(path, url string, logger *slog.Logger) error {
 
 	logger.Info("Downloading model file", slog.String("path", path))
 
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) //nolint:gosec // URL is a hardcoded constant
 	if err != nil {
 		return fmt.Errorf("fetching %s: %w", url, err)
 	}

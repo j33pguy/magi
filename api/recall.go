@@ -9,11 +9,12 @@ import (
 )
 
 type recallRequest struct {
-	Query   string   `json:"query"`
-	Project string   `json:"project"`
-	Type    string   `json:"type"`
-	Tags    []string `json:"tags"`
-	TopK    int      `json:"top_k"`
+	Query    string   `json:"query"`
+	Project  string   `json:"project"`
+	Projects []string `json:"projects"` // multi-namespace: any match
+	Type     string   `json:"type"`
+	Tags     []string `json:"tags"`
+	TopK     int      `json:"top_k"`
 }
 
 func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
@@ -41,19 +42,20 @@ func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
 
 	filter := &db.MemoryFilter{
 		Project:    req.Project,
+		Projects:   req.Projects,
 		Type:       req.Type,
 		Tags:       req.Tags,
 		Visibility: "", // HTTP API: exclude private memories by default
 	}
 
-	results, err := s.db.SearchMemories(embedding, filter, req.TopK)
+	results, err := s.db.HybridSearch(embedding, req.Query, filter, req.TopK)
 	if err != nil {
-		s.logger.Error("searching memories", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("searching memories: %v", err)})
+		s.logger.Error("hybrid search", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("hybrid search: %v", err)})
 		return
 	}
 
-	// Resolve chunk parents (same logic as MCP recall tool)
+	// Resolve chunk parents
 	for _, result := range results {
 		if result.Memory.ParentID != "" {
 			parent, err := s.db.GetMemory(result.Memory.ParentID)

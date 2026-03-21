@@ -33,7 +33,13 @@ type Memory struct {
 
 // MemoryFilter defines search/filter criteria for listing memories.
 type MemoryFilter struct {
-	Project    string
+	// Project filters to a single namespace (e.g. "agent:gilfoyle", "crew:shared").
+	// Takes precedence over Projects if both are set.
+	Project string
+	// Projects filters to any of the listed namespaces — useful for agents that
+	// want to query their own context AND shared crew memory in one call.
+	// Example: []string{"agent:dinesh", "crew:shared"}
+	Projects []string
 	Type       string
 	Tags       []string
 	Limit      int
@@ -41,6 +47,15 @@ type MemoryFilter struct {
 	// Visibility filters by access level. If empty, defaults to excluding "private"
 	// for HTTP API callers. Set to "all" to include private (MCP/internal use only).
 	Visibility string
+}
+
+// HybridResult wraps a Memory with scores from both retrieval methods.
+type HybridResult struct {
+	Memory    *Memory `json:"memory"`
+	RRFScore  float64 `json:"rrfScore"`  // higher = more relevant
+	VecRank   int     `json:"vecRank"`   // 0 = not in vector results
+	BM25Rank  int     `json:"bm25Rank"`  // 0 = not in BM25 results
+	Distance  float64 `json:"distance"`  // cosine distance (lower = closer)
 }
 
 // VectorResult wraps a Memory with its similarity distance.
@@ -167,10 +182,7 @@ func (c *Client) ListMemories(filter *MemoryFilter) ([]*Memory, error) {
 
 	conditions = append(conditions, "m.archived_at IS NULL")
 
-	if filter.Project != "" {
-		conditions = append(conditions, "m.project = ?")
-		args = append(args, filter.Project)
-	}
+	appendProjectCondition(filter, &conditions, &args)
 	if filter.Type != "" {
 		conditions = append(conditions, "m.type = ?")
 		args = append(args, filter.Type)
@@ -186,16 +198,7 @@ func (c *Client) ListMemories(filter *MemoryFilter) ([]*Memory, error) {
 			strings.Join(placeholders, ","),
 		))
 	}
-	// Default: exclude private memories (HTTP API callers).
-	// Pass Visibility="all" to include private (MCP/internal callers only).
-	if filter.Visibility != "all" {
-		if filter.Visibility != "" {
-			conditions = append(conditions, "m.visibility = ?")
-			args = append(args, filter.Visibility)
-		} else {
-			conditions = append(conditions, "m.visibility != 'private'")
-		}
-	}
+	appendVisibilityCondition(filter, &conditions, &args)
 
 	limit := filter.Limit
 	if limit <= 0 {
@@ -233,10 +236,7 @@ func (c *Client) SearchMemories(embedding []float32, filter *MemoryFilter, topK 
 	conditions = append(conditions, "m.archived_at IS NULL")
 
 	if filter != nil {
-		if filter.Project != "" {
-			conditions = append(conditions, "m.project = ?")
-			args = append(args, filter.Project)
-		}
+		appendProjectCondition(filter, &conditions, &args)
 		if filter.Type != "" {
 			conditions = append(conditions, "m.type = ?")
 			args = append(args, filter.Type)
@@ -252,15 +252,7 @@ func (c *Client) SearchMemories(embedding []float32, filter *MemoryFilter, topK 
 				strings.Join(placeholders, ","),
 			))
 		}
-		// Default: exclude private memories for HTTP API callers.
-		if filter.Visibility != "all" {
-			if filter.Visibility != "" {
-				conditions = append(conditions, "m.visibility = ?")
-				args = append(args, filter.Visibility)
-			} else {
-				conditions = append(conditions, "m.visibility != 'private'")
-			}
-		}
+		appendVisibilityCondition(filter, &conditions, &args)
 	}
 
 	if topK <= 0 {
@@ -343,6 +335,185 @@ func scanMemories(rows *sql.Rows) ([]*Memory, error) {
 		memories = append(memories, m)
 	}
 	return memories, nil
+}
+
+// appendProjectCondition adds project filtering to conditions/args.
+// Handles single Project, multi-Projects slice, or neither.
+func appendProjectCondition(filter *MemoryFilter, conditions *[]string, args *[]any) {
+	if filter.Project != "" {
+		*conditions = append(*conditions, "m.project = ?")
+		*args = append(*args, filter.Project)
+	} else if len(filter.Projects) > 0 {
+		placeholders := make([]string, len(filter.Projects))
+		for i, p := range filter.Projects {
+			placeholders[i] = "?"
+			*args = append(*args, p)
+		}
+		*conditions = append(*conditions, fmt.Sprintf("m.project IN (%s)", strings.Join(placeholders, ",")))
+	}
+}
+
+// appendVisibilityCondition adds visibility filtering to conditions/args.
+func appendVisibilityCondition(filter *MemoryFilter, conditions *[]string, args *[]any) {
+	if filter.Visibility == "all" {
+		return
+	}
+	if filter.Visibility != "" {
+		*conditions = append(*conditions, "m.visibility = ?")
+		*args = append(*args, filter.Visibility)
+	} else {
+		*conditions = append(*conditions, "m.visibility != 'private'")
+	}
+}
+
+// SearchMemoriesBM25 performs full-text keyword search using the FTS5 index.
+// Returns memories ranked by BM25 relevance.
+func (c *Client) SearchMemoriesBM25(query string, filter *MemoryFilter, topK int) ([]*VectorResult, error) {
+	var conditions []string
+	var args []any
+
+	conditions = append(conditions, "m.archived_at IS NULL")
+	conditions = append(conditions, "m.rowid IN (SELECT rowid FROM memories_fts WHERE memories_fts MATCH ?)")
+	args = append(args, query)
+
+	if filter != nil {
+		appendProjectCondition(filter, &conditions, &args)
+		if filter.Type != "" {
+			conditions = append(conditions, "m.type = ?")
+			args = append(args, filter.Type)
+		}
+		appendVisibilityCondition(filter, &conditions, &args)
+	}
+
+	if topK <= 0 {
+		topK = 10
+	}
+	args = append(args, topK)
+
+	q := fmt.Sprintf(`
+		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
+		       m.parent_id, m.chunk_index, m.created_at, m.updated_at, m.archived_at, m.token_count,
+		       -bm25(memories_fts) AS score
+		FROM memories m
+		JOIN memories_fts ON memories_fts.rowid = m.rowid
+		WHERE %s
+		ORDER BY score DESC
+		LIMIT ?
+	`, strings.Join(conditions, " AND "))
+
+	rows, err := c.DB.Query(q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("BM25 search: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*VectorResult
+	for rows.Next() {
+		m := &Memory{}
+		var summary, source, sourceFile, parentID, archivedAt sql.NullString
+		var score float64
+
+		if err := rows.Scan(
+			&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
+			&source, &sourceFile, &parentID, &m.ChunkIndex,
+			&m.CreatedAt, &m.UpdatedAt, &archivedAt, &m.TokenCount,
+			&score,
+		); err != nil {
+			return nil, fmt.Errorf("scanning BM25 result: %w", err)
+		}
+
+		m.Summary = summary.String
+		m.Source = source.String
+		m.SourceFile = sourceFile.String
+		m.ParentID = parentID.String
+		m.ArchivedAt = archivedAt.String
+
+		// Reuse VectorResult with BM25 score as distance (inverted: lower = better, so we negate)
+		results = append(results, &VectorResult{Memory: m, Distance: -score})
+	}
+
+	for _, r := range results {
+		tags, err := c.GetTags(r.Memory.ID)
+		if err != nil {
+			return nil, err
+		}
+		r.Memory.Tags = tags
+	}
+
+	return results, nil
+}
+
+// HybridSearch runs both vector and BM25 search then fuses results using
+// Reciprocal Rank Fusion (RRF) with k=60 (standard default).
+// Returns results ordered by combined RRF score (descending).
+func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryFilter, topK int) ([]*HybridResult, error) {
+	if topK <= 0 {
+		topK = 10
+	}
+	fetchK := topK * 3 // over-fetch to have enough for fusion
+
+	vecResults, err := c.SearchMemories(embedding, filter, fetchK)
+	if err != nil {
+		return nil, fmt.Errorf("vector search: %w", err)
+	}
+
+	bm25Results, err := c.SearchMemoriesBM25(query, filter, fetchK)
+	if err != nil {
+		return nil, fmt.Errorf("BM25 search: %w", err)
+	}
+
+	// Build RRF score map keyed by memory ID.
+	const k = 60.0
+	type entry struct {
+		memory   *Memory
+		rrfScore float64
+		vecRank  int
+		bm25Rank int
+		distance float64
+	}
+	scored := make(map[string]*entry)
+
+	for rank, r := range vecResults {
+		e := &entry{memory: r.Memory, vecRank: rank + 1, distance: r.Distance}
+		e.rrfScore += 1.0 / (k + float64(rank+1))
+		scored[r.Memory.ID] = e
+	}
+
+	for rank, r := range bm25Results {
+		if e, ok := scored[r.Memory.ID]; ok {
+			e.bm25Rank = rank + 1
+			e.rrfScore += 1.0 / (k + float64(rank+1))
+		} else {
+			scored[r.Memory.ID] = &entry{
+				memory:   r.Memory,
+				bm25Rank: rank + 1,
+				rrfScore: 1.0 / (k + float64(rank+1)),
+			}
+		}
+	}
+
+	// Sort by RRF score descending.
+	results := make([]*HybridResult, 0, len(scored))
+	for _, e := range scored {
+		results = append(results, &HybridResult{
+			Memory:   e.memory,
+			RRFScore: e.rrfScore,
+			VecRank:  e.vecRank,
+			BM25Rank: e.bm25Rank,
+			Distance: e.distance,
+		})
+	}
+	// Simple insertion sort — result sets are small (topK*3 max)
+	for i := 1; i < len(results); i++ {
+		for j := i; j > 0 && results[j].RRFScore > results[j-1].RRFScore; j-- {
+			results[j], results[j-1] = results[j-1], results[j]
+		}
+	}
+	if len(results) > topK {
+		results = results[:topK]
+	}
+
+	return results, nil
 }
 
 // float32sToBytes converts a float32 slice to little-endian bytes for F32_BLOB.
