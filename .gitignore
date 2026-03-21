@@ -24,3 +24,7 @@ models/
 .vscode/
 *.swp
 *.swo
+
+# AI instruction files — keep out of repos
+CLAUDE.md
+.claude/
