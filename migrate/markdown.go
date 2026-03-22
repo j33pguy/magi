@@ -44,8 +44,24 @@ func DefaultMappings() []FileMapping {
 
 // Import imports all markdown files from a directory using the provided mappings.
 func (m *MarkdownImporter) Import(ctx context.Context, dir string, mappings []FileMapping) error {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("resolving dir path: %w", err)
+	}
+
 	for _, mapping := range mappings {
-		path := filepath.Join(dir, mapping.Filename)
+		// Prevent path traversal: reject filenames containing path separators or dots leading up.
+		if strings.ContainsAny(mapping.Filename, "/\\") || strings.HasPrefix(mapping.Filename, "..") {
+			return fmt.Errorf("invalid filename %q: must not contain path separators", mapping.Filename)
+		}
+
+		path := filepath.Join(absDir, mapping.Filename)
+
+		// Double-check the resolved path is still inside absDir.
+		if !strings.HasPrefix(path, absDir+string(filepath.Separator)) {
+			return fmt.Errorf("path traversal detected for filename %q", mapping.Filename)
+		}
+
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			m.Logger.Warn("File not found, skipping", slog.String("path", path))
 			continue
