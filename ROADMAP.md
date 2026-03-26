@@ -151,6 +151,47 @@ min_session_length: 5  # min turns before importing a session
 
 ---
 
+## v0.5 — Cross-Channel Conversation Sync (Issue #6)
+
+### The problem
+OpenClaw sessions are isolated. MEMORY.md covers long-term facts. Nothing covers 
+"what did we discuss 20 minutes ago in Discord?" when talking in webchat.
+
+### New HTTP endpoints
+- `POST /conversations` — store a conversation summary
+- `GET /conversations` — list recent conversations (filter by channel, date)
+- `POST /conversations/search` — semantic search across conversation history
+- `GET /conversations/{id}` — get a specific conversation
+
+### New MCP tools
+- `store_conversation` — store summary with channel/session metadata
+- `recall_conversations` — semantic search across conversation history
+- `recent_conversations` — list N most recent across all channels
+
+### Data model
+New memory type `conversation` with metadata: channel, session_key, started_at, ended_at, turn_count, topics.
+
+### Bootstrap path (no code changes — do this first)
+Use existing `/remember` with `type=conversation` tag written via heartbeat. Recall on startup via `/recall`.
+
+---
+
+## v0.6 — Per-Turn Conversation Indexing (Issue #7)
+
+### The problem
+Summaries are lossy. Can't answer "what exactly did j33p say about X?"
+
+### Design
+- Each turn stored as a separate embedding with channel + timestamp metadata
+- OpenClaw writes turns to a local queue; background worker batches to claude-memory
+- claude-memory chunks + embeds each turn
+- Recall returns ranked turns by semantic similarity
+
+### Trade-offs
+More storage, more writes → dramatically better recall precision. Verbatim quote retrieval.
+
+---
+
 ## Deployment targets
 
 | Machine | Role | Binary |
