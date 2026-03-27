@@ -22,22 +22,18 @@ func (c *Client) GetTags(memoryID string) ([]string, error) {
 }
 
 // SetTags replaces all tags for a memory.
+// Uses individual statements instead of a transaction to avoid Turso's
+// Hrana stream timeout ("stream not found") on reused connections.
 func (c *Client) SetTags(memoryID string, tags []string) error {
-	tx, err := c.DB.Begin()
-	if err != nil {
-		return fmt.Errorf("beginning transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	if _, err := tx.Exec("DELETE FROM memory_tags WHERE memory_id = ?", memoryID); err != nil {
+	if _, err := c.DB.Exec("DELETE FROM memory_tags WHERE memory_id = ?", memoryID); err != nil {
 		return fmt.Errorf("clearing tags: %w", err)
 	}
 
 	for _, tag := range tags {
-		if _, err := tx.Exec("INSERT INTO memory_tags (memory_id, tag) VALUES (?, ?)", memoryID, tag); err != nil {
+		if _, err := c.DB.Exec("INSERT INTO memory_tags (memory_id, tag) VALUES (?, ?)", memoryID, tag); err != nil {
 			return fmt.Errorf("inserting tag %q: %w", tag, err)
 		}
 	}
 
-	return tx.Commit()
+	return nil
 }
