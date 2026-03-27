@@ -8,6 +8,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/j33pguy/claude-memory/db"
 	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/claude-memory/search"
 )
 
 // RecallIncidents searches only incident-type memories (things that broke + how they were fixed).
@@ -25,6 +26,7 @@ func (r *RecallIncidents) Tool() mcp.Tool {
 		mcp.WithArray("projects", mcp.Description("Filter by multiple namespaces"), mcp.WithStringItems()),
 		mcp.WithArray("tags", mcp.Description("Filter by tags (any match)"), mcp.WithStringItems()),
 		mcp.WithNumber("top_k", mcp.Description("Number of results to return (default 5)")),
+		mcp.WithNumber("recency_decay", mcp.Description("Exponential decay rate for recency weighting (default 0.0 = disabled). Recommended: 0.01.")),
 	)
 }
 
@@ -39,6 +41,7 @@ func (r *RecallIncidents) Handle(ctx context.Context, request mcp.CallToolReques
 	projects := request.GetStringSlice("projects", nil)
 	tags := request.GetStringSlice("tags", nil)
 	topK := request.GetInt("top_k", 5)
+	recencyDecay := request.GetFloat("recency_decay", 0.0)
 
 	embedding, err := r.Embedder.Embed(ctx, query)
 	if err != nil {
@@ -71,6 +74,8 @@ func (r *RecallIncidents) Handle(ctx context.Context, request mcp.CallToolReques
 			}
 		}
 	}
+
+	search.ApplyRecencyWeighting(results, recencyDecay)
 
 	output, err := json.MarshalIndent(results, "", "  ")
 	if err != nil {

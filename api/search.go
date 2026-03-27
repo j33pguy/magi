@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/claude-memory/search"
 )
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
@@ -22,6 +23,8 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if topK <= 0 {
 		topK = 5
 	}
+
+	recencyDecay, _ := strconv.ParseFloat(q.Get("recency_decay"), 64)
 
 	var tags []string
 	if t := q.Get("tags"); t != "" {
@@ -58,6 +61,8 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	search.ApplyRecencyWeighting(results, recencyDecay)
 
 	writeJSON(w, http.StatusOK, results)
 }
