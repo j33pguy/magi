@@ -24,7 +24,8 @@ type EmbedFunc func(ctx context.Context, text string) ([]float32, error)
 // If no results pass the min_relevance threshold (or zero results are returned),
 // the query is rewritten deterministically and retried once.
 // Set minRelevance to 0 to disable grading (all results pass).
-func Adaptive(ctx context.Context, client *db.Client, embed EmbedFunc, query string, filter *db.MemoryFilter, topK int, minRelevance float64) (*Response, error) {
+// Set recencyDecay > 0 to apply exponential recency weighting (recommended: 0.01).
+func Adaptive(ctx context.Context, client *db.Client, embed EmbedFunc, query string, filter *db.MemoryFilter, topK int, minRelevance float64, recencyDecay float64) (*Response, error) {
 	embedding, err := embed(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("generating embedding: %w", err)
@@ -37,6 +38,7 @@ func Adaptive(ctx context.Context, client *db.Client, embed EmbedFunc, query str
 
 	resolveParents(client, results)
 	filtered := gradeResults(results, minRelevance)
+	ApplyRecencyWeighting(filtered, recencyDecay)
 
 	resp := &Response{
 		Results:  filtered,
@@ -59,7 +61,9 @@ func Adaptive(ctx context.Context, client *db.Client, embed EmbedFunc, query str
 
 			resolveParents(client, results2)
 
-			resp.Results = gradeResults(results2, minRelevance)
+			graded := gradeResults(results2, minRelevance)
+			ApplyRecencyWeighting(graded, recencyDecay)
+			resp.Results = graded
 			resp.Rewritten = true
 			resp.RewrittenQuery = rewritten
 			resp.Attempts = 2

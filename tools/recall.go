@@ -31,6 +31,7 @@ func (r *Recall) Tool() mcp.Tool {
 		mcp.WithArray("tags", mcp.Description("Filter by tags (any match)"), mcp.WithStringItems()),
 		mcp.WithNumber("top_k", mcp.Description("Number of results to return (default 5)")),
 		mcp.WithNumber("min_relevance", mcp.Description("Minimum relevance score 0.0-1.0 (default 0.0 = no filtering). Results with score below this are excluded. Score = 1.0 - cosine_distance.")),
+		mcp.WithNumber("recency_decay", mcp.Description("Exponential decay rate for recency weighting (default 0.0 = disabled). Recommended: 0.01 (half-life ~70 days). Higher values penalize older memories more.")),
 	)
 }
 
@@ -47,6 +48,7 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 	tags := request.GetStringSlice("tags", nil)
 	topK := request.GetInt("top_k", 5)
 	minRelevance := request.GetFloat("min_relevance", 0.0)
+	recencyDecay := request.GetFloat("recency_decay", 0.0)
 
 	filter := &db.MemoryFilter{
 		Project:    project,
@@ -56,7 +58,7 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 		Visibility: "all", // MCP callers (Claude Code, Gilfoyle) see all including private
 	}
 
-	resp, err := search.Adaptive(ctx, r.DB, r.Embedder.Embed, query, filter, topK, minRelevance)
+	resp, err := search.Adaptive(ctx, r.DB, r.Embedder.Embed, query, filter, topK, minRelevance, recencyDecay)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("search: %v", err)), nil
 	}

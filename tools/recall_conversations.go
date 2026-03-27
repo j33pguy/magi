@@ -25,6 +25,7 @@ func (r *RecallConversations) Tool() mcp.Tool {
 		mcp.WithString("channel", mcp.Description("Filter by conversation channel (e.g. 'discord', 'webchat')")),
 		mcp.WithNumber("top_k", mcp.Description("Number of results to return (default 5)")),
 		mcp.WithNumber("min_relevance", mcp.Description("Minimum relevance score 0.0-1.0 (default 0.0 = no filtering). Results with score below this are excluded.")),
+		mcp.WithNumber("recency_decay", mcp.Description("Exponential decay rate for recency weighting (default 0.0 = disabled). Recommended: 0.01 (half-life ~70 days).")),
 	)
 }
 
@@ -38,6 +39,7 @@ func (r *RecallConversations) Handle(ctx context.Context, request mcp.CallToolRe
 	channel := request.GetString("channel", "")
 	topK := request.GetInt("top_k", 5)
 	minRelevance := request.GetFloat("min_relevance", 0.0)
+	recencyDecay := request.GetFloat("recency_decay", 0.0)
 
 	var tags []string
 	if channel != "" {
@@ -50,7 +52,7 @@ func (r *RecallConversations) Handle(ctx context.Context, request mcp.CallToolRe
 		Visibility: "all",
 	}
 
-	resp, err := search.Adaptive(ctx, r.DB, r.Embedder.Embed, query, filter, topK, minRelevance)
+	resp, err := search.Adaptive(ctx, r.DB, r.Embedder.Embed, query, filter, topK, minRelevance, recencyDecay)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("search: %v", err)), nil
 	}

@@ -51,12 +51,14 @@ type MemoryFilter struct {
 
 // HybridResult wraps a Memory with scores from both retrieval methods.
 type HybridResult struct {
-	Memory    *Memory `json:"memory"`
-	RRFScore  float64 `json:"rrfScore"`  // higher = more relevant
-	VecRank   int     `json:"vecRank"`   // 0 = not in vector results
-	BM25Rank  int     `json:"bm25Rank"`  // 0 = not in BM25 results
-	Distance  float64 `json:"distance"`  // cosine distance (lower = closer)
-	Score     float64 `json:"score"`     // relevance score: 1.0 - distance (higher = more relevant)
+	Memory        *Memory `json:"memory"`
+	RRFScore      float64 `json:"rrfScore"`                // higher = more relevant
+	VecRank       int     `json:"vecRank"`                  // 0 = not in vector results
+	BM25Rank      int     `json:"bm25Rank"`                 // 0 = not in BM25 results
+	Distance      float64 `json:"distance"`                 // cosine distance (lower = closer)
+	Score         float64 `json:"score"`                    // relevance score: 1.0 - distance (higher = more relevant)
+	RecencyWeight float64 `json:"recencyWeight,omitempty"`  // exp(-decay * days_old), 0 if recency weighting disabled
+	WeightedScore float64 `json:"weightedScore,omitempty"` // score * recencyWeight, 0 if disabled
 }
 
 // VectorResult wraps a Memory with its similarity distance.

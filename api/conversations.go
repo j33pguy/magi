@@ -29,6 +29,7 @@ type conversationSearchRequest struct {
 	Limit        int     `json:"limit"`
 	Channel      string  `json:"channel"`
 	MinRelevance float64 `json:"min_relevance"` // 0.0-1.0, filter by score >= threshold
+	RecencyDecay float64 `json:"recency_decay"` // exponential decay rate (0.0 = disabled, 0.01 recommended)
 }
 
 func (s *Server) handleCreateConversation(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +188,7 @@ func (s *Server) handleSearchConversations(w http.ResponseWriter, r *http.Reques
 		Visibility: "all",
 	}
 
-	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.Limit, req.MinRelevance)
+	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.Limit, req.MinRelevance, req.RecencyDecay)
 	if err != nil {
 		s.logger.Error("searching conversations", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("search: %v", err)})

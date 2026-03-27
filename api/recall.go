@@ -12,11 +12,12 @@ import (
 type recallRequest struct {
 	Query        string   `json:"query"`
 	Project      string   `json:"project"`
-	Projects     []string `json:"projects"`     // multi-namespace: any match
+	Projects     []string `json:"projects"`      // multi-namespace: any match
 	Type         string   `json:"type"`
 	Tags         []string `json:"tags"`
 	TopK         int      `json:"top_k"`
-	MinRelevance float64  `json:"min_relevance"` // 0.0-1.0, filter by score >= threshold
+	MinRelevance float64  `json:"min_relevance"`  // 0.0-1.0, filter by score >= threshold
+	RecencyDecay float64  `json:"recency_decay"`  // exponential decay rate (0.0 = disabled, 0.01 recommended)
 }
 
 func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +44,7 @@ func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
 		Visibility: "", // HTTP API: exclude private memories by default
 	}
 
-	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.TopK, req.MinRelevance)
+	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.TopK, req.MinRelevance, req.RecencyDecay)
 	if err != nil {
 		s.logger.Error("adaptive search", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("search: %v", err)})
