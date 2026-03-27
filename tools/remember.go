@@ -4,6 +4,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -30,6 +31,7 @@ func (r *Remember) Tool() mcp.Tool {
 		),
 		mcp.WithString("summary", mcp.Description("Brief one-line summary of the memory")),
 		mcp.WithArray("tags", mcp.Description("Tags for categorization"), mcp.WithStringItems()),
+		mcp.WithNumber("dedup_threshold", mcp.Description("Similarity threshold for deduplication (0.0-1.0, default 0.95). Memories above this similarity are considered duplicates.")),
 	)
 }
 
@@ -60,6 +62,28 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 		return mcp.NewToolResultError(fmt.Sprintf("generating embedding: %v", err)), nil
 	}
 
+	// Deduplication: check for near-duplicate before inserting
+	dedupThreshold := request.GetFloat("dedup_threshold", 0.95)
+	if dedupThreshold < 0 || dedupThreshold > 1 {
+		dedupThreshold = 0.95
+	}
+	// Convert similarity threshold to cosine distance (distance = 1 - similarity)
+	maxDistance := 1.0 - dedupThreshold
+	// groupDistance is the distance below which we link as parent (similarity 0.85-threshold)
+	groupDistance := 0.15 // 1.0 - 0.85
+
+	match, err := r.DB.FindSimilar(embedding, groupDistance)
+	if err != nil {
+		slog.Warn("dedup check failed, proceeding with insert", "error", err)
+	} else if match != nil && match.Distance <= maxDistance {
+		// Near-duplicate: return existing memory instead of inserting
+		slog.Info("deduplicated memory", "existing_id", match.Memory.ID, "distance", match.Distance)
+		return mcp.NewToolResultText(fmt.Sprintf(
+			"Deduplicated: existing memory %s is %.1f%% similar (project=%s, type=%s). No new memory created.",
+			match.Memory.ID, (1.0-match.Distance)*100, match.Memory.Project, match.Memory.Type,
+		)), nil
+	}
+
 	// Estimate token count (rough: ~4 chars per token)
 	tokenCount := len(content) / 4
 
@@ -71,6 +95,12 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 		Type:       memType,
 		Source:     "claude-code",
 		TokenCount: tokenCount,
+	}
+
+	// Soft-group: link to similar existing memory as parent
+	if match != nil {
+		memory.ParentID = match.Memory.ID
+		slog.Info("linking memory to similar parent", "parent_id", match.Memory.ID, "distance", match.Distance)
 	}
 
 	saved, err := r.DB.SaveMemory(memory)
@@ -85,7 +115,11 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 		}
 	}
 
-	return mcp.NewToolResultText(fmt.Sprintf("Stored memory %s (project=%s, type=%s, tokens=%d)", saved.ID, project, memType, tokenCount)), nil
+	msg := fmt.Sprintf("Stored memory %s (project=%s, type=%s, tokens=%d)", saved.ID, project, memType, tokenCount)
+	if memory.ParentID != "" {
+		msg += fmt.Sprintf(" [linked to similar memory %s, %.1f%% similar]", memory.ParentID, (1.0-match.Distance)*100)
+	}
+	return mcp.NewToolResultText(msg), nil
 }
 
 var secretPatterns = []*regexp.Regexp{

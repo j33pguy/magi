@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -59,6 +60,21 @@ func (s *StoreConversation) Handle(ctx context.Context, request mcp.CallToolRequ
 		return mcp.NewToolResultError(fmt.Sprintf("generating embedding: %v", err)), nil
 	}
 
+	// Deduplication: check for near-duplicate conversation
+	const dedupDistance = 0.05 // similarity > 0.95
+	const groupDistance = 0.15 // similarity > 0.85
+
+	match, err := s.DB.FindSimilar(embedding, groupDistance)
+	if err != nil {
+		slog.Warn("conversation dedup check failed, proceeding with insert", "error", err)
+	} else if match != nil && match.Distance <= dedupDistance {
+		slog.Info("deduplicated conversation", "existing_id", match.Memory.ID, "distance", match.Distance)
+		return mcp.NewToolResultText(fmt.Sprintf(
+			"Deduplicated: existing conversation %s is %.1f%% similar (channel=%s). No new memory created.",
+			match.Memory.ID, (1.0-match.Distance)*100, channel,
+		)), nil
+	}
+
 	memory := &db.Memory{
 		Content:    content,
 		Summary:    summary,
@@ -67,6 +83,11 @@ func (s *StoreConversation) Handle(ctx context.Context, request mcp.CallToolRequ
 		Visibility: "private",
 		Source:     channel,
 		TokenCount: len(content) / 4,
+	}
+
+	// Soft-group: link to similar existing memory as parent
+	if match != nil {
+		memory.ParentID = match.Memory.ID
 	}
 
 	saved, err := s.DB.SaveMemory(memory)
