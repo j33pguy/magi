@@ -8,6 +8,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/j33pguy/claude-memory/db"
 	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/claude-memory/search"
 )
 
 // Recall performs hybrid search (BM25 + vector + RRF) over stored memories.
@@ -19,7 +20,7 @@ type Recall struct {
 // Tool returns the MCP tool definition for recall.
 func (r *Recall) Tool() mcp.Tool {
 	return mcp.NewTool("recall",
-		mcp.WithDescription("Search stored memories using hybrid retrieval (BM25 keyword + semantic vector search fused via RRF). Returns the most relevant memories. Use 'projects' to query multiple namespaces at once (e.g. your agent namespace + crew:shared)."),
+		mcp.WithDescription("Search stored memories using hybrid retrieval (BM25 keyword + semantic vector search fused via RRF). Returns the most relevant memories. Use 'projects' to query multiple namespaces at once (e.g. your agent namespace + crew:shared). Set 'min_relevance' to filter out low-quality results (0.0-1.0, higher = stricter). If no results pass the threshold, the query is automatically rewritten and retried once."),
 		mcp.WithString("query", mcp.Required(), mcp.Description("Natural language search query")),
 		mcp.WithString("project", mcp.Description("Filter by a single project/namespace (e.g. 'agent:gilfoyle', 'crew:shared')")),
 		mcp.WithArray("projects", mcp.Description("Filter by multiple namespaces — results from any match (e.g. ['agent:dinesh','crew:shared'])"), mcp.WithStringItems()),
@@ -29,6 +30,7 @@ func (r *Recall) Tool() mcp.Tool {
 		),
 		mcp.WithArray("tags", mcp.Description("Filter by tags (any match)"), mcp.WithStringItems()),
 		mcp.WithNumber("top_k", mcp.Description("Number of results to return (default 5)")),
+		mcp.WithNumber("min_relevance", mcp.Description("Minimum relevance score 0.0-1.0 (default 0.0 = no filtering). Results with score below this are excluded. Score = 1.0 - cosine_distance.")),
 	)
 }
 
@@ -44,12 +46,7 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 	memType := request.GetString("type", "")
 	tags := request.GetStringSlice("tags", nil)
 	topK := request.GetInt("top_k", 5)
-
-	// Generate query embedding for vector leg of hybrid search
-	embedding, err := r.Embedder.Embed(ctx, query)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("generating query embedding: %v", err)), nil
-	}
+	minRelevance := request.GetFloat("min_relevance", 0.0)
 
 	filter := &db.MemoryFilter{
 		Project:    project,
@@ -59,27 +56,20 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 		Visibility: "all", // MCP callers (Claude Code, Gilfoyle) see all including private
 	}
 
-	results, err := r.DB.HybridSearch(embedding, query, filter, topK)
+	resp, err := search.Adaptive(ctx, r.DB, r.Embedder.Embed, query, filter, topK, minRelevance)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("hybrid search: %v", err)), nil
+		return mcp.NewToolResultError(fmt.Sprintf("search: %v", err)), nil
 	}
 
-	if len(results) == 0 {
-		return mcp.NewToolResultText("No matching memories found."), nil
-	}
-
-	// If a chunk matched, fetch the parent's full content
-	for _, result := range results {
-		if result.Memory.ParentID != "" {
-			parent, err := r.DB.GetMemory(result.Memory.ParentID)
-			if err == nil {
-				result.Memory.Content = parent.Content
-				result.Memory.Tags = parent.Tags
-			}
+	if len(resp.Results) == 0 {
+		msg := "No matching memories found."
+		if resp.Rewritten {
+			msg += fmt.Sprintf(" (also tried rewritten query: %q)", resp.RewrittenQuery)
 		}
+		return mcp.NewToolResultText(msg), nil
 	}
 
-	output, err := json.MarshalIndent(results, "", "  ")
+	output, err := json.MarshalIndent(resp, "", "  ")
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshaling results: %v", err)), nil
 	}
