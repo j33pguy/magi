@@ -75,13 +75,15 @@ func (s *Server) handleCreateConversation(w http.ResponseWriter, r *http.Request
 	for _, topic := range req.Topics {
 		tags = append(tags, "topic:"+topic)
 	}
-	if err := s.db.SetTags(saved.ID, tags); err != nil {
-		s.logger.Error("setting tags", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("setting tags: %v", err)})
-		return
-	}
 
-	writeJSON(w, http.StatusCreated, map[string]any{"id": saved.ID, "ok": true})
+	resp := map[string]any{"id": saved.ID, "ok": true}
+	if err := s.db.SetTags(saved.ID, tags); err != nil {
+		// Tags are non-fatal — the conversation memory is saved, tags can be retried.
+		s.logger.Warn("setting conversation tags failed (non-fatal)", "error", err, "memory_id", saved.ID)
+		tagErr := err.Error()
+		resp["tag_warning"] = "tags may not have been saved: " + tagErr[:min(len(tagErr), 80)]
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 func (s *Server) handleListConversations(w http.ResponseWriter, r *http.Request) {

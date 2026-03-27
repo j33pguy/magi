@@ -70,13 +70,13 @@ func NewClient(cfg *Config, logger *slog.Logger) (*Client, error) {
 
 	db := sql.OpenDB(connector)
 
-	// Turso Hrana streams expire quickly — force connection renewal to avoid
-	// "stream not found" errors on reused connections. Keep pool small and
-	// evict idle connections aggressively.
-	db.SetMaxOpenConns(1)
+	// Keep pool small for embedded replica. Turso Hrana streams can expire on
+	// long-idle connections, so cap idle time. Tag writes use batched INSERTs
+	// to minimize round-trips and stream expiry exposure.
+	db.SetMaxOpenConns(2)
 	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(30 * time.Second)
-	db.SetConnMaxIdleTime(5 * time.Second)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(30 * time.Second)
 
 	// Verify connectivity
 	if err := db.Ping(); err != nil {
