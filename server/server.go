@@ -82,6 +82,15 @@ func (s *Server) registerTools() {
 
 	update := &tools.Update{DB: s.dbClient, Embedder: s.embedder}
 	s.mcp.AddTool(update.Tool(), update.Handle)
+
+	storeConv := &tools.StoreConversation{DB: s.dbClient, Embedder: s.embedder}
+	s.mcp.AddTool(storeConv.Tool(), storeConv.Handle)
+
+	recallConv := &tools.RecallConversations{DB: s.dbClient, Embedder: s.embedder}
+	s.mcp.AddTool(recallConv.Tool(), recallConv.Handle)
+
+	recentConv := &tools.RecentConversations{DB: s.dbClient}
+	s.mcp.AddTool(recentConv.Tool(), recentConv.Handle)
 }
 
 func (s *Server) registerResources() {
