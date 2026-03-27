@@ -556,6 +556,53 @@ func hasDiagnosticKeywords(query string) bool {
 	return false
 }
 
+// FindSimilar returns the single closest non-archived memory by cosine distance.
+// Returns nil if no memories exist or the closest distance exceeds maxDistance.
+func (c *Client) FindSimilar(embedding []float32, maxDistance float64) (*VectorResult, error) {
+	var m Memory
+	var summary, source, sourceFile, parentID, archivedAt sql.NullString
+	var distance float64
+
+	err := c.DB.QueryRow(`
+		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
+		       m.parent_id, m.chunk_index, m.created_at, m.updated_at, m.archived_at, m.token_count,
+		       vector_distance_cos(m.embedding, vector32(?)) AS distance
+		FROM memories m
+		WHERE m.archived_at IS NULL
+		ORDER BY distance ASC
+		LIMIT 1
+	`, float32sToBytes(embedding)).Scan(
+		&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
+		&source, &sourceFile, &parentID, &m.ChunkIndex,
+		&m.CreatedAt, &m.UpdatedAt, &archivedAt, &m.TokenCount,
+		&distance,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("finding similar memory: %w", err)
+	}
+
+	if distance > maxDistance {
+		return nil, nil
+	}
+
+	m.Summary = summary.String
+	m.Source = source.String
+	m.SourceFile = sourceFile.String
+	m.ParentID = parentID.String
+	m.ArchivedAt = archivedAt.String
+
+	tags, err := c.GetTags(m.ID)
+	if err != nil {
+		return nil, err
+	}
+	m.Tags = tags
+
+	return &VectorResult{Memory: &m, Distance: distance}, nil
+}
+
 func nullString(s string) sql.NullString {
 	if s == "" {
 		return sql.NullString{}
