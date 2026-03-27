@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/claude-memory/search"
 )
 
 type conversationRequest struct {
@@ -24,9 +25,10 @@ type conversationRequest struct {
 }
 
 type conversationSearchRequest struct {
-	Query   string `json:"query"`
-	Limit   int    `json:"limit"`
-	Channel string `json:"channel"`
+	Query        string  `json:"query"`
+	Limit        int     `json:"limit"`
+	Channel      string  `json:"channel"`
+	MinRelevance float64 `json:"min_relevance"` // 0.0-1.0, filter by score >= threshold
 }
 
 func (s *Server) handleCreateConversation(w http.ResponseWriter, r *http.Request) {
@@ -174,13 +176,6 @@ func (s *Server) handleSearchConversations(w http.ResponseWriter, r *http.Reques
 		req.Limit = 5
 	}
 
-	embedding, err := s.embedder.Embed(r.Context(), req.Query)
-	if err != nil {
-		s.logger.Error("generating query embedding", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("generating embedding: %v", err)})
-		return
-	}
-
 	var tags []string
 	if req.Channel != "" {
 		tags = append(tags, "channel:"+req.Channel)
@@ -192,14 +187,14 @@ func (s *Server) handleSearchConversations(w http.ResponseWriter, r *http.Reques
 		Visibility: "all",
 	}
 
-	results, err := s.db.HybridSearch(embedding, req.Query, filter, req.Limit)
+	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.Limit, req.MinRelevance)
 	if err != nil {
 		s.logger.Error("searching conversations", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("searching conversations: %v", err)})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("search: %v", err)})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, results)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func formatConversationContent(req *conversationRequest) string {

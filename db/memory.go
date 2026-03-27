@@ -56,6 +56,7 @@ type HybridResult struct {
 	VecRank   int     `json:"vecRank"`   // 0 = not in vector results
 	BM25Rank  int     `json:"bm25Rank"`  // 0 = not in BM25 results
 	Distance  float64 `json:"distance"`  // cosine distance (lower = closer)
+	Score     float64 `json:"score"`     // relevance score: 1.0 - distance (higher = more relevant)
 }
 
 // VectorResult wraps a Memory with its similarity distance.
@@ -508,6 +509,7 @@ func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryF
 			VecRank:  e.vecRank,
 			BM25Rank: e.bm25Rank,
 			Distance: e.distance,
+			Score:    1.0 - e.distance,
 		})
 	}
 	// Simple insertion sort — result sets are small (topK*3 max)
