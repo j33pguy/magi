@@ -32,9 +32,9 @@ func NewServer(dbClient *db.Client, embedder embeddings.Provider, logger *slog.L
 		token:    os.Getenv("CLAUDE_MEMORY_API_TOKEN"),
 	}
 
-	port := os.Getenv("CLAUDE_MEMORY_HTTP_PORT")
+	port := os.Getenv("CLAUDE_MEMORY_LEGACY_HTTP_PORT")
 	if port == "" {
-		port = "8300"
+		port = "8302"
 	}
 
 	mux := http.NewServeMux()

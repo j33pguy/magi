@@ -1,6 +1,6 @@
 # claude-memory
 
-A RAG-based memory server for Claude — runs as both an MCP server (for Claude Code) and an HTTP API (for OpenClaw/other services).
+A RAG-based memory server for Claude — runs as an MCP server (for Claude Code), a gRPC service, and an HTTP/JSON API (via grpc-gateway) for OpenClaw and other services.
 
 Uses [Turso](https://turso.tech) (libSQL + vector search) for distributed storage with local embedded replicas, and local ONNX embeddings (all-MiniLM-L6-v2, 384-dim) — no external embedding API needed.
 
@@ -9,11 +9,20 @@ Uses [Turso](https://turso.tech) (libSQL + vector search) for distributed storag
 ```
 Claude Code (stdio MCP) ──┐
                            ├─→ claude-memory (Go) ─→ Local libSQL replica ↔ Turso cloud
-OpenClaw / services (HTTP)─┘        │
-                                    └─→ ONNX Runtime (local embeddings)
+OpenClaw / services ───────┘        │
+  ├ gRPC    (:8300)                 └─→ ONNX Runtime (local embeddings)
+  └ HTTP/JSON (:8301, grpc-gateway)
 ```
 
 Every machine gets a local embedded replica. Reads are fast and offline-capable. Writes sync to Turso cloud, keeping all Claude instances in sync.
+
+## Ports
+
+| Port | Protocol | Description |
+|------|----------|-------------|
+| `:8300` | gRPC (h2) | Primary API — native gRPC clients |
+| `:8301` | HTTP/JSON | grpc-gateway reverse proxy — REST-compatible |
+| `:8302` | HTTP/JSON | Legacy HTTP API (will be removed once grpc-gateway is proven) |
 
 ## MCP Tools
 
@@ -36,22 +45,19 @@ Every machine gets a local embedded replica. Reads are fast and offline-capable.
 | `memory://decisions` | Decision-type memories |
 | `memory://preferences` | User preferences |
 
-## HTTP API
+## gRPC / HTTP API
 
-Runs on port `8300` alongside the stdio MCP server. Use `--http-only` flag for standalone HTTP mode (e.g. systemd deployments).
+The gRPC service and grpc-gateway provide the same endpoints. Auth via `Authorization: Bearer <token>` metadata (gRPC) or header (HTTP).
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /health` | Health check (no auth) |
-| `POST /recall` | Semantic search |
-| `POST /remember` | Store a memory |
-| `GET /memories` | List/filter memories |
-| `DELETE /memories/{id}` | Archive a memory |
-| `POST /conversations` | Store a conversation summary |
-| `GET /conversations` | List recent conversations (`?channel=`, `?since=`, `?limit=`) |
-| `POST /conversations/search` | Search conversations semantically |
-
-Auth: `Authorization: Bearer <token>` (set via `CLAUDE_MEMORY_API_TOKEN`).
+| gRPC RPC | HTTP Endpoint | Description |
+|----------|---------------|-------------|
+| `Health` | `GET /health` | Health check (no auth) |
+| `Remember` | `POST /remember` | Store a memory |
+| `Recall` | `POST /recall` | Semantic search |
+| `Forget` | `DELETE /memories/{id}` | Archive a memory |
+| `List` | `GET /memories` | List/filter memories |
+| `CreateConversation` | `POST /conversations` | Store a conversation summary |
+| `SearchConversations` | `POST /conversations/search` | Search conversations semantically |
 
 ## Environment Variables
 
@@ -62,8 +68,10 @@ Auth: `Authorization: Bearer <token>` (set via `CLAUDE_MEMORY_API_TOKEN`).
 | `CLAUDE_MEMORY_REPLICA_PATH` | `~/.claude/memory.db` | Local replica path |
 | `CLAUDE_MEMORY_SYNC_INTERVAL` | `60` | Sync interval (seconds) |
 | `CLAUDE_MEMORY_MODEL_DIR` | `~/.claude/models` | ONNX model directory |
-| `CLAUDE_MEMORY_HTTP_PORT` | `8300` | HTTP API port |
-| `CLAUDE_MEMORY_API_TOKEN` | _(unset = no auth)_ | Bearer token for HTTP API |
+| `CLAUDE_MEMORY_GRPC_PORT` | `8300` | gRPC server port |
+| `CLAUDE_MEMORY_HTTP_PORT` | `8301` | grpc-gateway HTTP port |
+| `CLAUDE_MEMORY_LEGACY_HTTP_PORT` | `8302` | Legacy HTTP API port |
+| `CLAUDE_MEMORY_API_TOKEN` | _(unset = no auth)_ | Bearer token for API auth |
 
 ## Build
 
@@ -78,6 +86,13 @@ dnf install onnxruntime-devel  # or install .so manually
 
 CGO_ENABLED=1 make build
 make install
+```
+
+### Regenerate protobuf stubs
+
+```bash
+# Requires: buf, protoc-gen-go, protoc-gen-go-grpc, protoc-gen-grpc-gateway
+make proto
 ```
 
 ## Claude Code Integration

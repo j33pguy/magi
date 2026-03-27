@@ -1,4 +1,4 @@
-.PHONY: build install test clean import fmt lint
+.PHONY: build install test clean import fmt lint proto
 
 BINARY   := claude-memory
 IMPORT   := claude-memory-import
@@ -23,6 +23,9 @@ import: build
 	@if [ -z "$(DIR)" ]; then echo "Usage: make import DIR=<path>"; exit 1; fi
 	bin/$(IMPORT) --dir $(DIR)
 
+proto:
+	buf generate
+
 fmt:
 	go fmt ./...
 
@@ -37,4 +40,5 @@ help:
 	@echo "  clean    - Remove build artifacts"
 	@echo "  import   - Import markdown files (DIR=<path>)"
 	@echo "  fmt      - Format Go source"
+	@echo "  proto    - Regenerate protobuf stubs (requires buf)"
 	@echo "  lint     - Run linter"

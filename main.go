@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	// --http-only: run HTTP API server only (no stdio MCP). Used for systemd deployments.
+	// --http-only: run HTTP/gRPC servers only (no stdio MCP). Used for systemd deployments.
 	httpOnly := len(os.Args) > 1 && os.Args[1] == "--http-only"
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -34,9 +34,25 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
+	// Start gRPC server (all modes)
+	go func() {
+		if err := s.ServeGRPC(); err != nil {
+			logger.Error("gRPC server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Start grpc-gateway HTTP proxy (all modes)
+	go func() {
+		if err := s.ServeGateway(); err != nil {
+			logger.Error("grpc-gateway server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
 	if httpOnly {
-		// HTTP-only mode: serve HTTP API and block on signal
-		logger.Info("Starting in HTTP-only mode")
+		// HTTP-only mode: serve legacy HTTP API alongside gRPC and block on signal
+		logger.Info("Starting in HTTP-only mode (gRPC + gateway + legacy HTTP)")
 		go func() {
 			if err := s.ServeHTTP(); err != nil {
 				logger.Error("HTTP API server error", "error", err)
@@ -47,13 +63,16 @@ func main() {
 		logger.Info("Received shutdown signal")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		if err := s.ShutdownGRPC(ctx); err != nil {
+			logger.Error("gRPC shutdown error", "error", err)
+		}
 		if err := s.ShutdownHTTP(ctx); err != nil {
 			logger.Error("HTTP shutdown error", "error", err)
 		}
 		return
 	}
 
-	// Default: MCP stdio mode — HTTP API runs in background, MCP blocks on stdio
+	// Default: MCP stdio mode — gRPC, gateway, and legacy HTTP run in background
 	go func() {
 		if err := s.ServeHTTP(); err != nil {
 			logger.Error("HTTP API server error", "error", err)
@@ -65,6 +84,9 @@ func main() {
 		logger.Info("Received shutdown signal")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		if err := s.ShutdownGRPC(ctx); err != nil {
+			logger.Error("gRPC shutdown error", "error", err)
+		}
 		if err := s.ShutdownHTTP(ctx); err != nil {
 			logger.Error("HTTP shutdown error", "error", err)
 		}
