@@ -21,7 +21,7 @@ func (l *List) Tool() mcp.Tool {
 		mcp.WithString("project", mcp.Description("Filter by project name")),
 		mcp.WithString("type",
 			mcp.Description("Filter by memory type"),
-			mcp.Enum("note", "decision", "audit", "runbook", "preference", "context", "security"),
+			mcp.Enum("memory", "incident", "lesson", "decision", "project_context", "conversation", "audit", "runbook", "preference", "context", "security"),
 		),
 		mcp.WithArray("tags", mcp.Description("Filter by tags"), mcp.WithStringItems()),
 		mcp.WithNumber("limit", mcp.Description("Max results (default 20)")),

@@ -492,12 +492,19 @@ func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryF
 		}
 	}
 
+	// Boost incident/lesson results when query contains diagnostic keywords.
+	diagnosticBoost := hasDiagnosticKeywords(query)
+
 	// Sort by RRF score descending.
 	results := make([]*HybridResult, 0, len(scored))
 	for _, e := range scored {
+		rrfScore := e.rrfScore
+		if diagnosticBoost && (e.memory.Type == "incident" || e.memory.Type == "lesson") {
+			rrfScore *= 1.5
+		}
 		results = append(results, &HybridResult{
 			Memory:   e.memory,
-			RRFScore: e.rrfScore,
+			RRFScore: rrfScore,
 			VecRank:  e.vecRank,
 			BM25Rank: e.bm25Rank,
 			Distance: e.distance,
@@ -526,6 +533,25 @@ func float32sToBytes(v []float32) []byte {
 		binary.LittleEndian.PutUint32(buf[i*4:], math.Float32bits(f))
 	}
 	return buf
+}
+
+// diagnosticKeywords are terms that suggest the user is debugging or investigating
+// a past failure. When detected, incident/lesson memories get an RRF score boost.
+var diagnosticKeywords = []string{
+	"broke", "broken", "error", "fix", "fixed", "why", "cause", "caused",
+	"failed", "failing", "failure", "offline", "issue", "bug", "crash",
+	"crashed", "down", "outage", "incident", "debug", "troubleshoot",
+}
+
+// hasDiagnosticKeywords returns true if the query contains any diagnostic keyword.
+func hasDiagnosticKeywords(query string) bool {
+	lower := strings.ToLower(query)
+	for _, kw := range diagnosticKeywords {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 func nullString(s string) sql.NullString {

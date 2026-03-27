@@ -32,7 +32,7 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Type == "" {
-		req.Type = "note"
+		req.Type = "memory"
 	}
 	if req.Source == "" {
 		req.Source = "api"

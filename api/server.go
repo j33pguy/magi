@@ -43,6 +43,7 @@ func NewServer(dbClient *db.Client, embedder embeddings.Provider, logger *slog.L
 	mux.HandleFunc("POST /remember", s.requireAuth(s.handleRemember))
 	mux.HandleFunc("GET /memories", s.requireAuth(s.handleListMemories))
 	mux.HandleFunc("DELETE /memories/{id}", s.requireAuth(s.handleDeleteMemory))
+	mux.HandleFunc("GET /search", s.requireAuth(s.handleSearch))
 	mux.HandleFunc("POST /conversations", s.requireAuth(s.handleCreateConversation))
 	mux.HandleFunc("GET /conversations", s.requireAuth(s.handleListConversations))
 	mux.HandleFunc("POST /conversations/search", s.requireAuth(s.handleSearchConversations))
