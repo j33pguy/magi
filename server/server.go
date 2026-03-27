@@ -74,6 +74,12 @@ func (s *Server) registerTools() {
 	recall := &tools.Recall{DB: s.dbClient, Embedder: s.embedder}
 	s.mcp.AddTool(recall.Tool(), recall.Handle)
 
+	recallIncidents := &tools.RecallIncidents{DB: s.dbClient, Embedder: s.embedder}
+	s.mcp.AddTool(recallIncidents.Tool(), recallIncidents.Handle)
+
+	recallLessons := &tools.RecallLessons{DB: s.dbClient, Embedder: s.embedder}
+	s.mcp.AddTool(recallLessons.Tool(), recallLessons.Handle)
+
 	forget := &tools.Forget{DB: s.dbClient}
 	s.mcp.AddTool(forget.Tool(), forget.Handle)
 

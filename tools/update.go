@@ -24,7 +24,7 @@ func (u *Update) Tool() mcp.Tool {
 		mcp.WithString("summary", mcp.Description("New summary")),
 		mcp.WithString("type",
 			mcp.Description("New memory type"),
-			mcp.Enum("note", "decision", "audit", "runbook", "preference", "context", "security"),
+			mcp.Enum("memory", "incident", "lesson", "decision", "project_context", "conversation", "audit", "runbook", "preference", "context", "security"),
 		),
 		mcp.WithArray("tags", mcp.Description("Replace tags with these"), mcp.WithStringItems()),
 	)

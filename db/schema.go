@@ -28,6 +28,7 @@ func (s *Schema) run() error {
 		{1, migrationV1},
 		{2, migrationV2},
 		{3, migrationV3},
+		{4, migrationV4},
 	}
 
 	for _, m := range migrations {
@@ -199,6 +200,14 @@ CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
 	INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
 	INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
 END;
+`
+
+// migrationV4 introduces rich memory types (Issue #8).
+// Renames the old default 'note' to 'memory' and adds an index on (type, created_at)
+// to speed up type-filtered queries used by recall_incidents / recall_lessons.
+const migrationV4 = `
+UPDATE memories SET type = 'memory' WHERE type = 'note';
+CREATE INDEX IF NOT EXISTS idx_memories_type_created ON memories(type, created_at DESC);
 `
 
 // migrationV2 adds visibility field for access control.

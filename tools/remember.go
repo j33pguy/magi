@@ -26,7 +26,7 @@ func (r *Remember) Tool() mcp.Tool {
 		mcp.WithString("project", mcp.Required(), mcp.Description("Project name (e.g. 'iac', 'famtask', 'global')")),
 		mcp.WithString("type",
 			mcp.Description("Memory type"),
-			mcp.Enum("note", "decision", "audit", "runbook", "preference", "context", "security"),
+			mcp.Enum("memory", "incident", "lesson", "decision", "project_context", "conversation", "audit", "runbook", "preference", "context", "security"),
 		),
 		mcp.WithString("summary", mcp.Description("Brief one-line summary of the memory")),
 		mcp.WithArray("tags", mcp.Description("Tags for categorization"), mcp.WithStringItems()),
@@ -45,7 +45,7 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 		return mcp.NewToolResultError("project is required"), nil
 	}
 
-	memType := request.GetString("type", "note")
+	memType := request.GetString("type", "memory")
 	summary := request.GetString("summary", "")
 	tags := request.GetStringSlice("tags", nil)
 
