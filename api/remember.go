@@ -63,16 +63,20 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var tagErr string
 	if len(req.Tags) > 0 {
 		if err := s.db.SetTags(saved.ID, req.Tags); err != nil {
-			s.logger.Error("setting tags", "error", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("setting tags: %v", err)})
-			return
+			// Tags are non-fatal — log the error but return the memory ID.
+			// Turso Hrana streams can expire between the INSERT and the tag write;
+			// the memory is stored, tags can be retried later.
+			s.logger.Warn("setting tags failed (non-fatal)", "error", err, "memory_id", saved.ID)
+			tagErr = err.Error()
 		}
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"id": saved.ID,
-		"ok": true,
-	})
+	resp := map[string]any{"id": saved.ID, "ok": true}
+	if tagErr != "" {
+		resp["tag_warning"] = "tags may not have been saved: " + tagErr[:min(len(tagErr), 80)]
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
