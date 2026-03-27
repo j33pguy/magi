@@ -1,6 +1,9 @@
 package db
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Schema handles database migrations.
 type Schema struct {
@@ -36,7 +39,7 @@ func (s *Schema) run() error {
 			continue
 		}
 
-		if _, err := s.client.DB.Exec(m.sql); err != nil {
+		if err := s.execMulti(m.sql); err != nil {
 			return fmt.Errorf("running migration %d: %w", m.version, err)
 		}
 
@@ -47,6 +50,22 @@ func (s *Schema) run() error {
 		s.client.logger.Info("Applied migration", "version", m.version)
 	}
 
+	return nil
+}
+
+// execMulti splits a SQL string on semicolons and executes each statement
+// individually. Turso (libSQL over Hrana) rejects multi-statement strings.
+func (s *Schema) execMulti(sql string) error {
+	statements := strings.Split(sql, ";")
+	for _, stmt := range statements {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+		if _, err := s.client.DB.Exec(stmt); err != nil {
+			return fmt.Errorf("executing statement: %w\nSQL: %s", err, stmt)
+		}
+	}
 	return nil
 }
 
