@@ -53,10 +53,13 @@ func (s *Schema) run() error {
 	return nil
 }
 
-// execMulti splits a SQL string on semicolons and executes each statement
-// individually. Turso (libSQL over Hrana) rejects multi-statement strings.
+// execMulti splits a SQL string into individual statements and executes each
+// one separately. Turso (libSQL over Hrana) rejects multi-statement strings.
+//
+// Splitting is semicolon-based but aware of BEGIN...END blocks (triggers),
+// so trigger bodies are not split mid-statement.
 func (s *Schema) execMulti(sql string) error {
-	statements := strings.Split(sql, ";")
+	statements := splitSQL(sql)
 	for _, stmt := range statements {
 		stmt = strings.TrimSpace(stmt)
 		if stmt == "" {
@@ -67,6 +70,43 @@ func (s *Schema) execMulti(sql string) error {
 		}
 	}
 	return nil
+}
+
+// splitSQL splits a SQL string into individual statements on semicolons,
+// but treats BEGIN...END blocks as atomic (for triggers/procedures).
+func splitSQL(sql string) []string {
+	var stmts []string
+	var current strings.Builder
+	depth := 0
+	upper := strings.ToUpper(sql)
+
+	for i := 0; i < len(sql); i++ {
+		ch := sql[i]
+
+		// Track BEGIN...END depth (case-insensitive)
+		if i+5 <= len(upper) && upper[i:i+5] == "BEGIN" {
+			depth++
+		}
+		if i+3 <= len(upper) && upper[i:i+3] == "END" {
+			if depth > 0 {
+				depth--
+			}
+		}
+
+		if ch == ';' && depth == 0 {
+			stmt := strings.TrimSpace(current.String())
+			if stmt != "" {
+				stmts = append(stmts, stmt)
+			}
+			current.Reset()
+			continue
+		}
+		current.WriteByte(ch)
+	}
+	if stmt := strings.TrimSpace(current.String()); stmt != "" {
+		stmts = append(stmts, stmt)
+	}
+	return stmts
 }
 
 func (s *Schema) createMetaTable() error {
