@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	github.com/mark3labs/mcp-go v0.45.0
 	github.com/tursodatabase/go-libsql v0.0.0-20251219133454-43644db490ff
-	github.com/yalue/onnxruntime_go v1.27.0
+	github.com/yalue/onnxruntime_go v1.20.0
 )
 
 require (
