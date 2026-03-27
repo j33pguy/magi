@@ -24,6 +24,9 @@ Every machine gets a local embedded replica. Reads are fast and offline-capable.
 | `forget` | Soft-delete (archive) or hard-delete |
 | `list_memories` | Browse/filter without semantic search |
 | `update_memory` | Modify content/metadata, re-embeds if changed |
+| `store_conversation` | Store a conversation summary with auto-embedding |
+| `recall_conversations` | Search conversation history (hybrid retrieval) |
+| `recent_conversations` | List recent conversations across channels |
 
 ## MCP Resources
 
@@ -35,7 +38,7 @@ Every machine gets a local embedded replica. Reads are fast and offline-capable.
 
 ## HTTP API
 
-Runs on port `8300` alongside the stdio MCP server.
+Runs on port `8300` alongside the stdio MCP server. Use `--http-only` flag for standalone HTTP mode (e.g. systemd deployments).
 
 | Endpoint | Description |
 |----------|-------------|
@@ -44,6 +47,9 @@ Runs on port `8300` alongside the stdio MCP server.
 | `POST /remember` | Store a memory |
 | `GET /memories` | List/filter memories |
 | `DELETE /memories/{id}` | Archive a memory |
+| `POST /conversations` | Store a conversation summary |
+| `GET /conversations` | List recent conversations (`?channel=`, `?since=`, `?limit=`) |
+| `POST /conversations/search` | Search conversations semantically |
 
 Auth: `Authorization: Bearer <token>` (set via `CLAUDE_MEMORY_API_TOKEN`).
 
