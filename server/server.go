@@ -5,22 +5,34 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
+	"os"
+	"time"
 
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	mcpserver "github.com/mark3labs/mcp-go/server"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	"github.com/j33pguy/claude-memory/api"
 	"github.com/j33pguy/claude-memory/db"
 	"github.com/j33pguy/claude-memory/embeddings"
+	memgrpc "github.com/j33pguy/claude-memory/grpc"
+	pb "github.com/j33pguy/claude-memory/proto/memory/v1"
 	"github.com/j33pguy/claude-memory/resources"
 	"github.com/j33pguy/claude-memory/tools"
 )
 
 // Server is the claude-memory MCP server.
 type Server struct {
-	mcp      *mcpserver.MCPServer
-	httpAPI  *api.Server
-	dbClient *db.Client
-	embedder *embeddings.OnnxProvider
-	logger   *slog.Logger
+	mcp        *mcpserver.MCPServer
+	httpAPI    *api.Server
+	grpcServer *grpc.Server
+	gwServer   *http.Server
+	dbClient   *db.Client
+	embedder   *embeddings.OnnxProvider
+	logger     *slog.Logger
 }
 
 // New creates and configures a new claude-memory MCP server.
@@ -62,6 +74,15 @@ func New(logger *slog.Logger) (*Server, error) {
 	s.registerTools()
 	s.registerResources()
 
+	// gRPC server with auth interceptor
+	token := os.Getenv("CLAUDE_MEMORY_API_TOKEN")
+	s.grpcServer = grpc.NewServer(
+		grpc.UnaryInterceptor(memgrpc.AuthInterceptor(token)),
+	)
+	grpcSvc := memgrpc.NewServer(s.dbClient, s.embedder, logger.WithGroup("grpc"))
+	pb.RegisterMemoryServiceServer(s.grpcServer, grpcSvc)
+
+	// Keep existing HTTP API (will be deprecated once grpc-gateway is proven)
 	s.httpAPI = api.NewServer(s.dbClient, s.embedder, logger.WithGroup("http"))
 
 	return s, nil
@@ -110,14 +131,76 @@ func (s *Server) registerResources() {
 	s.mcp.AddResource(prefs.Resource(), prefs.Handle)
 }
 
-// ServeHTTP starts the HTTP API server. Blocks until the server stops.
+// ServeGRPC starts the gRPC server. Blocks until the server stops.
+func (s *Server) ServeGRPC() error {
+	port := os.Getenv("CLAUDE_MEMORY_GRPC_PORT")
+	if port == "" {
+		port = "8300"
+	}
+
+	lis, err := net.Listen("tcp", net.JoinHostPort("", port))
+	if err != nil {
+		return fmt.Errorf("gRPC listen: %w", err)
+	}
+
+	s.logger.Info("Starting gRPC server", "addr", lis.Addr().String())
+	if err := s.grpcServer.Serve(lis); err != nil {
+		return fmt.Errorf("gRPC serve: %w", err)
+	}
+	return nil
+}
+
+// ServeGateway starts the grpc-gateway HTTP/JSON reverse proxy.
+// It connects to the gRPC server and proxies JSON requests.
+func (s *Server) ServeGateway() error {
+	port := os.Getenv("CLAUDE_MEMORY_HTTP_PORT")
+	if port == "" {
+		port = "8301"
+	}
+	grpcPort := os.Getenv("CLAUDE_MEMORY_GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "8300"
+	}
+
+	ctx := context.Background()
+	mux := runtime.NewServeMux()
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+
+	grpcAddr := net.JoinHostPort("localhost", grpcPort)
+	if err := pb.RegisterMemoryServiceHandlerFromEndpoint(ctx, mux, grpcAddr, opts); err != nil {
+		return fmt.Errorf("registering gateway: %w", err)
+	}
+
+	s.gwServer = &http.Server{
+		Addr:              net.JoinHostPort("", port),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	s.logger.Info("Starting grpc-gateway HTTP server", "addr", s.gwServer.Addr, "upstream", grpcAddr)
+	if err := s.gwServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return fmt.Errorf("gateway http: %w", err)
+	}
+	return nil
+}
+
+// ServeHTTP starts the legacy HTTP API server. Blocks until the server stops.
 func (s *Server) ServeHTTP() error {
 	return s.httpAPI.Start()
 }
 
-// ShutdownHTTP gracefully stops the HTTP API server.
+// ShutdownHTTP gracefully stops the legacy HTTP API server.
 func (s *Server) ShutdownHTTP(ctx context.Context) error {
 	return s.httpAPI.Shutdown(ctx)
+}
+
+// ShutdownGRPC gracefully stops the gRPC server and gateway.
+func (s *Server) ShutdownGRPC(ctx context.Context) error {
+	s.grpcServer.GracefulStop()
+	if s.gwServer != nil {
+		return s.gwServer.Shutdown(ctx)
+	}
+	return nil
 }
 
 // Run starts the MCP server on stdio.
