@@ -1,0 +1,547 @@
+// Package web provides an embedded web GUI for browsing claude-memory.
+package web
+
+import (
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/claude-memory/embeddings"
+)
+
+const pageSize = 30
+
+// RegisterRoutes registers all web UI routes on the given mux.
+func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings.Provider, logger *slog.Logger) {
+	h := &handler{db: dbClient, embedder: embedder, logger: logger, tmpl: parseTemplates()}
+
+	// Pages
+	mux.HandleFunc("GET /", h.listPage)
+	mux.HandleFunc("GET /search", h.searchPage)
+	mux.HandleFunc("GET /memory/{id}", h.detailPage)
+	mux.HandleFunc("GET /memory/{id}/partial", h.memoryPartial)
+	mux.HandleFunc("GET /new", h.newPage)
+	mux.HandleFunc("GET /stats", h.statsPage)
+
+	// API endpoints
+	mux.HandleFunc("GET /api/memories", h.apiMemories)
+	mux.HandleFunc("GET /api/search", h.apiSearch)
+	mux.HandleFunc("GET /api/stats", h.apiStats)
+	mux.HandleFunc("POST /api/memories", h.apiCreateMemory)
+	mux.HandleFunc("DELETE /api/memories/{id}", h.apiDeleteMemory)
+}
+
+type handler struct {
+	db       *db.Client
+	embedder embeddings.Provider
+	logger   *slog.Logger
+	tmpl     *template.Template
+}
+
+// --- Template helpers ---
+
+func parseTemplates() *template.Template {
+	funcMap := template.FuncMap{
+		"truncate":     truncate,
+		"formatDate":   formatDate,
+		"speakerBadge": speakerBadge,
+		"areaBadge":    areaBadge,
+		"speakerColor": speakerColor,
+		"areaColor":    areaColor,
+	}
+	return template.Must(
+		template.New("").Funcs(funcMap).ParseFS(WebFS, "templates/*.html"),
+	)
+}
+
+func truncate(s string, n int) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
+}
+
+func formatDate(s string) string {
+	for _, layout := range []string{time.DateTime, time.RFC3339} {
+		if t, err := time.Parse(layout, s); err == nil {
+			now := time.Now()
+			diff := now.Sub(t)
+			switch {
+			case diff < time.Minute:
+				return "just now"
+			case diff < time.Hour:
+				return fmt.Sprintf("%dm ago", int(diff.Minutes()))
+			case diff < 24*time.Hour:
+				return fmt.Sprintf("%dh ago", int(diff.Hours()))
+			case diff < 7*24*time.Hour:
+				return fmt.Sprintf("%dd ago", int(diff.Hours()/24))
+			default:
+				return t.Format("Jan 2, 2006")
+			}
+		}
+	}
+	return s
+}
+
+func speakerBadge(s string) string {
+	switch s {
+	case "j33p":
+		return "badge-green"
+	case "gilfoyle":
+		return "badge-purple"
+	case "agent":
+		return "badge-blue"
+	case "system":
+		return "badge-gray"
+	default:
+		return "badge-gray"
+	}
+}
+
+func areaBadge(s string) string {
+	switch s {
+	case "work":
+		return "badge-blue"
+	case "homelab":
+		return "badge-amber"
+	case "home":
+		return "badge-green"
+	case "family":
+		return "badge-pink"
+	case "project":
+		return "badge-purple"
+	case "meta":
+		return "badge-gray"
+	default:
+		return "badge-gray"
+	}
+}
+
+func speakerColor(s string) string {
+	switch s {
+	case "j33p":
+		return "#10b981"
+	case "gilfoyle":
+		return "#a855f7"
+	case "agent":
+		return "#3b82f6"
+	case "system":
+		return "#64748b"
+	default:
+		return "#64748b"
+	}
+}
+
+func areaColor(s string) string {
+	switch s {
+	case "work":
+		return "#3b82f6"
+	case "homelab":
+		return "#f59e0b"
+	case "home":
+		return "#10b981"
+	case "family":
+		return "#ec4899"
+	case "project":
+		return "#a855f7"
+	case "meta":
+		return "#64748b"
+	default:
+		return "#64748b"
+	}
+}
+
+// --- Page handlers ---
+
+type listData struct {
+	Nav        string
+	Memories   []*db.Memory
+	Filter     db.MemoryFilter
+	HasMore    bool
+	NextOffset int
+}
+
+func (h *handler) listPage(w http.ResponseWriter, r *http.Request) {
+	filter := filterFromQuery(r)
+	filter.Limit = pageSize + 1
+	filter.Visibility = "all"
+
+	memories, err := h.db.ListMemories(&filter)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	hasMore := len(memories) > pageSize
+	if hasMore {
+		memories = memories[:pageSize]
+	}
+
+	data := listData{
+		Nav:        "list",
+		Memories:   memories,
+		Filter:     filter,
+		HasMore:    hasMore,
+		NextOffset: filter.Offset + pageSize,
+	}
+	h.render(w, "base", data)
+}
+
+func (h *handler) searchPage(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "base", map[string]string{"Nav": "search"})
+}
+
+func (h *handler) detailPage(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	mem, err := h.db.GetMemory(id)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	data := struct {
+		Nav    string
+		Memory *db.Memory
+	}{Nav: "", Memory: mem}
+	h.render(w, "base", data)
+}
+
+func (h *handler) newPage(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "base", map[string]string{"Nav": "new"})
+}
+
+func (h *handler) statsPage(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.getStats()
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+	stats.Nav = "stats"
+	h.render(w, "base", stats)
+}
+
+// --- HTMX partial handlers ---
+
+func (h *handler) memoryPartial(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	mem, err := h.db.GetMemory(id)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	data := struct{ Memory *db.Memory }{Memory: mem}
+	h.renderPartial(w, "memory_expanded", data)
+}
+
+// --- API handlers ---
+
+func (h *handler) apiMemories(w http.ResponseWriter, r *http.Request) {
+	filter := filterFromQuery(r)
+	filter.Limit = pageSize + 1
+	filter.Visibility = "all"
+
+	memories, err := h.db.ListMemories(&filter)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	hasMore := len(memories) > pageSize
+	if hasMore {
+		memories = memories[:pageSize]
+	}
+
+	// If Accept: application/json, return JSON
+	if strings.Contains(r.Header.Get("Accept"), "application/json") {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(memories)
+		return
+	}
+
+	data := listData{
+		Memories:   memories,
+		Filter:     filter,
+		HasMore:    hasMore,
+		NextOffset: filter.Offset + pageSize,
+	}
+	h.renderPartial(w, "memory_rows", data)
+}
+
+type searchResult struct {
+	Memory       *db.Memory
+	ScorePercent float64
+}
+
+func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	if q == "" {
+		if strings.Contains(r.Header.Get("Accept"), "application/json") {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte("[]"))
+			return
+		}
+		h.renderPartial(w, "search_results", struct {
+			Results []searchResult
+			Query   string
+		}{})
+		return
+	}
+
+	embedding, err := h.embedder.Embed(r.Context(), q)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	filter := &db.MemoryFilter{Visibility: "all"}
+	results, err := h.db.HybridSearch(embedding, q, filter, 20)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	var sResults []searchResult
+	for _, r := range results {
+		score := r.Score * 100
+		if score < 0 {
+			score = 0
+		}
+		sResults = append(sResults, searchResult{
+			Memory:       r.Memory,
+			ScorePercent: score,
+		})
+	}
+
+	if strings.Contains(r.Header.Get("Accept"), "application/json") {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(sResults)
+		return
+	}
+
+	data := struct {
+		Results []searchResult
+		Query   string
+	}{Results: sResults, Query: q}
+	h.renderPartial(w, "search_results", data)
+}
+
+func (h *handler) apiCreateMemory(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form data", http.StatusBadRequest)
+		return
+	}
+
+	content := strings.TrimSpace(r.FormValue("content"))
+	if content == "" {
+		http.Error(w, "content is required", http.StatusBadRequest)
+		return
+	}
+
+	mem := &db.Memory{
+		Content: content,
+		Summary: strings.TrimSpace(r.FormValue("summary")),
+		Type:    r.FormValue("type"),
+		Speaker: r.FormValue("speaker"),
+		Area:    r.FormValue("area"),
+		SubArea: r.FormValue("sub_area"),
+		Project: r.FormValue("project"),
+	}
+	if mem.Type == "" {
+		mem.Type = "note"
+	}
+
+	// Generate embedding
+	embedding, err := h.embedder.Embed(r.Context(), content)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+	mem.Embedding = embedding
+	mem.TokenCount = len(strings.Fields(content))
+
+	saved, err := h.db.SaveMemory(mem)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	// Handle tags
+	tagsStr := strings.TrimSpace(r.FormValue("tags"))
+	if tagsStr != "" {
+		var tags []string
+		for _, t := range strings.Split(tagsStr, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				tags = append(tags, t)
+			}
+		}
+		if len(tags) > 0 {
+			if err := h.db.SetTags(saved.ID, tags); err != nil {
+				h.logger.Error("failed to set tags", "error", err)
+			}
+		}
+	}
+
+	h.renderPartial(w, "create_success", saved)
+}
+
+func (h *handler) apiDeleteMemory(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := h.db.DeleteMemory(id); err != nil {
+		h.serverError(w, err)
+		return
+	}
+	// Return empty so HTMX removes the element
+	w.WriteHeader(http.StatusOK)
+}
+
+type statsData struct {
+	Nav           string
+	TotalMemories int
+	ThisWeek      int
+	TopArea       string
+	SpeakerCounts []countRow
+	AreaCounts    []countRow
+	TopTags       []countRow
+}
+
+type countRow struct {
+	Name    string
+	Count   int
+	Percent float64
+}
+
+func (h *handler) apiStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.getStats()
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stats)
+}
+
+func (h *handler) getStats() (*statsData, error) {
+	stats := &statsData{}
+
+	// Total memories
+	err := h.db.DB.QueryRow("SELECT COUNT(*) FROM memories WHERE archived_at IS NULL").Scan(&stats.TotalMemories)
+	if err != nil {
+		return nil, fmt.Errorf("counting memories: %w", err)
+	}
+
+	// This week
+	weekAgo := time.Now().AddDate(0, 0, -7).UTC().Format(time.DateTime)
+	err = h.db.DB.QueryRow("SELECT COUNT(*) FROM memories WHERE archived_at IS NULL AND created_at >= ?", weekAgo).Scan(&stats.ThisWeek)
+	if err != nil {
+		return nil, fmt.Errorf("counting this week: %w", err)
+	}
+
+	// Speaker breakdown
+	rows, err := h.db.DB.Query("SELECT speaker, COUNT(*) as cnt FROM memories WHERE archived_at IS NULL GROUP BY speaker ORDER BY cnt DESC")
+	if err != nil {
+		return nil, fmt.Errorf("speaker counts: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c countRow
+		if err := rows.Scan(&c.Name, &c.Count); err != nil {
+			return nil, err
+		}
+		stats.SpeakerCounts = append(stats.SpeakerCounts, c)
+	}
+	rows.Close()
+
+	// Area breakdown
+	rows, err = h.db.DB.Query("SELECT area, COUNT(*) as cnt FROM memories WHERE archived_at IS NULL GROUP BY area ORDER BY cnt DESC")
+	if err != nil {
+		return nil, fmt.Errorf("area counts: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c countRow
+		if err := rows.Scan(&c.Name, &c.Count); err != nil {
+			return nil, err
+		}
+		stats.AreaCounts = append(stats.AreaCounts, c)
+	}
+	rows.Close()
+
+	// Calculate percentages
+	if stats.TotalMemories > 0 {
+		for i := range stats.SpeakerCounts {
+			stats.SpeakerCounts[i].Percent = float64(stats.SpeakerCounts[i].Count) / float64(stats.TotalMemories) * 100
+		}
+		for i := range stats.AreaCounts {
+			stats.AreaCounts[i].Percent = float64(stats.AreaCounts[i].Count) / float64(stats.TotalMemories) * 100
+		}
+	}
+
+	// Top area
+	if len(stats.AreaCounts) > 0 {
+		// Skip empty area
+		for _, a := range stats.AreaCounts {
+			if a.Name != "" {
+				stats.TopArea = a.Name
+				break
+			}
+		}
+	}
+
+	// Top 10 tags
+	rows, err = h.db.DB.Query("SELECT tag, COUNT(*) as cnt FROM memory_tags GROUP BY tag ORDER BY cnt DESC LIMIT 10")
+	if err != nil {
+		return nil, fmt.Errorf("tag counts: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c countRow
+		if err := rows.Scan(&c.Name, &c.Count); err != nil {
+			return nil, err
+		}
+		stats.TopTags = append(stats.TopTags, c)
+	}
+
+	return stats, nil
+}
+
+// --- Helpers ---
+
+func filterFromQuery(r *http.Request) db.MemoryFilter {
+	q := r.URL.Query()
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	return db.MemoryFilter{
+		Speaker: q.Get("speaker"),
+		Area:    q.Get("area"),
+		SubArea: q.Get("sub_area"),
+		Type:    q.Get("type"),
+		Offset:  offset,
+	}
+}
+
+func (h *handler) render(w http.ResponseWriter, name string, data any) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := h.tmpl.ExecuteTemplate(w, name, data); err != nil {
+		h.logger.Error("template render error", "template", name, "error", err)
+	}
+}
+
+func (h *handler) renderPartial(w http.ResponseWriter, name string, data any) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := h.tmpl.ExecuteTemplate(w, name, data); err != nil {
+		h.logger.Error("partial render error", "template", name, "error", err)
+	}
+}
+
+func (h *handler) serverError(w http.ResponseWriter, err error) {
+	h.logger.Error("server error", "error", err)
+	http.Error(w, "internal server error", http.StatusInternalServerError)
+}

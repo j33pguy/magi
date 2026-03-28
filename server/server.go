@@ -22,6 +22,7 @@ import (
 	pb "github.com/j33pguy/claude-memory/proto/memory/v1"
 	"github.com/j33pguy/claude-memory/resources"
 	"github.com/j33pguy/claude-memory/tools"
+	"github.com/j33pguy/claude-memory/web"
 )
 
 // Server is the claude-memory MCP server.
@@ -30,6 +31,7 @@ type Server struct {
 	httpAPI    *api.Server
 	grpcServer *grpc.Server
 	gwServer   *http.Server
+	webServer  *http.Server
 	dbClient   *db.Client
 	embedder   *embeddings.OnnxProvider
 	logger     *slog.Logger
@@ -180,6 +182,37 @@ func (s *Server) ServeGateway() error {
 	s.logger.Info("Starting grpc-gateway HTTP server", "addr", s.gwServer.Addr, "upstream", grpcAddr)
 	if err := s.gwServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("gateway http: %w", err)
+	}
+	return nil
+}
+
+// ServeWeb starts the web UI server. Blocks until the server stops.
+func (s *Server) ServeWeb() error {
+	port := os.Getenv("CLAUDE_MEMORY_UI_PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	mux := http.NewServeMux()
+	web.RegisterRoutes(mux, s.dbClient, s.embedder, s.logger.WithGroup("web"))
+
+	s.webServer = &http.Server{
+		Addr:              net.JoinHostPort("", port),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	s.logger.Info("Starting web UI server", "addr", s.webServer.Addr)
+	if err := s.webServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return fmt.Errorf("web UI server: %w", err)
+	}
+	return nil
+}
+
+// ShutdownWeb gracefully stops the web UI server.
+func (s *Server) ShutdownWeb(ctx context.Context) error {
+	if s.webServer != nil {
+		return s.webServer.Shutdown(ctx)
 	}
 	return nil
 }

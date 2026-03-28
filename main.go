@@ -50,9 +50,16 @@ func main() {
 		}
 	}()
 
+	// Start web UI server (all modes)
+	go func() {
+		if err := s.ServeWeb(); err != nil {
+			logger.Error("Web UI server error", "error", err)
+		}
+	}()
+
 	if httpOnly {
 		// HTTP-only mode: serve legacy HTTP API alongside gRPC and block on signal
-		logger.Info("Starting in HTTP-only mode (gRPC + gateway + legacy HTTP)")
+		logger.Info("Starting in HTTP-only mode (gRPC + gateway + legacy HTTP + web UI)")
 		go func() {
 			if err := s.ServeHTTP(); err != nil {
 				logger.Error("HTTP API server error", "error", err)
@@ -68,6 +75,9 @@ func main() {
 		}
 		if err := s.ShutdownHTTP(ctx); err != nil {
 			logger.Error("HTTP shutdown error", "error", err)
+		}
+		if err := s.ShutdownWeb(ctx); err != nil {
+			logger.Error("Web UI shutdown error", "error", err)
 		}
 		return
 	}
@@ -89,6 +99,9 @@ func main() {
 		}
 		if err := s.ShutdownHTTP(ctx); err != nil {
 			logger.Error("HTTP shutdown error", "error", err)
+		}
+		if err := s.ShutdownWeb(ctx); err != nil {
+			logger.Error("Web UI shutdown error", "error", err)
 		}
 	}()
 
