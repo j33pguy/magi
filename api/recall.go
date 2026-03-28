@@ -7,6 +7,7 @@ import (
 
 	"github.com/j33pguy/claude-memory/db"
 	"github.com/j33pguy/claude-memory/search"
+	"github.com/j33pguy/claude-memory/tools"
 )
 
 type recallRequest struct {
@@ -21,6 +22,8 @@ type recallRequest struct {
 	Speaker      string   `json:"speaker"`
 	Area         string   `json:"area"`
 	SubArea      string   `json:"sub_area"`
+	After        string   `json:"after"`           // only memories after this time (ISO-8601 or relative: 7d, 2w, 1m)
+	Before       string   `json:"before"`          // only memories before this time
 }
 
 func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +42,17 @@ func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
 		req.TopK = 5
 	}
 
+	afterTime, err := tools.ParseTimeParam(req.After)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid 'after': %v", err)})
+		return
+	}
+	beforeTime, err := tools.ParseTimeParam(req.Before)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid 'before': %v", err)})
+		return
+	}
+
 	filter := &db.MemoryFilter{
 		Project:    req.Project,
 		Projects:   req.Projects,
@@ -48,6 +62,8 @@ func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
 		Speaker:    req.Speaker,
 		Area:       req.Area,
 		SubArea:    req.SubArea,
+		AfterTime:  afterTime,
+		BeforeTime: beforeTime,
 	}
 
 	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.TopK, req.MinRelevance, req.RecencyDecay)

@@ -59,6 +59,10 @@ type MemoryFilter struct {
 	Area string
 	// SubArea filters by sub-domain (power-platform, proxmox, claude-memory, etc.).
 	SubArea string
+	// AfterTime filters to memories created after this time.
+	AfterTime *time.Time
+	// BeforeTime filters to memories created before this time.
+	BeforeTime *time.Time
 }
 
 // HybridResult wraps a Memory with scores from both retrieval methods.
@@ -203,6 +207,7 @@ func (c *Client) ListMemories(filter *MemoryFilter) ([]*Memory, error) {
 
 	appendProjectCondition(filter, &conditions, &args)
 	appendTaxonomyConditions(filter, &conditions, &args)
+	appendTimeConditions(filter, &conditions, &args)
 	if filter.Type != "" {
 		conditions = append(conditions, "m.type = ?")
 		args = append(args, filter.Type)
@@ -259,6 +264,7 @@ func (c *Client) SearchMemories(embedding []float32, filter *MemoryFilter, topK 
 	if filter != nil {
 		appendProjectCondition(filter, &conditions, &args)
 		appendTaxonomyConditions(filter, &conditions, &args)
+		appendTimeConditions(filter, &conditions, &args)
 		if filter.Type != "" {
 			conditions = append(conditions, "m.type = ?")
 			args = append(args, filter.Type)
@@ -394,6 +400,18 @@ func appendTaxonomyConditions(filter *MemoryFilter, conditions *[]string, args *
 	}
 }
 
+// appendTimeConditions adds after/before time filtering to conditions/args.
+func appendTimeConditions(filter *MemoryFilter, conditions *[]string, args *[]any) {
+	if filter.AfterTime != nil {
+		*conditions = append(*conditions, "m.created_at > ?")
+		*args = append(*args, filter.AfterTime.UTC().Format(time.RFC3339))
+	}
+	if filter.BeforeTime != nil {
+		*conditions = append(*conditions, "m.created_at < ?")
+		*args = append(*args, filter.BeforeTime.UTC().Format(time.RFC3339))
+	}
+}
+
 // appendVisibilityCondition adds visibility filtering to conditions/args.
 func appendVisibilityCondition(filter *MemoryFilter, conditions *[]string, args *[]any) {
 	if filter.Visibility == "all" {
@@ -420,6 +438,7 @@ func (c *Client) SearchMemoriesBM25(query string, filter *MemoryFilter, topK int
 	if filter != nil {
 		appendProjectCondition(filter, &conditions, &args)
 		appendTaxonomyConditions(filter, &conditions, &args)
+		appendTimeConditions(filter, &conditions, &args)
 		if filter.Type != "" {
 			conditions = append(conditions, "m.type = ?")
 			args = append(args, filter.Type)

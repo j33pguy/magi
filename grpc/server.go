@@ -14,6 +14,7 @@ import (
 	"github.com/j33pguy/claude-memory/embeddings"
 	pb "github.com/j33pguy/claude-memory/proto/memory/v1"
 	"github.com/j33pguy/claude-memory/search"
+	"github.com/j33pguy/claude-memory/tools"
 )
 
 // Server implements the MemoryService gRPC service.
@@ -119,6 +120,15 @@ func (s *Server) Recall(ctx context.Context, req *pb.RecallRequest) (*pb.RecallR
 		topK = 5
 	}
 
+	afterTime, err := tools.ParseTimeParam(req.AfterTime)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid after_time: %v", err)
+	}
+	beforeTime, err := tools.ParseTimeParam(req.BeforeTime)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid before_time: %v", err)
+	}
+
 	filter := &db.MemoryFilter{
 		Project:    req.Project,
 		Projects:   req.Projects,
@@ -128,6 +138,8 @@ func (s *Server) Recall(ctx context.Context, req *pb.RecallRequest) (*pb.RecallR
 		Speaker:    req.Speaker,
 		Area:       req.Area,
 		SubArea:    req.SubArea,
+		AfterTime:  afterTime,
+		BeforeTime: beforeTime,
 	}
 
 	resp, err := search.Adaptive(ctx, s.db, s.embedder.Embed, req.Query, filter, topK, req.MinRelevance, req.RecencyDecay)
@@ -172,6 +184,15 @@ func (s *Server) List(_ context.Context, req *pb.ListRequest) (*pb.ListResponse,
 		tags = strings.Split(req.Tags, ",")
 	}
 
+	afterTime, err := tools.ParseTimeParam(req.AfterTime)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid after_time: %v", err)
+	}
+	beforeTime, err := tools.ParseTimeParam(req.BeforeTime)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid before_time: %v", err)
+	}
+
 	filter := &db.MemoryFilter{
 		Project:    req.Project,
 		Type:       req.Type,
@@ -182,6 +203,8 @@ func (s *Server) List(_ context.Context, req *pb.ListRequest) (*pb.ListResponse,
 		Speaker:    req.Speaker,
 		Area:       req.Area,
 		SubArea:    req.SubArea,
+		AfterTime:  afterTime,
+		BeforeTime: beforeTime,
 	}
 
 	memories, err := s.db.ListMemories(filter)
