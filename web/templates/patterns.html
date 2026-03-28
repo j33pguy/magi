@@ -1,0 +1,43 @@
+{{define "title"}}patterns{{end}}
+{{define "content"}}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2 style="font-size: 18px; font-weight: 600;">Behavioral Patterns</h2>
+    <button class="btn btn-primary"
+            hx-post="/api/analyze-patterns"
+            hx-indicator="#analyze-spinner">
+        Re-analyze
+        <span id="analyze-spinner" class="htmx-indicator"><span class="spinner"></span></span>
+    </button>
+</div>
+
+{{if .Groups}}
+{{range .Groups}}
+<div class="card" style="margin-bottom: 16px;">
+    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">{{.Label}}</div>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+    {{range .Patterns}}
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 10px; background: var(--bg); border-radius: 6px;">
+            <div style="flex: 1;">
+                <div style="font-size: 13px; line-height: 1.5;">{{.Content}}</div>
+                <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap;">
+                    {{range .Tags}}
+                        {{if not (eq . "pattern")}}{{if not (eq . "auto-detected")}}{{if not (eq . "speaker:system")}}
+                        <span class="badge badge-gray" style="font-size: 10px;">{{.}}</span>
+                        {{end}}{{end}}{{end}}
+                    {{end}}
+                    <span class="memory-date">{{formatDate .CreatedAt}}</span>
+                </div>
+            </div>
+            <a href="/memory/{{.ID}}" class="btn btn-sm btn-ghost" style="flex-shrink: 0;">View</a>
+        </div>
+    {{end}}
+    </div>
+</div>
+{{end}}
+{{else}}
+<div class="empty-state">
+    <p>No behavioral patterns detected yet.</p>
+    <p style="margin-top: 8px; font-size: 13px;">Click <strong>Re-analyze</strong> to scan your memories for patterns.</p>
+</div>
+{{end}}
+{{end}}
