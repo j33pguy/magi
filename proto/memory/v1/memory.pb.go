@@ -24,21 +24,27 @@ const (
 
 // Memory is the core memory record.
 type Memory struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
-	Summary       string                 `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
-	Project       string                 `protobuf:"bytes,4,opt,name=project,proto3" json:"project,omitempty"`
-	Type          string                 `protobuf:"bytes,5,opt,name=type,proto3" json:"type,omitempty"`
-	Visibility    string                 `protobuf:"bytes,6,opt,name=visibility,proto3" json:"visibility,omitempty"`
-	Source        string                 `protobuf:"bytes,7,opt,name=source,proto3" json:"source,omitempty"`
-	SourceFile    string                 `protobuf:"bytes,8,opt,name=source_file,json=sourceFile,proto3" json:"source_file,omitempty"`
-	ParentId      string                 `protobuf:"bytes,9,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
-	ChunkIndex    int32                  `protobuf:"varint,10,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`
-	CreatedAt     string                 `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     string                 `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	TokenCount    int32                  `protobuf:"varint,13,opt,name=token_count,json=tokenCount,proto3" json:"token_count,omitempty"`
-	Tags          []string               `protobuf:"bytes,14,rep,name=tags,proto3" json:"tags,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Content    string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	Summary    string                 `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	Project    string                 `protobuf:"bytes,4,opt,name=project,proto3" json:"project,omitempty"`
+	Type       string                 `protobuf:"bytes,5,opt,name=type,proto3" json:"type,omitempty"`
+	Visibility string                 `protobuf:"bytes,6,opt,name=visibility,proto3" json:"visibility,omitempty"`
+	Source     string                 `protobuf:"bytes,7,opt,name=source,proto3" json:"source,omitempty"`
+	SourceFile string                 `protobuf:"bytes,8,opt,name=source_file,json=sourceFile,proto3" json:"source_file,omitempty"`
+	ParentId   string                 `protobuf:"bytes,9,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	ChunkIndex int32                  `protobuf:"varint,10,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`
+	CreatedAt  string                 `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt  string                 `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	TokenCount int32                  `protobuf:"varint,13,opt,name=token_count,json=tokenCount,proto3" json:"token_count,omitempty"`
+	Tags       []string               `protobuf:"bytes,14,rep,name=tags,proto3" json:"tags,omitempty"`
+	// Taxonomy: who said/wrote this (j33p, gilfoyle, agent, system)
+	Speaker string `protobuf:"bytes,15,opt,name=speaker,proto3" json:"speaker,omitempty"`
+	// Taxonomy: top-level domain (work, home, family, homelab, project, meta)
+	Area string `protobuf:"bytes,16,opt,name=area,proto3" json:"area,omitempty"`
+	// Taxonomy: sub-domain, free-form (power-platform, proxmox, claude-memory, etc.)
+	SubArea       string `protobuf:"bytes,17,opt,name=sub_area,json=subArea,proto3" json:"sub_area,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -171,6 +177,27 @@ func (x *Memory) GetTags() []string {
 	return nil
 }
 
+func (x *Memory) GetSpeaker() string {
+	if x != nil {
+		return x.Speaker
+	}
+	return ""
+}
+
+func (x *Memory) GetArea() string {
+	if x != nil {
+		return x.Area
+	}
+	return ""
+}
+
+func (x *Memory) GetSubArea() string {
+	if x != nil {
+		return x.SubArea
+	}
+	return ""
+}
+
 // MemoryResult wraps a Memory with relevance scores from hybrid search.
 type MemoryResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -282,6 +309,9 @@ type RememberRequest struct {
 	Visibility    string                 `protobuf:"bytes,5,opt,name=visibility,proto3" json:"visibility,omitempty"`
 	Tags          []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
 	Source        string                 `protobuf:"bytes,7,opt,name=source,proto3" json:"source,omitempty"`
+	Speaker       string                 `protobuf:"bytes,8,opt,name=speaker,proto3" json:"speaker,omitempty"`                 // j33p, gilfoyle, agent, system
+	Area          string                 `protobuf:"bytes,9,opt,name=area,proto3" json:"area,omitempty"`                       // work, home, family, homelab, project, meta
+	SubArea       string                 `protobuf:"bytes,10,opt,name=sub_area,json=subArea,proto3" json:"sub_area,omitempty"` // free-form sub-domain
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -365,6 +395,27 @@ func (x *RememberRequest) GetSource() string {
 	return ""
 }
 
+func (x *RememberRequest) GetSpeaker() string {
+	if x != nil {
+		return x.Speaker
+	}
+	return ""
+}
+
+func (x *RememberRequest) GetArea() string {
+	if x != nil {
+		return x.Area
+	}
+	return ""
+}
+
+func (x *RememberRequest) GetSubArea() string {
+	if x != nil {
+		return x.SubArea
+	}
+	return ""
+}
+
 type RememberResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -436,6 +487,9 @@ type RecallRequest struct {
 	TopK          int32                  `protobuf:"varint,6,opt,name=top_k,json=topK,proto3" json:"top_k,omitempty"`
 	MinRelevance  float64                `protobuf:"fixed64,7,opt,name=min_relevance,json=minRelevance,proto3" json:"min_relevance,omitempty"`
 	RecencyDecay  float64                `protobuf:"fixed64,8,opt,name=recency_decay,json=recencyDecay,proto3" json:"recency_decay,omitempty"`
+	Speaker       string                 `protobuf:"bytes,9,opt,name=speaker,proto3" json:"speaker,omitempty"`
+	Area          string                 `protobuf:"bytes,10,opt,name=area,proto3" json:"area,omitempty"`
+	SubArea       string                 `protobuf:"bytes,11,opt,name=sub_area,json=subArea,proto3" json:"sub_area,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -524,6 +578,27 @@ func (x *RecallRequest) GetRecencyDecay() float64 {
 		return x.RecencyDecay
 	}
 	return 0
+}
+
+func (x *RecallRequest) GetSpeaker() string {
+	if x != nil {
+		return x.Speaker
+	}
+	return ""
+}
+
+func (x *RecallRequest) GetArea() string {
+	if x != nil {
+		return x.Area
+	}
+	return ""
+}
+
+func (x *RecallRequest) GetSubArea() string {
+	if x != nil {
+		return x.SubArea
+	}
+	return ""
 }
 
 type RecallResponse struct {
@@ -699,6 +774,9 @@ type ListRequest struct {
 	Project       string                 `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
 	Type          string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
 	Tags          string                 `protobuf:"bytes,5,opt,name=tags,proto3" json:"tags,omitempty"` // comma-separated for HTTP GET query param compat
+	Speaker       string                 `protobuf:"bytes,6,opt,name=speaker,proto3" json:"speaker,omitempty"`
+	Area          string                 `protobuf:"bytes,7,opt,name=area,proto3" json:"area,omitempty"`
+	SubArea       string                 `protobuf:"bytes,8,opt,name=sub_area,json=subArea,proto3" json:"sub_area,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -764,6 +842,27 @@ func (x *ListRequest) GetType() string {
 func (x *ListRequest) GetTags() string {
 	if x != nil {
 		return x.Tags
+	}
+	return ""
+}
+
+func (x *ListRequest) GetSpeaker() string {
+	if x != nil {
+		return x.Speaker
+	}
+	return ""
+}
+
+func (x *ListRequest) GetArea() string {
+	if x != nil {
+		return x.Area
+	}
+	return ""
+}
+
+func (x *ListRequest) GetSubArea() string {
+	if x != nil {
+		return x.SubArea
 	}
 	return ""
 }
@@ -1219,7 +1318,7 @@ var File_memory_v1_memory_proto protoreflect.FileDescriptor
 
 const file_memory_v1_memory_proto_rawDesc = "" +
 	"\n" +
-	"\x16memory/v1/memory.proto\x12\tmemory.v1\x1a\x1cgoogle/api/annotations.proto\"\x84\x03\n" +
+	"\x16memory/v1/memory.proto\x12\tmemory.v1\x1a\x1cgoogle/api/annotations.proto\"\xcd\x03\n" +
 	"\x06Memory\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\x12\x18\n" +
@@ -1242,7 +1341,10 @@ const file_memory_v1_memory_proto_rawDesc = "" +
 	"updated_at\x18\f \x01(\tR\tupdatedAt\x12\x1f\n" +
 	"\vtoken_count\x18\r \x01(\x05R\n" +
 	"tokenCount\x12\x12\n" +
-	"\x04tags\x18\x0e \x03(\tR\x04tags\"\x8e\x02\n" +
+	"\x04tags\x18\x0e \x03(\tR\x04tags\x12\x18\n" +
+	"\aspeaker\x18\x0f \x01(\tR\aspeaker\x12\x12\n" +
+	"\x04area\x18\x10 \x01(\tR\x04area\x12\x19\n" +
+	"\bsub_area\x18\x11 \x01(\tR\asubArea\"\x8e\x02\n" +
 	"\fMemoryResult\x12)\n" +
 	"\x06memory\x18\x01 \x01(\v2\x11.memory.v1.MemoryR\x06memory\x12\x1b\n" +
 	"\trrf_score\x18\x02 \x01(\x01R\brrfScore\x12\x19\n" +
@@ -1251,7 +1353,7 @@ const file_memory_v1_memory_proto_rawDesc = "" +
 	"\bdistance\x18\x05 \x01(\x01R\bdistance\x12\x14\n" +
 	"\x05score\x18\x06 \x01(\x01R\x05score\x12%\n" +
 	"\x0erecency_weight\x18\a \x01(\x01R\rrecencyWeight\x12%\n" +
-	"\x0eweighted_score\x18\b \x01(\x01R\rweightedScore\"\xbf\x01\n" +
+	"\x0eweighted_score\x18\b \x01(\x01R\rweightedScore\"\x88\x02\n" +
 	"\x0fRememberRequest\x12\x18\n" +
 	"\acontent\x18\x01 \x01(\tR\acontent\x12\x18\n" +
 	"\asummary\x18\x02 \x01(\tR\asummary\x12\x18\n" +
@@ -1261,12 +1363,16 @@ const file_memory_v1_memory_proto_rawDesc = "" +
 	"visibility\x18\x05 \x01(\tR\n" +
 	"visibility\x12\x12\n" +
 	"\x04tags\x18\x06 \x03(\tR\x04tags\x12\x16\n" +
-	"\x06source\x18\a \x01(\tR\x06source\"S\n" +
+	"\x06source\x18\a \x01(\tR\x06source\x12\x18\n" +
+	"\aspeaker\x18\b \x01(\tR\aspeaker\x12\x12\n" +
+	"\x04area\x18\t \x01(\tR\x04area\x12\x19\n" +
+	"\bsub_area\x18\n" +
+	" \x01(\tR\asubArea\"S\n" +
 	"\x10RememberResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x0e\n" +
 	"\x02ok\x18\x02 \x01(\bR\x02ok\x12\x1f\n" +
 	"\vtag_warning\x18\x03 \x01(\tR\n" +
-	"tagWarning\"\xe2\x01\n" +
+	"tagWarning\"\xab\x02\n" +
 	"\rRecallRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x1a\n" +
@@ -1275,7 +1381,11 @@ const file_memory_v1_memory_proto_rawDesc = "" +
 	"\x04tags\x18\x05 \x03(\tR\x04tags\x12\x13\n" +
 	"\x05top_k\x18\x06 \x01(\x05R\x04topK\x12#\n" +
 	"\rmin_relevance\x18\a \x01(\x01R\fminRelevance\x12#\n" +
-	"\rrecency_decay\x18\b \x01(\x01R\frecencyDecay\"\xa6\x01\n" +
+	"\rrecency_decay\x18\b \x01(\x01R\frecencyDecay\x12\x18\n" +
+	"\aspeaker\x18\t \x01(\tR\aspeaker\x12\x12\n" +
+	"\x04area\x18\n" +
+	" \x01(\tR\x04area\x12\x19\n" +
+	"\bsub_area\x18\v \x01(\tR\asubArea\"\xa6\x01\n" +
 	"\x0eRecallResponse\x121\n" +
 	"\aresults\x18\x01 \x03(\v2\x17.memory.v1.MemoryResultR\aresults\x12\x1c\n" +
 	"\trewritten\x18\x02 \x01(\bR\trewritten\x12'\n" +
@@ -1285,13 +1395,16 @@ const file_memory_v1_memory_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"0\n" +
 	"\x0eForgetResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x0e\n" +
-	"\x02ok\x18\x02 \x01(\bR\x02ok\"}\n" +
+	"\x02ok\x18\x02 \x01(\bR\x02ok\"\xc6\x01\n" +
 	"\vListRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12\x12\n" +
 	"\x04type\x18\x04 \x01(\tR\x04type\x12\x12\n" +
-	"\x04tags\x18\x05 \x01(\tR\x04tags\"=\n" +
+	"\x04tags\x18\x05 \x01(\tR\x04tags\x12\x18\n" +
+	"\aspeaker\x18\x06 \x01(\tR\aspeaker\x12\x12\n" +
+	"\x04area\x18\a \x01(\tR\x04area\x12\x19\n" +
+	"\bsub_area\x18\b \x01(\tR\asubArea\"=\n" +
 	"\fListResponse\x12-\n" +
 	"\bmemories\x18\x01 \x03(\v2\x11.memory.v1.MemoryR\bmemories\"\x0f\n" +
 	"\rHealthRequest\":\n" +

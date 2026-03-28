@@ -26,6 +26,15 @@ func (l *List) Tool() mcp.Tool {
 		mcp.WithArray("tags", mcp.Description("Filter by tags"), mcp.WithStringItems()),
 		mcp.WithNumber("limit", mcp.Description("Max results (default 20)")),
 		mcp.WithNumber("offset", mcp.Description("Pagination offset (default 0)")),
+		mcp.WithString("speaker",
+			mcp.Description("Filter by speaker: j33p, gilfoyle, agent, system"),
+			mcp.Enum("j33p", "gilfoyle", "agent", "system"),
+		),
+		mcp.WithString("area",
+			mcp.Description("Filter by area: work, home, family, homelab, project, meta"),
+			mcp.Enum("work", "home", "family", "homelab", "project", "meta"),
+		),
+		mcp.WithString("sub_area", mcp.Description("Filter by sub-area (e.g. power-platform, proxmox, claude-memory)")),
 	)
 }
 
@@ -37,6 +46,9 @@ func (l *List) Handle(_ context.Context, request mcp.CallToolRequest) (*mcp.Call
 		Tags:    request.GetStringSlice("tags", nil),
 		Limit:   request.GetInt("limit", 20),
 		Offset:  request.GetInt("offset", 0),
+		Speaker: request.GetString("speaker", ""),
+		Area:    request.GetString("area", ""),
+		SubArea: request.GetString("sub_area", ""),
 	}
 
 	memories, err := l.DB.ListMemories(filter)

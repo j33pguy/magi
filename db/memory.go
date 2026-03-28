@@ -19,16 +19,22 @@ type Memory struct {
 	Type       string    `json:"type"`
 	// Visibility controls access: "private" (owner only, never via HTTP API),
 	// "internal" (default, all Claude instances), "public" (any consumer)
-	Visibility string    `json:"visibility"`
-	Source     string    `json:"source"`
-	SourceFile string    `json:"sourceFile"`
-	ParentID   string    `json:"parentId"`
-	ChunkIndex int       `json:"chunkIndex"`
-	CreatedAt  string    `json:"createdAt"`
-	UpdatedAt  string    `json:"updatedAt"`
-	ArchivedAt string    `json:"archivedAt,omitempty"`
-	TokenCount int       `json:"tokenCount"`
-	Tags       []string  `json:"tags,omitempty"`
+	Visibility string `json:"visibility"`
+	Source     string `json:"source"`
+	SourceFile string `json:"sourceFile"`
+	ParentID   string `json:"parentId"`
+	ChunkIndex int    `json:"chunkIndex"`
+	// Speaker is who said/wrote this: j33p, gilfoyle, agent, system
+	Speaker string `json:"speaker,omitempty"`
+	// Area is the top-level domain: work, home, family, homelab, project, meta
+	Area string `json:"area,omitempty"`
+	// SubArea is a free-form sub-domain (power-platform, proxmox, claude-memory, etc.)
+	SubArea   string   `json:"subArea,omitempty"`
+	CreatedAt  string  `json:"createdAt"`
+	UpdatedAt  string  `json:"updatedAt"`
+	ArchivedAt string  `json:"archivedAt,omitempty"`
+	TokenCount int     `json:"tokenCount"`
+	Tags       []string `json:"tags,omitempty"`
 }
 
 // MemoryFilter defines search/filter criteria for listing memories.
@@ -47,6 +53,12 @@ type MemoryFilter struct {
 	// Visibility filters by access level. If empty, defaults to excluding "private"
 	// for HTTP API callers. Set to "all" to include private (MCP/internal use only).
 	Visibility string
+	// Speaker filters by who said/wrote it (j33p, gilfoyle, agent, system).
+	Speaker string
+	// Area filters by top-level domain (work, home, family, homelab, project, meta).
+	Area string
+	// SubArea filters by sub-domain (power-platform, proxmox, claude-memory, etc.).
+	SubArea string
 }
 
 // HybridResult wraps a Memory with scores from both retrieval methods.
@@ -78,8 +90,8 @@ func (c *Client) SaveMemory(m *Memory) (*Memory, error) {
 	}
 
 	err := c.DB.QueryRow(`
-		INSERT INTO memories (content, summary, embedding, project, type, visibility, source, source_file, parent_id, chunk_index, created_at, updated_at, token_count)
-		VALUES (?, ?, vector32(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO memories (content, summary, embedding, project, type, visibility, source, source_file, parent_id, chunk_index, speaker, area, sub_area, created_at, updated_at, token_count)
+		VALUES (?, ?, vector32(?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id
 	`,
 		m.Content,
@@ -92,6 +104,9 @@ func (c *Client) SaveMemory(m *Memory) (*Memory, error) {
 		nullString(m.SourceFile),
 		nullString(m.ParentID),
 		m.ChunkIndex,
+		m.Speaker,
+		m.Area,
+		m.SubArea,
 		now,
 		now,
 		m.TokenCount,
@@ -113,11 +128,12 @@ func (c *Client) GetMemory(id string) (*Memory, error) {
 
 	err := c.DB.QueryRow(`
 		SELECT id, content, summary, project, type, visibility, source, source_file, parent_id, chunk_index,
-		       created_at, updated_at, archived_at, token_count
+		       speaker, area, sub_area, created_at, updated_at, archived_at, token_count
 		FROM memories WHERE id = ?
 	`, id).Scan(
 		&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
 		&source, &sourceFile, &parentID, &m.ChunkIndex,
+		&m.Speaker, &m.Area, &m.SubArea,
 		&m.CreatedAt, &m.UpdatedAt, &archivedAt, &m.TokenCount,
 	)
 	if err != nil {
@@ -186,6 +202,7 @@ func (c *Client) ListMemories(filter *MemoryFilter) ([]*Memory, error) {
 	conditions = append(conditions, "m.archived_at IS NULL")
 
 	appendProjectCondition(filter, &conditions, &args)
+	appendTaxonomyConditions(filter, &conditions, &args)
 	if filter.Type != "" {
 		conditions = append(conditions, "m.type = ?")
 		args = append(args, filter.Type)
@@ -210,7 +227,8 @@ func (c *Client) ListMemories(filter *MemoryFilter) ([]*Memory, error) {
 
 	query := fmt.Sprintf(`
 		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
-		       m.parent_id, m.chunk_index, m.created_at, m.updated_at, m.archived_at, m.token_count
+		       m.parent_id, m.chunk_index, m.speaker, m.area, m.sub_area,
+		       m.created_at, m.updated_at, m.archived_at, m.token_count
 		FROM memories m
 		WHERE %s
 		ORDER BY m.created_at DESC
@@ -240,6 +258,7 @@ func (c *Client) SearchMemories(embedding []float32, filter *MemoryFilter, topK 
 
 	if filter != nil {
 		appendProjectCondition(filter, &conditions, &args)
+		appendTaxonomyConditions(filter, &conditions, &args)
 		if filter.Type != "" {
 			conditions = append(conditions, "m.type = ?")
 			args = append(args, filter.Type)
@@ -265,7 +284,8 @@ func (c *Client) SearchMemories(embedding []float32, filter *MemoryFilter, topK 
 
 	query := fmt.Sprintf(`
 		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
-		       m.parent_id, m.chunk_index, m.created_at, m.updated_at, m.archived_at, m.token_count,
+		       m.parent_id, m.chunk_index, m.speaker, m.area, m.sub_area,
+		       m.created_at, m.updated_at, m.archived_at, m.token_count,
 		       vector_distance_cos(m.embedding, vector32(?)) AS distance
 		FROM memories m
 		WHERE %s
@@ -288,6 +308,7 @@ func (c *Client) SearchMemories(embedding []float32, filter *MemoryFilter, topK 
 		if err := rows.Scan(
 			&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
 			&source, &sourceFile, &parentID, &m.ChunkIndex,
+			&m.Speaker, &m.Area, &m.SubArea,
 			&m.CreatedAt, &m.UpdatedAt, &archivedAt, &m.TokenCount,
 			&distance,
 		); err != nil {
@@ -324,6 +345,7 @@ func scanMemories(rows *sql.Rows) ([]*Memory, error) {
 		if err := rows.Scan(
 			&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
 			&source, &sourceFile, &parentID, &m.ChunkIndex,
+			&m.Speaker, &m.Area, &m.SubArea,
 			&m.CreatedAt, &m.UpdatedAt, &archivedAt, &m.TokenCount,
 		); err != nil {
 			return nil, fmt.Errorf("scanning memory: %w", err)
@@ -356,6 +378,22 @@ func appendProjectCondition(filter *MemoryFilter, conditions *[]string, args *[]
 	}
 }
 
+// appendTaxonomyConditions adds speaker/area/sub_area filtering to conditions/args.
+func appendTaxonomyConditions(filter *MemoryFilter, conditions *[]string, args *[]any) {
+	if filter.Speaker != "" {
+		*conditions = append(*conditions, "m.speaker = ?")
+		*args = append(*args, filter.Speaker)
+	}
+	if filter.Area != "" {
+		*conditions = append(*conditions, "m.area = ?")
+		*args = append(*args, filter.Area)
+	}
+	if filter.SubArea != "" {
+		*conditions = append(*conditions, "m.sub_area = ?")
+		*args = append(*args, filter.SubArea)
+	}
+}
+
 // appendVisibilityCondition adds visibility filtering to conditions/args.
 func appendVisibilityCondition(filter *MemoryFilter, conditions *[]string, args *[]any) {
 	if filter.Visibility == "all" {
@@ -381,6 +419,7 @@ func (c *Client) SearchMemoriesBM25(query string, filter *MemoryFilter, topK int
 
 	if filter != nil {
 		appendProjectCondition(filter, &conditions, &args)
+		appendTaxonomyConditions(filter, &conditions, &args)
 		if filter.Type != "" {
 			conditions = append(conditions, "m.type = ?")
 			args = append(args, filter.Type)
@@ -395,7 +434,8 @@ func (c *Client) SearchMemoriesBM25(query string, filter *MemoryFilter, topK int
 
 	q := fmt.Sprintf(`
 		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
-		       m.parent_id, m.chunk_index, m.created_at, m.updated_at, m.archived_at, m.token_count,
+		       m.parent_id, m.chunk_index, m.speaker, m.area, m.sub_area,
+		       m.created_at, m.updated_at, m.archived_at, m.token_count,
 		       -bm25(memories_fts) AS score
 		FROM memories m
 		JOIN memories_fts ON memories_fts.rowid = m.rowid
@@ -419,6 +459,7 @@ func (c *Client) SearchMemoriesBM25(query string, filter *MemoryFilter, topK int
 		if err := rows.Scan(
 			&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
 			&source, &sourceFile, &parentID, &m.ChunkIndex,
+			&m.Speaker, &m.Area, &m.SubArea,
 			&m.CreatedAt, &m.UpdatedAt, &archivedAt, &m.TokenCount,
 			&score,
 		); err != nil {
@@ -567,7 +608,8 @@ func (c *Client) FindSimilar(embedding []float32, maxDistance float64) (*VectorR
 
 	err := c.DB.QueryRow(`
 		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
-		       m.parent_id, m.chunk_index, m.created_at, m.updated_at, m.archived_at, m.token_count,
+		       m.parent_id, m.chunk_index, m.speaker, m.area, m.sub_area,
+		       m.created_at, m.updated_at, m.archived_at, m.token_count,
 		       vector_distance_cos(m.embedding, vector32(?)) AS distance
 		FROM memories m
 		WHERE m.archived_at IS NULL
@@ -576,6 +618,7 @@ func (c *Client) FindSimilar(embedding []float32, maxDistance float64) (*VectorR
 	`, float32sToBytes(embedding)).Scan(
 		&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
 		&source, &sourceFile, &parentID, &m.ChunkIndex,
+		&m.Speaker, &m.Area, &m.SubArea,
 		&m.CreatedAt, &m.UpdatedAt, &archivedAt, &m.TokenCount,
 		&distance,
 	)

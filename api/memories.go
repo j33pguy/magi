@@ -30,6 +30,9 @@ func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
 		Limit:      limit,
 		Offset:     offset,
 		Visibility: "", // HTTP API: exclude private memories by default
+		Speaker:    q.Get("speaker"),
+		Area:       q.Get("area"),
+		SubArea:    q.Get("sub_area"),
 	}
 
 	memories, err := s.db.ListMemories(filter)

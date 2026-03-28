@@ -17,6 +17,9 @@ type rememberRequest struct {
 	Visibility string   `json:"visibility"`
 	Tags       []string `json:"tags"`
 	Source     string   `json:"source"`
+	Speaker    string   `json:"speaker"`
+	Area       string   `json:"area"`
+	SubArea    string   `json:"sub_area"`
 }
 
 func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +48,11 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	speaker := req.Speaker
+	if speaker == "" {
+		speaker = "gilfoyle"
+	}
+
 	memory := &db.Memory{
 		Content:    req.Content,
 		Summary:    req.Summary,
@@ -53,6 +61,9 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 		Type:       req.Type,
 		Visibility: req.Visibility, // defaults to "internal" in SaveMemory if empty
 		Source:     req.Source,
+		Speaker:    speaker,
+		Area:       req.Area,
+		SubArea:    req.SubArea,
 		TokenCount: len(req.Content) / 4,
 	}
 

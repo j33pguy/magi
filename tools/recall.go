@@ -32,6 +32,15 @@ func (r *Recall) Tool() mcp.Tool {
 		mcp.WithNumber("top_k", mcp.Description("Number of results to return (default 5)")),
 		mcp.WithNumber("min_relevance", mcp.Description("Minimum relevance score 0.0-1.0 (default 0.0 = no filtering). Results with score below this are excluded. Score = 1.0 - cosine_distance.")),
 		mcp.WithNumber("recency_decay", mcp.Description("Exponential decay rate for recency weighting (default 0.0 = disabled). Recommended: 0.01 (half-life ~70 days). Higher values penalize older memories more.")),
+		mcp.WithString("speaker",
+			mcp.Description("Filter by speaker: j33p, gilfoyle, agent, system"),
+			mcp.Enum("j33p", "gilfoyle", "agent", "system"),
+		),
+		mcp.WithString("area",
+			mcp.Description("Filter by area: work, home, family, homelab, project, meta"),
+			mcp.Enum("work", "home", "family", "homelab", "project", "meta"),
+		),
+		mcp.WithString("sub_area", mcp.Description("Filter by sub-area (e.g. power-platform, proxmox, claude-memory)")),
 	)
 }
 
@@ -49,6 +58,9 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 	topK := request.GetInt("top_k", 5)
 	minRelevance := request.GetFloat("min_relevance", 0.0)
 	recencyDecay := request.GetFloat("recency_decay", 0.0)
+	speaker := request.GetString("speaker", "")
+	area := request.GetString("area", "")
+	subArea := request.GetString("sub_area", "")
 
 	filter := &db.MemoryFilter{
 		Project:    project,
@@ -56,6 +68,9 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 		Type:       memType,
 		Tags:       tags,
 		Visibility: "all", // MCP callers (Claude Code, Gilfoyle) see all including private
+		Speaker:    speaker,
+		Area:       area,
+		SubArea:    subArea,
 	}
 
 	resp, err := search.Adaptive(ctx, r.DB, r.Embedder.Embed, query, filter, topK, minRelevance, recencyDecay)
