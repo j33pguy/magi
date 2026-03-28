@@ -38,7 +38,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Build binary
-        run: go build -o /tmp/claude-memory-new ./cmd/server
+        run: go build -o /tmp/claude-memory-new .
 
       - name: Deploy binary
         run: |
