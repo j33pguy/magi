@@ -131,6 +131,85 @@ func (c *Client) TraverseGraph(ctx context.Context, startID string, maxDepth int
 	return result, nil
 }
 
+// GetGraphData returns nodes and edges for graph visualization.
+// Limits to topN memories by link count (combined inbound + outbound).
+func (c *Client) GetGraphData(ctx context.Context, topN int) ([]*Memory, []*MemoryLink, error) {
+	// Get top memories by link count
+	rows, err := c.DB.QueryContext(ctx, `
+		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source,
+		       m.source_file, m.parent_id, m.chunk_index, m.speaker, m.area, m.sub_area,
+		       m.created_at, m.updated_at, m.archived_at, m.token_count,
+		       COALESCE(lc.cnt, 0) as link_count
+		FROM memories m
+		LEFT JOIN (
+			SELECT memory_id, SUM(cnt) as cnt FROM (
+				SELECT from_id as memory_id, COUNT(*) as cnt FROM memory_links GROUP BY from_id
+				UNION ALL
+				SELECT to_id as memory_id, COUNT(*) as cnt FROM memory_links GROUP BY to_id
+			) GROUP BY memory_id
+		) lc ON lc.memory_id = m.id
+		WHERE m.archived_at IS NULL
+		ORDER BY link_count DESC, m.created_at DESC
+		LIMIT ?
+	`, topN)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting graph nodes: %w", err)
+	}
+	defer rows.Close()
+
+	nodeMap := make(map[string]bool)
+	var memories []*Memory
+	for rows.Next() {
+		m := &Memory{}
+		var archived sql.NullString
+		var linkCount int
+		if err := rows.Scan(
+			&m.ID, &m.Content, &m.Summary, &m.Project, &m.Type, &m.Visibility,
+			&m.Source, &m.SourceFile, &m.ParentID, &m.ChunkIndex, &m.Speaker,
+			&m.Area, &m.SubArea, &m.CreatedAt, &m.UpdatedAt, &archived, &m.TokenCount,
+			&linkCount,
+		); err != nil {
+			return nil, nil, fmt.Errorf("scanning graph node: %w", err)
+		}
+		if archived.Valid {
+			m.ArchivedAt = archived.String
+		}
+		_ = linkCount // used for ordering only; JS derives from edges
+		nodeMap[m.ID] = true
+		memories = append(memories, m)
+	}
+	rows.Close()
+
+	if len(memories) == 0 {
+		return memories, nil, nil
+	}
+
+	// Get all links between the selected nodes
+	linkRows, err := c.DB.QueryContext(ctx, `
+		SELECT id, from_id, to_id, relation, weight, auto, created_at
+		FROM memory_links
+	`)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting graph edges: %w", err)
+	}
+	defer linkRows.Close()
+
+	allLinks, err := scanLinks(linkRows)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Filter to only links where both endpoints are in our node set
+	var links []*MemoryLink
+	for _, l := range allLinks {
+		if nodeMap[l.FromID] && nodeMap[l.ToID] {
+			links = append(links, l)
+		}
+	}
+
+	return memories, links, nil
+}
+
 func scanLinks(rows *sql.Rows) ([]*MemoryLink, error) {
 	var links []*MemoryLink
 	for rows.Next() {

@@ -28,6 +28,7 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	mux.HandleFunc("GET /memory/{id}/partial", h.memoryPartial)
 	mux.HandleFunc("GET /new", h.newPage)
 	mux.HandleFunc("GET /stats", h.statsPage)
+	mux.HandleFunc("GET /graph", h.graphPage)
 
 	// API endpoints
 	mux.HandleFunc("GET /api/memories", h.apiMemories)
@@ -36,6 +37,7 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	mux.HandleFunc("POST /api/memories", h.apiCreateMemory)
 	mux.HandleFunc("DELETE /api/memories/{id}", h.apiDeleteMemory)
 	mux.HandleFunc("GET /api/memories/{id}/related", h.apiRelatedMemories)
+	mux.HandleFunc("GET /api/graph", h.apiGraph)
 }
 
 type handler struct {
@@ -226,6 +228,10 @@ func (h *handler) statsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	stats.Nav = "stats"
 	h.render(w, "base", stats)
+}
+
+func (h *handler) graphPage(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "base", map[string]string{"Nav": "graph"})
 }
 
 // --- HTMX partial handlers ---
@@ -454,6 +460,62 @@ func (h *handler) apiRelatedMemories(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.renderPartial(w, "related_memories", results)
+}
+
+func (h *handler) apiGraph(w http.ResponseWriter, r *http.Request) {
+	memories, links, err := h.db.GetGraphData(r.Context(), 300)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	type graphNode struct {
+		ID        string `json:"id"`
+		Summary   string `json:"summary"`
+		Area      string `json:"area"`
+		Speaker   string `json:"speaker"`
+		Type      string `json:"type"`
+		CreatedAt string `json:"created_at"`
+		LinkCount int    `json:"link_count"`
+	}
+	type graphEdge struct {
+		ID       string  `json:"id"`
+		From     string  `json:"from"`
+		To       string  `json:"to"`
+		Relation string  `json:"relation"`
+		Weight   float64 `json:"weight"`
+		Auto     bool    `json:"auto"`
+	}
+
+	nodes := make([]graphNode, 0, len(memories))
+	for _, m := range memories {
+		nodes = append(nodes, graphNode{
+			ID:        m.ID,
+			Summary:   m.Summary,
+			Area:      m.Area,
+			Speaker:   m.Speaker,
+			Type:      m.Type,
+			CreatedAt: m.CreatedAt,
+		})
+	}
+
+	edges := make([]graphEdge, 0, len(links))
+	for _, l := range links {
+		edges = append(edges, graphEdge{
+			ID:       l.ID,
+			From:     l.FromID,
+			To:       l.ToID,
+			Relation: l.Relation,
+			Weight:   l.Weight,
+			Auto:     l.Auto,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"nodes": nodes,
+		"edges": edges,
+	})
 }
 
 type statsData struct {
