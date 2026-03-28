@@ -18,7 +18,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false  # self-hosted runners can't reach GitHub Actions cache service
 
       - name: Build
         run: go build -trimpath ./...
@@ -42,7 +42,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false  # self-hosted runners can't reach GitHub Actions cache service
 
       - name: Build production binary
         run: go build -trimpath -o /tmp/claude-memory-new .
