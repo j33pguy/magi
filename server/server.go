@@ -120,6 +120,12 @@ func (s *Server) registerTools() {
 
 	recentConv := &tools.RecentConversations{DB: s.dbClient}
 	s.mcp.AddTool(recentConv.Tool(), recentConv.Handle)
+
+	indexTurn := &tools.IndexTurn{DB: s.dbClient, Embedder: s.embedder}
+	s.mcp.AddTool(indexTurn.Tool(), indexTurn.Handle)
+
+	indexSession := &tools.IndexSession{DB: s.dbClient, Embedder: s.embedder}
+	s.mcp.AddTool(indexSession.Tool(), indexSession.Handle)
 }
 
 func (s *Server) registerResources() {

@@ -1,9 +1,24 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 )
+
+// ExistsWithContentHash returns the memory ID that has the given hash tag, or "" if none.
+func (c *Client) ExistsWithContentHash(hash string) (string, error) {
+	tag := "hash:" + hash
+	var id string
+	err := c.DB.QueryRow("SELECT memory_id FROM memory_tags WHERE tag = ? LIMIT 1", tag).Scan(&id)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("checking content hash: %w", err)
+	}
+	return id, nil
+}
 
 // GetTags returns all tags for a memory.
 func (c *Client) GetTags(memoryID string) ([]string, error) {

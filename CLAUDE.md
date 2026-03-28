@@ -68,6 +68,17 @@ claude mcp add -s user claude-memory -- claude-memory
 | `forget` | Soft-delete (archive) or hard-delete |
 | `list_memories` | Browse/filter without semantic search |
 | `update_memory` | Modify content/metadata, re-embeds if changed |
+| `index_turn` | Index a single conversation turn as a memory |
+| `index_session` | Bulk-index a completed conversation session |
+
+## Passive Indexing
+
+To build up memory automatically, call `index_turn` at the end of significant turns:
+- After completing a task or making a decision
+- After learning something new about the project or preferences
+- NOT for every trivial exchange — use judgment
+
+Or use `index_session` at session end to bulk-index a batch of turns.
 
 ## Session Start
 
