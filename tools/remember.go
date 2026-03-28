@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/j33pguy/claude-memory/classify"
 	"github.com/j33pguy/claude-memory/db"
 	"github.com/j33pguy/claude-memory/embeddings"
 )
@@ -64,6 +65,17 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 	speaker := request.GetString("speaker", "gilfoyle")
 	area := request.GetString("area", "")
 	subArea := request.GetString("sub_area", "")
+
+	// Auto-classify if not explicitly set
+	if area == "" || subArea == "" {
+		c := classify.Infer(content)
+		if area == "" {
+			area = c.Area
+		}
+		if subArea == "" {
+			subArea = c.SubArea
+		}
+	}
 
 	// Check for potential secrets
 	if warning := detectSecrets(content); warning != "" {
