@@ -10,6 +10,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/j33pguy/claude-memory/classify"
+	"github.com/j33pguy/claude-memory/contradiction"
 	"github.com/j33pguy/claude-memory/db"
 	"github.com/j33pguy/claude-memory/embeddings"
 )
@@ -159,6 +160,21 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 	if memory.ParentID != "" {
 		msg += fmt.Sprintf(" [linked to similar memory %s, %.1f%% similar]", memory.ParentID, (1.0-match.Distance)*100)
 	}
+
+	// Contradiction detection (best-effort, never blocks writes)
+	detector := &contradiction.Detector{Threshold: 0.85}
+	candidates, cErr := detector.Check(ctx, r.DB, r.Embedder, content, area, subArea)
+	if cErr != nil {
+		slog.Warn("contradiction detection failed", "error", cErr)
+	} else if len(candidates) > 0 {
+		msg += fmt.Sprintf("\n\n⚠ %d potential contradiction(s) detected:", len(candidates))
+		for _, c := range candidates {
+			msg += fmt.Sprintf("\n  - Memory %s (%.0f%% similar, score=%.2f): %s [%s]",
+				c.ExistingID, c.Similarity*100, c.Score, c.ExistingSummary, c.Reason)
+		}
+		msg += "\n\nReview these and consider updating/superseding the old memory if the new one replaces it."
+	}
+
 	return mcp.NewToolResultText(msg), nil
 }
 
