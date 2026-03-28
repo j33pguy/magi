@@ -629,7 +629,7 @@ func (c *Client) GetContextMemories(project string, limit int) ([]*Memory, error
 	var args []any
 
 	conditions = append(conditions, "m.archived_at IS NULL")
-	conditions = append(conditions, `m.created_at > datetime("now", "-7 days")`)
+	conditions = append(conditions, "m.created_at > datetime('now', '-7 days')")
 	conditions = append(conditions, "m.visibility != 'private'")
 
 	if project != "" {
