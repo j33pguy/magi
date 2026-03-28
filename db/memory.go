@@ -599,6 +599,46 @@ func hasDiagnosticKeywords(query string) bool {
 	return false
 }
 
+// GetContextMemories returns memories for session auto-injection:
+// recent (7 days) memories, optionally filtered by project.
+func (c *Client) GetContextMemories(project string, limit int) ([]*Memory, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	var conditions []string
+	var args []any
+
+	conditions = append(conditions, "m.archived_at IS NULL")
+	conditions = append(conditions, `m.created_at > datetime("now", "-7 days")`)
+	conditions = append(conditions, "m.visibility != 'private'")
+
+	if project != "" {
+		conditions = append(conditions, "m.project = ?")
+		args = append(args, project)
+	}
+
+	args = append(args, limit)
+
+	query := fmt.Sprintf(`
+		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
+		       m.parent_id, m.chunk_index, m.speaker, m.area, m.sub_area,
+		       m.created_at, m.updated_at, m.archived_at, m.token_count
+		FROM memories m
+		WHERE %s
+		ORDER BY m.created_at DESC
+		LIMIT ?
+	`, strings.Join(conditions, " AND "))
+
+	rows, err := c.DB.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("getting context memories: %w", err)
+	}
+	defer rows.Close()
+
+	return scanMemories(rows)
+}
+
 // FindSimilar returns the single closest non-archived memory by cosine distance.
 // Returns nil if no memories exist or the closest distance exceeds maxDistance.
 func (c *Client) FindSimilar(embedding []float32, maxDistance float64) (*VectorResult, error) {

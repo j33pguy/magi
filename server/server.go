@@ -131,6 +131,9 @@ func (s *Server) registerResources() {
 
 	prefs := &resources.Preferences{DB: s.dbClient}
 	s.mcp.AddResource(prefs.Resource(), prefs.Handle)
+
+	ctx := &resources.Context{DB: s.dbClient}
+	s.mcp.AddResource(ctx.Resource(), ctx.Handle)
 }
 
 // ServeGRPC starts the gRPC server. Blocks until the server stops.
