@@ -52,4 +52,42 @@
             hx-target="body" hx-push-url="/">Delete</button>
     </div>
 </div>
+<div class="card" style="margin-top: 16px;">
+    <h3 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-muted);">Related Memories</h3>
+    <div id="related-memories"
+         hx-get="/api/memories/{{.Memory.ID}}/related"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <span style="color: var(--text-muted); font-size: 13px;">Loading...</span>
+    </div>
+</div>
+{{end}}
+
+{{define "related_memories"}}
+{{if .}}
+{{range .}}
+<div style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border);">
+    <div style="flex: 1; min-width: 0;">
+        <a href="/memory/{{.Memory.ID}}" style="color: var(--text); text-decoration: none; font-size: 13px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            {{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 80}}{{end}}
+        </a>
+        <div style="display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap;">
+            {{range .Links}}
+            <span class="badge" style="font-size: 11px; background:
+                {{- if eq .Relation "caused_by"}} #ef4444{{end -}}
+                {{- if eq .Relation "led_to"}} #f59e0b{{end -}}
+                {{- if eq .Relation "related_to"}} #3b82f6{{end -}}
+                {{- if eq .Relation "supersedes"}} #a855f7{{end -}}
+                {{- if eq .Relation "part_of"}} #10b981{{end -}}
+                {{- if eq .Relation "contradicts"}} #ec4899{{end -}}
+            ; color: #fff;">{{.Relation}}</span>
+            {{end}}
+        </div>
+    </div>
+    <span style="color: var(--text-muted); font-size: 11px; white-space: nowrap;">{{formatDate .Memory.CreatedAt}}</span>
+</div>
+{{end}}
+{{else}}
+<span style="color: var(--text-muted); font-size: 13px;">No related memories found.</span>
+{{end}}
 {{end}}

@@ -129,6 +129,14 @@ func (s *Server) registerTools() {
 
 	checkContra := &tools.CheckContradictions{DB: s.dbClient, Embedder: s.embedder}
 	s.mcp.AddTool(checkContra.Tool(), checkContra.Handle)
+linkMemories := &tools.LinkMemories{DB: s.dbClient}
+	s.mcp.AddTool(linkMemories.Tool(), linkMemories.Handle)
+
+	getRelated := &tools.GetRelated{DB: s.dbClient}
+	s.mcp.AddTool(getRelated.Tool(), getRelated.Handle)
+
+	unlinkMemories := &tools.UnlinkMemories{DB: s.dbClient}
+	s.mcp.AddTool(unlinkMemories.Tool(), unlinkMemories.Handle)
 }
 
 func (s *Server) registerResources() {

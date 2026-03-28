@@ -44,6 +44,17 @@ service MemoryService {
       body: "*"
     };
   }
+  rpc LinkMemories(LinkMemoriesRequest) returns (LinkMemoriesResponse) {
+    option (google.api.http) = {
+      post: "/links"
+      body: "*"
+    };
+  }
+  rpc GetRelated(GetRelatedRequest) returns (GetRelatedResponse) {
+    option (google.api.http) = {
+      get: "/memories/{memory_id}/related"
+    };
+  }
 }
 
 // Memory is the core memory record.
@@ -179,6 +190,41 @@ message CreateConversationResponse {
   string id = 1;
   bool ok = 2;
   string tag_warning = 3;
+}
+
+// MemoryLink represents a directed relationship between two memories.
+message MemoryLink {
+  string id = 1;
+  string from_id = 2;
+  string to_id = 3;
+  string relation = 4;
+  double weight = 5;
+  bool auto = 6;
+  string created_at = 7;
+}
+
+// LinkMemories
+message LinkMemoriesRequest {
+  string from_id = 1;
+  string to_id = 2;
+  string relation = 3;
+  double weight = 4;
+}
+
+message LinkMemoriesResponse {
+  MemoryLink link = 1;
+}
+
+// GetRelated
+message GetRelatedRequest {
+  string memory_id = 1;
+  int32 depth = 2;
+  string direction = 3;
+}
+
+message GetRelatedResponse {
+  repeated Memory memories = 1;
+  repeated MemoryLink links = 2;
 }
 
 // SearchConversations
