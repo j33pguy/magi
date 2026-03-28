@@ -137,6 +137,9 @@ linkMemories := &tools.LinkMemories{DB: s.dbClient}
 
 	unlinkMemories := &tools.UnlinkMemories{DB: s.dbClient}
 	s.mcp.AddTool(unlinkMemories.Tool(), unlinkMemories.Handle)
+
+	ingestConv := &tools.IngestConversation{DB: s.dbClient, Embedder: s.embedder}
+	s.mcp.AddTool(ingestConv.Tool(), ingestConv.Handle)
 }
 
 func (s *Server) registerResources() {
