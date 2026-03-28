@@ -69,6 +69,12 @@ claude mcp add -s user claude-memory -- claude-memory
 | `list_memories` | Browse/filter without semantic search |
 | `update_memory` | Modify content/metadata, re-embeds if changed |
 
+## Session Start
+
+At the beginning of every session, read the `memory://context` resource to get
+recent and important memories pre-loaded. This ensures you have relevant context
+without needing explicit recall calls.
+
 ## Conventions
 
 - One struct per file, file named after the struct
