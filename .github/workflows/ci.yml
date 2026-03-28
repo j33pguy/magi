@@ -28,3 +28,40 @@ jobs:
 
       - name: Vet
         run: go vet ./...
+
+  deploy:
+    name: Deploy to memory01
+    runs-on: [self-hosted, claude-memory]
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build production binary
+        run: go build -trimpath -o /tmp/claude-memory-new .
+
+      - name: Install binary
+        run: |
+          sudo install -m 755 /tmp/claude-memory-new /opt/claude-memory/bin/claude-memory
+          rm -f /tmp/claude-memory-new
+
+      - name: Restart service
+        run: sudo systemctl restart claude-memory
+
+      - name: Health check
+        run: |
+          sleep 4
+          status=$(sudo systemctl is-active claude-memory)
+          if [ "$status" != "active" ]; then
+            echo "Service failed to start: $status"
+            sudo journalctl -u claude-memory -n 20 --no-pager
+            exit 1
+          fi
+          echo "claude-memory is $status"
