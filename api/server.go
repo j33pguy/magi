@@ -47,6 +47,7 @@ func NewServer(dbClient *db.Client, embedder embeddings.Provider, logger *slog.L
 	mux.HandleFunc("POST /conversations", s.requireAuth(s.handleCreateConversation))
 	mux.HandleFunc("GET /conversations", s.requireAuth(s.handleListConversations))
 	mux.HandleFunc("POST /conversations/search", s.requireAuth(s.handleSearchConversations))
+	mux.HandleFunc("GET /conversations/{id}", s.requireAuth(s.handleGetConversation))
 
 	s.httpServer = &http.Server{
 		Addr:              net.JoinHostPort("", port),
