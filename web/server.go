@@ -662,9 +662,21 @@ func (h *handler) conversationsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	memories, err := h.db.ListMemories(&db.MemoryFilter{
-		Type:       "conversation",
-		Tags:       tags,
-		Limit:      50,
+		Type:  "conversation",
+		Tags:  tags,
+		Limit: 50,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.render(w, "base", map[string]interface{}{
+		"Nav":           "conversations",
+		"Conversations": memories,
+	})
+}
+
 // --- Patterns ---
 
 type patternGroup struct {
@@ -697,12 +709,32 @@ func (h *handler) patternsPage(w http.ResponseWriter, r *http.Request) {
 		m.Tags = t
 	}
 
-	data := conversationsData{
-		Nav:           "conversations",
-		Conversations: memories,
-		DateGroups:    groupByDate(memories),
+	grouped := map[string]*patternGroup{
+		"preference":     {Type: "preference", Label: "Technology Preferences"},
+		"decision_style": {Type: "decision_style", Label: "Decision Style"},
+		"work_pattern":   {Type: "work_pattern", Label: "Work Patterns"},
+		"comms_style":    {Type: "comms_style", Label: "Communication Style"},
 	}
-	h.render(w, "base", data)
+
+	for _, m := range memories {
+		for _, tag := range m.Tags {
+			if strings.HasPrefix(tag, "pattern_type:") {
+				pType := strings.TrimPrefix(tag, "pattern_type:")
+				if g, ok := grouped[pType]; ok {
+					g.Patterns = append(g.Patterns, m)
+				}
+			}
+		}
+	}
+
+	var groups []patternGroup
+	for _, key := range []string{"preference", "decision_style", "work_pattern", "comms_style"} {
+		if g := grouped[key]; len(g.Patterns) > 0 {
+			groups = append(groups, *g)
+		}
+	}
+
+	h.render(w, "base", patternsData{Nav: "patterns", Groups: groups})
 }
 
 func (h *handler) apiConversationsList(w http.ResponseWriter, r *http.Request) {
@@ -860,34 +892,8 @@ func channelBadge(s string) string {
 
 func isTopicTag(s string) bool {
 	return strings.HasPrefix(s, "topic:")
-// Group by pattern_type tag
-	grouped := map[string]*patternGroup{
-		"preference":     {Type: "preference", Label: "Technology Preferences"},
-		"decision_style": {Type: "decision_style", Label: "Decision Style"},
-		"work_pattern":   {Type: "work_pattern", Label: "Work Patterns"},
-		"comms_style":    {Type: "comms_style", Label: "Communication Style"},
-	}
-
-	for _, m := range memories {
-		for _, tag := range m.Tags {
-			if strings.HasPrefix(tag, "pattern_type:") {
-				pType := strings.TrimPrefix(tag, "pattern_type:")
-				if g, ok := grouped[pType]; ok {
-					g.Patterns = append(g.Patterns, m)
-				}
-			}
-		}
-	}
-
-	var groups []patternGroup
-	for _, key := range []string{"preference", "decision_style", "work_pattern", "comms_style"} {
-		if g := grouped[key]; len(g.Patterns) > 0 {
-			groups = append(groups, *g)
-		}
-	}
-
-	h.render(w, "base", patternsData{Nav: "patterns", Groups: groups})
 }
+
 
 func (h *handler) apiAnalyzePatterns(w http.ResponseWriter, r *http.Request) {
 	// Fetch last 90 days of j33p memories
