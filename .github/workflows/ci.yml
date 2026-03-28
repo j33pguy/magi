@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build & Test
-    runs-on: [self-hosted, claude-memory]
+    runs-on: [self-hosted, homelab]
 
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
 
   deploy:
     name: Deploy to memory01
-    runs-on: [self-hosted, claude-memory]
+    runs-on: [self-hosted, homelab]
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
@@ -47,21 +47,30 @@ jobs:
       - name: Build production binary
         run: go build -trimpath -o /tmp/claude-memory-new .
 
-      - name: Install binary
+      - name: Get Ansible SSH key from Vault
         run: |
-          sudo install -m 755 /tmp/claude-memory-new /opt/claude-memory/bin/claude-memory
-          rm -f /tmp/claude-memory-new
+          VAULT_TOKEN=$(curl -sk -X POST https://10.5.5.30:8200/v1/auth/approle/login \
+            -d "{\"role_id\":\"${{ secrets.ANSIBLE_ROLE_ID }}\",\"secret_id\":\"${{ secrets.ANSIBLE_SECRET_ID }}\"}" \
+            | jq -r '.auth.client_token')
+          mkdir -p ~/.ssh
+          curl -sk -H "X-Vault-Token: $VAULT_TOKEN" \
+            https://10.5.5.30:8200/v1/homelab/data/ssh \
+            | jq -r '.data.data.ansible_private_key' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 10.5.5.40 >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Restart service
-        run: sudo systemctl restart claude-memory
-
-      - name: Health check
+      - name: Deploy to memory01
         run: |
-          sleep 4
-          status=$(sudo systemctl is-active claude-memory)
-          if [ "$status" != "active" ]; then
-            echo "Service failed to start: $status"
-            sudo journalctl -u claude-memory -n 20 --no-pager
-            exit 1
-          fi
-          echo "claude-memory is $status"
+          scp -i ~/.ssh/deploy_key /tmp/claude-memory-new ansible@10.5.5.40:/tmp/claude-memory-new
+          ssh -i ~/.ssh/deploy_key ansible@10.5.5.40 "
+            sudo install -m 755 /tmp/claude-memory-new /opt/claude-memory/bin/claude-memory &&
+            rm -f /tmp/claude-memory-new &&
+            sudo systemctl restart claude-memory &&
+            sleep 4 &&
+            sudo systemctl is-active claude-memory
+          "
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f ~/.ssh/deploy_key /tmp/claude-memory-new
