@@ -1,0 +1,105 @@
+{{define "title"}}new memory{{end}}
+{{define "content"}}
+<h2 style="font-size: 16px; font-weight: 600; margin-bottom: 16px;">Create memory</h2>
+<div id="create-form">
+    <form hx-post="/api/memories" hx-target="#create-form" hx-swap="innerHTML">
+        <div class="form-group form-full" style="margin-bottom: 12px;">
+            <label for="content">Content</label>
+            <textarea id="content" name="content" class="textarea" rows="8" placeholder="Memory content..." required
+                hx-get="/api/search" hx-target="#dedup-preview" hx-trigger="keyup changed delay:800ms"
+                hx-include="[name='content']" hx-params="q" hx-vals='js:{"q": document.getElementById("content").value}'></textarea>
+        </div>
+        <div class="form-grid" style="margin-bottom: 12px;">
+            <div class="form-group">
+                <label for="summary">Summary</label>
+                <input id="summary" name="summary" class="input" placeholder="Brief summary">
+            </div>
+            <div class="form-group">
+                <label for="type">Type</label>
+                <select id="type" name="type" class="select">
+                    <option value="note">note</option>
+                    <option value="preference">preference</option>
+                    <option value="decision">decision</option>
+                    <option value="incident">incident</option>
+                    <option value="lesson">lesson</option>
+                    <option value="conversation">conversation</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="speaker">Speaker</label>
+                <select id="speaker" name="speaker" class="select">
+                    <option value="">-</option>
+                    <option value="j33p">j33p</option>
+                    <option value="gilfoyle">gilfoyle</option>
+                    <option value="agent">agent</option>
+                    <option value="system">system</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="area">Area</label>
+                <select id="area" name="area" class="select">
+                    <option value="">-</option>
+                    <option value="work">work</option>
+                    <option value="homelab">homelab</option>
+                    <option value="home">home</option>
+                    <option value="family">family</option>
+                    <option value="project">project</option>
+                    <option value="meta">meta</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="sub_area">Sub-area</label>
+                <input id="sub_area" name="sub_area" class="input" placeholder="e.g. proxmox, claude-memory">
+            </div>
+            <div class="form-group">
+                <label for="project">Project</label>
+                <input id="project" name="project" class="input" placeholder="e.g. agent:gilfoyle">
+            </div>
+            <div class="form-group form-full">
+                <label for="tags">Tags <span style="font-weight:400; color:var(--text-muted)">(comma-separated)</span></label>
+                <input id="tags" name="tags" class="input" placeholder="e.g. go, debugging, turso">
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <button type="submit" class="btn btn-primary">Create memory</button>
+            <span style="font-size: 12px; color: var(--text-muted);"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to submit</span>
+        </div>
+    </form>
+    <div id="dedup-preview" style="margin-top: 16px;"></div>
+</div>
+<script>
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const form = document.querySelector('#create-form form');
+        if (form) { htmx.trigger(form, 'submit'); }
+    }
+});
+</script>
+{{end}}
+
+{{define "create_success"}}
+<div class="card" style="text-align: center; padding: 32px;">
+    <div style="font-size: 24px; margin-bottom: 8px;">&#x2705;</div>
+    <div style="font-size: 14px; margin-bottom: 16px;">Memory created</div>
+    <div style="display: flex; gap: 8px; justify-content: center;">
+        <a href="/memory/{{.ID}}" class="btn btn-sm">View</a>
+        <a href="/new" class="btn btn-sm btn-primary">Create another</a>
+    </div>
+</div>
+{{end}}
+
+{{define "dedup_preview"}}
+{{if .Results}}
+<div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Similar existing memories:</div>
+<div class="card" style="padding: 0; overflow: hidden;">
+{{range .Results}}
+<div class="memory-row" style="cursor: default;">
+    <span class="memory-summary">{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 60}}{{end}}</span>
+    <div class="memory-meta">
+        <span class="score-badge">{{printf "%.0f" .ScorePercent}}%</span>
+    </div>
+</div>
+{{end}}
+</div>
+{{end}}
+{{end}}
