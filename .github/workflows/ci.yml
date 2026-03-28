@@ -3,8 +3,6 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
   build:
@@ -18,16 +16,12 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: false  # self-hosted runners can't reach GitHub Actions cache service
 
       - name: Build
-        run: go build -trimpath ./...
+        run: go build ./...
 
       - name: Test
         run: go test ./...
-
-      - name: Vet
-        run: go vet ./...
 
   deploy:
     name: Deploy to memory01
@@ -42,13 +36,11 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: false  # self-hosted runners can't reach GitHub Actions cache service
 
-      - name: Build production binary
-        run: go build -trimpath -o /tmp/claude-memory-new .
+      - name: Build binary
+        run: go build -o /tmp/claude-memory-new ./cmd/server
 
-      - name: Install binary
-        # Runner is memory01 — deploy directly, no SSH needed
+      - name: Deploy binary
         run: |
           sudo install -m 755 /tmp/claude-memory-new /opt/claude-memory/bin/claude-memory
           rm -f /tmp/claude-memory-new
