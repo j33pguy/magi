@@ -5,15 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/j33pguy/claude-memory/classify"
 	"github.com/j33pguy/claude-memory/db"
 	"github.com/j33pguy/claude-memory/embeddings"
 	"github.com/j33pguy/claude-memory/patterns"
+"github.com/j33pguy/claude-memory/ingest"
 )
 
 const pageSize = 30
@@ -32,6 +35,10 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	mux.HandleFunc("GET /graph", h.graphPage)
 
 	mux.HandleFunc("GET /patterns", h.patternsPage)
+// Ingest
+	mux.HandleFunc("GET /ingest", h.ingestPage)
+	mux.HandleFunc("POST /ingest", h.handleIngest)
+	mux.HandleFunc("POST /api/ingest/detect", h.handleDetectFormat)
 
 	// API endpoints
 	mux.HandleFunc("GET /api/memories", h.apiMemories)
@@ -892,6 +899,127 @@ func channelBadge(s string) string {
 
 func isTopicTag(s string) bool {
 	return strings.HasPrefix(s, "topic:")
+}
+
+// --- Ingest handlers ---
+
+func (h *handler) ingestPage(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "base", map[string]string{"Nav": "ingest"})
+}
+
+type ingestResponse struct {
+	Imported int              `json:"imported"`
+	Skipped  int              `json:"skipped"`
+	Memories []ingestMemoryRef `json:"memories,omitempty"`
+	Error    string           `json:"error,omitempty"`
+}
+
+type ingestMemoryRef struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Summary string `json:"summary"`
+}
+
+func (h *handler) handleIngest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, ingest.MaxInputSize+1))
+	if err != nil {
+		json.NewEncoder(w).Encode(ingestResponse{Error: "failed to read body"})
+		return
+	}
+	if len(body) > ingest.MaxInputSize {
+		json.NewEncoder(w).Encode(ingestResponse{Error: "input too large (max 10MB)"})
+		return
+	}
+
+	conv, err := ingest.Parse(body)
+	if err != nil {
+		json.NewEncoder(w).Encode(ingestResponse{Error: fmt.Sprintf("parse error: %v", err)})
+		return
+	}
+
+	candidates := ingest.ExtractMemories(conv)
+
+	dedup := &ingest.Deduplicator{DB: h.db, Embedder: h.embedder}
+	kept, skipped, err := dedup.Filter(r.Context(), candidates)
+	if err != nil {
+		json.NewEncoder(w).Encode(ingestResponse{Error: fmt.Sprintf("dedup error: %v", err)})
+		return
+	}
+
+	resp := ingestResponse{Skipped: skipped}
+	for _, em := range kept {
+		c := classify.Infer(em.Content)
+		embedding, err := h.embedder.Embed(r.Context(), em.Content)
+		if err != nil {
+			h.logger.Error("embedding failed during ingest", "error", err)
+			continue
+		}
+
+		mem := &db.Memory{
+			Content:    em.Content,
+			Summary:    em.Summary,
+			Embedding:  embedding,
+			Type:       em.Type,
+			Source:     em.Source,
+			Speaker:    em.Speaker,
+			Area:       c.Area,
+			SubArea:    c.SubArea,
+			TokenCount: len(em.Content) / 4,
+		}
+
+		saved, err := h.db.SaveMemory(mem)
+		if err != nil {
+			h.logger.Error("save failed during ingest", "error", err)
+			continue
+		}
+
+		tags := append(em.Tags, "speaker:"+em.Speaker)
+		if c.Area != "" {
+			tags = append(tags, "area:"+c.Area)
+		}
+		if c.SubArea != "" {
+			tags = append(tags, "sub_area:"+c.SubArea)
+		}
+		if err := h.db.SetTags(saved.ID, tags); err != nil {
+			h.logger.Error("set tags failed during ingest", "error", err)
+		}
+
+		resp.Imported++
+		resp.Memories = append(resp.Memories, ingestMemoryRef{
+			ID:      saved.ID,
+			Type:    em.Type,
+			Summary: em.Summary,
+		})
+	}
+
+	json.NewEncoder(w).Encode(resp)
+}
+
+type detectResponse struct {
+	Format string `json:"format"`
+	Turns  int    `json:"turns,omitempty"`
+}
+
+func (h *handler) handleDetectFormat(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, ingest.MaxInputSize+1))
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+
+	format := ingest.Detect(body)
+	resp := detectResponse{Format: string(format)}
+
+	// Try to parse to get turn count
+	if conv, err := ingest.Parse(body); err == nil {
+		resp.Turns = len(conv.Turns)
+	}
+
+	json.NewEncoder(w).Encode(resp)
 }
 
 
