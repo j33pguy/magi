@@ -35,6 +35,7 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	mux.HandleFunc("GET /api/stats", h.apiStats)
 	mux.HandleFunc("POST /api/memories", h.apiCreateMemory)
 	mux.HandleFunc("DELETE /api/memories/{id}", h.apiDeleteMemory)
+	mux.HandleFunc("GET /api/memories/{id}/related", h.apiRelatedMemories)
 }
 
 type handler struct {
@@ -401,6 +402,58 @@ func (h *handler) apiDeleteMemory(w http.ResponseWriter, r *http.Request) {
 	}
 	// Return empty so HTMX removes the element
 	w.WriteHeader(http.StatusOK)
+}
+
+type relatedMemoryResult struct {
+	Memory *db.Memory      `json:"memory"`
+	Links  []*db.MemoryLink `json:"links"`
+}
+
+func (h *handler) apiRelatedMemories(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	links, err := h.db.GetLinks(r.Context(), id, "both")
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	// Collect unique neighbor IDs
+	seen := map[string]bool{}
+	var neighborIDs []string
+	for _, l := range links {
+		neighborID := l.ToID
+		if neighborID == id {
+			neighborID = l.FromID
+		}
+		if !seen[neighborID] {
+			seen[neighborID] = true
+			neighborIDs = append(neighborIDs, neighborID)
+		}
+	}
+
+	var results []relatedMemoryResult
+	for _, nid := range neighborIDs {
+		mem, err := h.db.GetMemory(nid)
+		if err != nil {
+			continue
+		}
+		var relevantLinks []*db.MemoryLink
+		for _, l := range links {
+			if l.FromID == nid || l.ToID == nid {
+				relevantLinks = append(relevantLinks, l)
+			}
+		}
+		results = append(results, relatedMemoryResult{Memory: mem, Links: relevantLinks})
+	}
+
+	if strings.Contains(r.Header.Get("Accept"), "application/json") {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(results)
+		return
+	}
+
+	h.renderPartial(w, "related_memories", results)
 }
 
 type statsData struct {

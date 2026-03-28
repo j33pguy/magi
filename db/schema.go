@@ -31,6 +31,7 @@ func (s *Schema) run() error {
 		{4, migrationV4},
 		{5, migrationV5},
 		{6, migrationV6},
+		{7, migrationV7},
 	}
 
 	for _, m := range migrations {
@@ -229,6 +230,23 @@ CREATE INDEX IF NOT EXISTS idx_memories_area_sub ON memories(area, sub_area) WHE
 // (after/before time filtering).
 const migrationV6 = `
 CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
+`
+
+// migrationV7 adds memory_links table for explicit memory-to-memory relationships.
+// Enables graph traversal: "this decision caused that outcome", "this supersedes that".
+const migrationV7 = `
+CREATE TABLE IF NOT EXISTS memory_links (
+	id          TEXT NOT NULL PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+	from_id     TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+	to_id       TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+	relation    TEXT NOT NULL CHECK(relation IN ('caused_by','led_to','related_to','supersedes','part_of','contradicts')),
+	weight      REAL NOT NULL DEFAULT 1.0,
+	auto        INTEGER NOT NULL DEFAULT 0,
+	created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+	UNIQUE(from_id, to_id, relation)
+);
+CREATE INDEX IF NOT EXISTS idx_memory_links_from ON memory_links(from_id);
+CREATE INDEX IF NOT EXISTS idx_memory_links_to ON memory_links(to_id);
 `
 
 // migrationV2 adds visibility field for access control.
