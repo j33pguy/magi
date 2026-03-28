@@ -30,6 +30,7 @@ func (s *Schema) run() error {
 		{3, migrationV3},
 		{4, migrationV4},
 		{5, migrationV5},
+		{6, migrationV6},
 	}
 
 	for _, m := range migrations {
@@ -222,6 +223,12 @@ ALTER TABLE memories ADD COLUMN sub_area TEXT NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_memories_speaker ON memories(speaker) WHERE speaker != '';
 CREATE INDEX IF NOT EXISTS idx_memories_area ON memories(area) WHERE area != '';
 CREATE INDEX IF NOT EXISTS idx_memories_area_sub ON memories(area, sub_area) WHERE area != '';
+`
+
+// migrationV6 adds a dedicated index on created_at for temporal queries
+// (after/before time filtering).
+const migrationV6 = `
+CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
 `
 
 // migrationV2 adds visibility field for access control.

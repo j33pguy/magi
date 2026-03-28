@@ -490,6 +490,8 @@ type RecallRequest struct {
 	Speaker       string                 `protobuf:"bytes,9,opt,name=speaker,proto3" json:"speaker,omitempty"`
 	Area          string                 `protobuf:"bytes,10,opt,name=area,proto3" json:"area,omitempty"`
 	SubArea       string                 `protobuf:"bytes,11,opt,name=sub_area,json=subArea,proto3" json:"sub_area,omitempty"`
+	AfterTime     string                 `protobuf:"bytes,12,opt,name=after_time,json=afterTime,proto3" json:"after_time,omitempty"`
+	BeforeTime    string                 `protobuf:"bytes,13,opt,name=before_time,json=beforeTime,proto3" json:"before_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -597,6 +599,20 @@ func (x *RecallRequest) GetArea() string {
 func (x *RecallRequest) GetSubArea() string {
 	if x != nil {
 		return x.SubArea
+	}
+	return ""
+}
+
+func (x *RecallRequest) GetAfterTime() string {
+	if x != nil {
+		return x.AfterTime
+	}
+	return ""
+}
+
+func (x *RecallRequest) GetBeforeTime() string {
+	if x != nil {
+		return x.BeforeTime
 	}
 	return ""
 }
@@ -777,6 +793,8 @@ type ListRequest struct {
 	Speaker       string                 `protobuf:"bytes,6,opt,name=speaker,proto3" json:"speaker,omitempty"`
 	Area          string                 `protobuf:"bytes,7,opt,name=area,proto3" json:"area,omitempty"`
 	SubArea       string                 `protobuf:"bytes,8,opt,name=sub_area,json=subArea,proto3" json:"sub_area,omitempty"`
+	AfterTime     string                 `protobuf:"bytes,9,opt,name=after_time,json=afterTime,proto3" json:"after_time,omitempty"`
+	BeforeTime    string                 `protobuf:"bytes,10,opt,name=before_time,json=beforeTime,proto3" json:"before_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -863,6 +881,20 @@ func (x *ListRequest) GetArea() string {
 func (x *ListRequest) GetSubArea() string {
 	if x != nil {
 		return x.SubArea
+	}
+	return ""
+}
+
+func (x *ListRequest) GetAfterTime() string {
+	if x != nil {
+		return x.AfterTime
+	}
+	return ""
+}
+
+func (x *ListRequest) GetBeforeTime() string {
+	if x != nil {
+		return x.BeforeTime
 	}
 	return ""
 }

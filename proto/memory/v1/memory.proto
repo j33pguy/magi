@@ -115,6 +115,8 @@ message RecallRequest {
   string speaker = 9;
   string area = 10;
   string sub_area = 11;
+  string after_time = 12;   // only memories after this time (ISO-8601 or relative: 7d, 2w, 1m)
+  string before_time = 13;  // only memories before this time
 }
 
 message RecallResponse {
@@ -144,6 +146,8 @@ message ListRequest {
   string speaker = 6;
   string area = 7;
   string sub_area = 8;
+  string after_time = 9;   // only memories after this time (ISO-8601 or relative: 7d, 2w, 1m)
+  string before_time = 10;  // only memories before this time
 }
 
 message ListResponse {

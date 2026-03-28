@@ -41,6 +41,8 @@ func (r *Recall) Tool() mcp.Tool {
 			mcp.Enum("work", "home", "family", "homelab", "project", "meta"),
 		),
 		mcp.WithString("sub_area", mcp.Description("Filter by sub-area (e.g. power-platform, proxmox, claude-memory)")),
+		mcp.WithString("after", mcp.Description("Only memories created after this time. Relative (7d, 2w, 1m, 1y) or absolute (2006-01-02, RFC3339).")),
+		mcp.WithString("before", mcp.Description("Only memories created before this time. Relative (7d, 2w, 1m, 1y) or absolute (2006-01-02, RFC3339).")),
 	)
 }
 
@@ -62,6 +64,18 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 	area := request.GetString("area", "")
 	subArea := request.GetString("sub_area", "")
 
+	afterStr := request.GetString("after", "")
+	beforeStr := request.GetString("before", "")
+
+	afterTime, err := ParseTimeParam(afterStr)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid 'after': %v", err)), nil
+	}
+	beforeTime, err := ParseTimeParam(beforeStr)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid 'before': %v", err)), nil
+	}
+
 	filter := &db.MemoryFilter{
 		Project:    project,
 		Projects:   projects,
@@ -71,6 +85,8 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 		Speaker:    speaker,
 		Area:       area,
 		SubArea:    subArea,
+		AfterTime:  afterTime,
+		BeforeTime: beforeTime,
 	}
 
 	resp, err := search.Adaptive(ctx, r.DB, r.Embedder.Embed, query, filter, topK, minRelevance, recencyDecay)

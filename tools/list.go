@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/j33pguy/claude-memory/db"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // List browses/filters memories without semantic search.
@@ -35,20 +35,33 @@ func (l *List) Tool() mcp.Tool {
 			mcp.Enum("work", "home", "family", "homelab", "project", "meta"),
 		),
 		mcp.WithString("sub_area", mcp.Description("Filter by sub-area (e.g. power-platform, proxmox, claude-memory)")),
+		mcp.WithString("after", mcp.Description("Only memories created after this time. Relative (7d, 2w, 1m, 1y) or absolute (2006-01-02, RFC3339).")),
+		mcp.WithString("before", mcp.Description("Only memories created before this time. Relative (7d, 2w, 1m, 1y) or absolute (2006-01-02, RFC3339).")),
 	)
 }
 
 // Handle processes a list_memories tool call.
 func (l *List) Handle(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	afterTime, err := ParseTimeParam(request.GetString("after", ""))
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid 'after': %v", err)), nil
+	}
+	beforeTime, err := ParseTimeParam(request.GetString("before", ""))
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid 'before': %v", err)), nil
+	}
+
 	filter := &db.MemoryFilter{
-		Project: request.GetString("project", ""),
-		Type:    request.GetString("type", ""),
-		Tags:    request.GetStringSlice("tags", nil),
-		Limit:   request.GetInt("limit", 20),
-		Offset:  request.GetInt("offset", 0),
-		Speaker: request.GetString("speaker", ""),
-		Area:    request.GetString("area", ""),
-		SubArea: request.GetString("sub_area", ""),
+		Project:    request.GetString("project", ""),
+		Type:       request.GetString("type", ""),
+		Tags:       request.GetStringSlice("tags", nil),
+		Limit:      request.GetInt("limit", 20),
+		Offset:     request.GetInt("offset", 0),
+		Speaker:    request.GetString("speaker", ""),
+		Area:       request.GetString("area", ""),
+		SubArea:    request.GetString("sub_area", ""),
+		AfterTime:  afterTime,
+		BeforeTime: beforeTime,
 	}
 
 	memories, err := l.DB.ListMemories(filter)

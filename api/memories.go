@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/claude-memory/tools"
 )
 
 func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
@@ -23,6 +24,17 @@ func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
 		tags = strings.Split(t, ",")
 	}
 
+	afterTime, err := tools.ParseTimeParam(q.Get("after"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid 'after': %v", err)})
+		return
+	}
+	beforeTime, err := tools.ParseTimeParam(q.Get("before"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid 'before': %v", err)})
+		return
+	}
+
 	filter := &db.MemoryFilter{
 		Project:    q.Get("project"),
 		Type:       q.Get("type"),
@@ -33,6 +45,8 @@ func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
 		Speaker:    q.Get("speaker"),
 		Area:       q.Get("area"),
 		SubArea:    q.Get("sub_area"),
+		AfterTime:  afterTime,
+		BeforeTime: beforeTime,
 	}
 
 	memories, err := s.db.ListMemories(filter)
