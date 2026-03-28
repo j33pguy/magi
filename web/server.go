@@ -13,6 +13,7 @@ import (
 
 	"github.com/j33pguy/claude-memory/db"
 	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/claude-memory/patterns"
 )
 
 const pageSize = 30
@@ -30,6 +31,8 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	mux.HandleFunc("GET /stats", h.statsPage)
 	mux.HandleFunc("GET /graph", h.graphPage)
 
+	mux.HandleFunc("GET /patterns", h.patternsPage)
+
 	// API endpoints
 	mux.HandleFunc("GET /api/memories", h.apiMemories)
 	mux.HandleFunc("GET /api/search", h.apiSearch)
@@ -43,6 +46,7 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	mux.HandleFunc("GET /conversations", h.conversationsPage)
 	mux.HandleFunc("GET /api/conversations/list", h.apiConversationsList)
 	mux.HandleFunc("POST /api/conversations/search", h.apiConversationsSearch)
+mux.HandleFunc("POST /api/analyze-patterns", h.apiAnalyzePatterns)
 }
 
 type handler struct {
@@ -658,9 +662,38 @@ func (h *handler) conversationsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	memories, err := h.db.ListMemories(&db.MemoryFilter{
-		Type:       "conversation",
-		Tags:       tags,
-		Limit:      50,
+		Type:  "conversation",
+		Tags:  tags,
+		Limit: 50,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.render(w, "base", map[string]interface{}{
+		"Nav":           "conversations",
+		"Conversations": memories,
+	})
+}
+
+// --- Patterns ---
+
+type patternGroup struct {
+	Type     string
+	Label    string
+	Patterns []*db.Memory
+}
+
+type patternsData struct {
+	Nav    string
+	Groups []patternGroup
+}
+
+func (h *handler) patternsPage(w http.ResponseWriter, r *http.Request) {
+	memories, err := h.db.ListMemories(&db.MemoryFilter{
+		Tags:       []string{"pattern"},
+		Limit:      200,
 		Visibility: "all",
 	})
 	if err != nil {
@@ -676,12 +709,32 @@ func (h *handler) conversationsPage(w http.ResponseWriter, r *http.Request) {
 		m.Tags = t
 	}
 
-	data := conversationsData{
-		Nav:           "conversations",
-		Conversations: memories,
-		DateGroups:    groupByDate(memories),
+	grouped := map[string]*patternGroup{
+		"preference":     {Type: "preference", Label: "Technology Preferences"},
+		"decision_style": {Type: "decision_style", Label: "Decision Style"},
+		"work_pattern":   {Type: "work_pattern", Label: "Work Patterns"},
+		"comms_style":    {Type: "comms_style", Label: "Communication Style"},
 	}
-	h.render(w, "base", data)
+
+	for _, m := range memories {
+		for _, tag := range m.Tags {
+			if strings.HasPrefix(tag, "pattern_type:") {
+				pType := strings.TrimPrefix(tag, "pattern_type:")
+				if g, ok := grouped[pType]; ok {
+					g.Patterns = append(g.Patterns, m)
+				}
+			}
+		}
+	}
+
+	var groups []patternGroup
+	for _, key := range []string{"preference", "decision_style", "work_pattern", "comms_style"} {
+		if g := grouped[key]; len(g.Patterns) > 0 {
+			groups = append(groups, *g)
+		}
+	}
+
+	h.render(w, "base", patternsData{Nav: "patterns", Groups: groups})
 }
 
 func (h *handler) apiConversationsList(w http.ResponseWriter, r *http.Request) {
@@ -839,6 +892,50 @@ func channelBadge(s string) string {
 
 func isTopicTag(s string) bool {
 	return strings.HasPrefix(s, "topic:")
+}
+
+
+func (h *handler) apiAnalyzePatterns(w http.ResponseWriter, r *http.Request) {
+	// Fetch last 90 days of j33p memories
+	since := time.Now().AddDate(0, 0, -90)
+	memories, err := h.db.ListMemories(&db.MemoryFilter{
+		Speaker:    "j33p",
+		AfterTime:  &since,
+		Limit:      1000,
+		Visibility: "all",
+	})
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	// Run analyzer
+	analyzer := &patterns.Analyzer{}
+	detected := analyzer.Analyze(memories)
+
+	// Store patterns
+	stored, skippedDups, err := patterns.StorePatterns(r.Context(), h.db, h.embedder, detected)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	result := map[string]int{
+		"patterns_found":     len(detected),
+		"patterns_stored":    len(stored),
+		"skipped_duplicates": skippedDups,
+	}
+
+	// If HTMX request, re-render the patterns page content
+	if r.Header.Get("HX-Request") == "true" {
+		// Redirect to patterns page via HTMX
+		w.Header().Set("HX-Redirect", "/patterns")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }
 
 // --- Helpers ---
