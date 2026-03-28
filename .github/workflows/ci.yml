@@ -49,15 +49,30 @@ jobs:
 
       - name: Get Ansible SSH key from Vault
         run: |
-          VAULT_TOKEN=$(curl -sk -X POST https://10.5.5.30:8200/v1/auth/approle/login \
-            -d "{\"role_id\":\"${{ secrets.ANSIBLE_ROLE_ID }}\",\"secret_id\":\"${{ secrets.ANSIBLE_SECRET_ID }}\"}" \
-            | jq -r '.auth.client_token')
+          echo "Fetching Vault token..."
+          VAULT_RESP=$(curl -sk -X POST https://10.5.5.30:8200/v1/auth/approle/login \
+            -d "{\"role_id\":\"${{ secrets.ANSIBLE_ROLE_ID }}\",\"secret_id\":\"${{ secrets.ANSIBLE_SECRET_ID }}\"}") 
+          echo "Vault login status: $(echo $VAULT_RESP | jq -r '.auth.client_token // .errors[0] // "unknown"' | cut -c1-8)..."
+          VAULT_TOKEN=$(echo $VAULT_RESP | jq -r '.auth.client_token')
+          if [ -z "$VAULT_TOKEN" ] || [ "$VAULT_TOKEN" = "null" ]; then
+            echo "ERROR: Failed to get Vault token"
+            echo "$VAULT_RESP" | jq .
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          curl -sk -H "X-Vault-Token: $VAULT_TOKEN" \
-            https://10.5.5.30:8200/v1/homelab/data/ssh \
-            | jq -r '.data.data.ansible_private_key' > ~/.ssh/deploy_key
+          SSH_RESP=$(curl -sk -H "X-Vault-Token: $VAULT_TOKEN" \
+            https://10.5.5.30:8200/v1/homelab/data/ssh)
+          KEY=$(echo "$SSH_RESP" | jq -r '.data.data.ansible_private_key')
+          if [ -z "$KEY" ] || [ "$KEY" = "null" ]; then
+            echo "ERROR: Failed to get SSH key from Vault"
+            echo "$SSH_RESP" | jq 'del(.data.data)'
+            exit 1
+          fi
+          echo "$KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          echo "SSH key written ($(wc -c < ~/.ssh/deploy_key) bytes)"
           ssh-keyscan -H 10.5.5.40 >> ~/.ssh/known_hosts 2>/dev/null
+          echo "Known hosts updated"
 
       - name: Deploy to memory01
         run: |
