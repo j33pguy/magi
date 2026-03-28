@@ -32,6 +32,17 @@ func (r *Remember) Tool() mcp.Tool {
 		mcp.WithString("summary", mcp.Description("Brief one-line summary of the memory")),
 		mcp.WithArray("tags", mcp.Description("Tags for categorization"), mcp.WithStringItems()),
 		mcp.WithNumber("dedup_threshold", mcp.Description("Similarity threshold for deduplication (0.0-1.0, default 0.95). Memories above this similarity are considered duplicates.")),
+		mcp.WithString("speaker",
+			mcp.Description("Who said/wrote this. Default: gilfoyle"),
+			mcp.Enum("j33p", "gilfoyle", "agent", "system"),
+		),
+		mcp.WithString("area",
+			mcp.Description("Top-level life/work domain"),
+			mcp.Enum("work", "home", "family", "homelab", "project", "meta"),
+		),
+		mcp.WithString("sub_area",
+			mcp.Description("Sub-domain within area. Examples — work: power-platform, fabric, power-bi, sharepoint, teams, azure, td-synnex; homelab: proxmox, networking, security, dns, monitoring, storage, iac, vault, traefik, authentik, lancache; project: claude-memory, distify, labctl, vault-unsealer, iac; home: lego, gaming, streaming, media; family: kids, spouse, schedule"),
+		),
 	)
 }
 
@@ -50,6 +61,9 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 	memType := request.GetString("type", "memory")
 	summary := request.GetString("summary", "")
 	tags := request.GetStringSlice("tags", nil)
+	speaker := request.GetString("speaker", "gilfoyle")
+	area := request.GetString("area", "")
+	subArea := request.GetString("sub_area", "")
 
 	// Check for potential secrets
 	if warning := detectSecrets(content); warning != "" {
@@ -94,6 +108,9 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 		Project:    project,
 		Type:       memType,
 		Source:     "claude-code",
+		Speaker:    speaker,
+		Area:       area,
+		SubArea:    subArea,
 		TokenCount: tokenCount,
 	}
 
@@ -106,6 +123,17 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 	saved, err := r.DB.SaveMemory(memory)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("saving memory: %v", err)), nil
+	}
+
+	// Append structured taxonomy tags
+	if speaker != "" {
+		tags = append(tags, "speaker:"+speaker)
+	}
+	if area != "" {
+		tags = append(tags, "area:"+area)
+	}
+	if subArea != "" {
+		tags = append(tags, "sub_area:"+subArea)
 	}
 
 	// Set tags

@@ -57,6 +57,11 @@ func (s *Server) Remember(ctx context.Context, req *pb.RememberRequest) (*pb.Rem
 		return nil, status.Errorf(codes.Internal, "generating embedding: %v", err)
 	}
 
+	speaker := req.Speaker
+	if speaker == "" {
+		speaker = "gilfoyle"
+	}
+
 	memory := &db.Memory{
 		Content:    req.Content,
 		Summary:    req.Summary,
@@ -65,6 +70,9 @@ func (s *Server) Remember(ctx context.Context, req *pb.RememberRequest) (*pb.Rem
 		Type:       memType,
 		Visibility: req.Visibility,
 		Source:     source,
+		Speaker:    speaker,
+		Area:       req.Area,
+		SubArea:    req.SubArea,
 		TokenCount: len(req.Content) / 4,
 	}
 
@@ -74,9 +82,21 @@ func (s *Server) Remember(ctx context.Context, req *pb.RememberRequest) (*pb.Rem
 		return nil, status.Errorf(codes.Internal, "saving memory: %v", err)
 	}
 
+	// Build tags list: user-provided + structured taxonomy tags
+	tags := append([]string{}, req.Tags...)
+	if speaker != "" {
+		tags = append(tags, "speaker:"+speaker)
+	}
+	if req.Area != "" {
+		tags = append(tags, "area:"+req.Area)
+	}
+	if req.SubArea != "" {
+		tags = append(tags, "sub_area:"+req.SubArea)
+	}
+
 	resp := &pb.RememberResponse{Id: saved.ID, Ok: true}
-	if len(req.Tags) > 0 {
-		if err := s.db.SetTags(saved.ID, req.Tags); err != nil {
+	if len(tags) > 0 {
+		if err := s.db.SetTags(saved.ID, tags); err != nil {
 			s.logger.Warn("setting tags failed (non-fatal)", "error", err, "memory_id", saved.ID)
 			tagErr := err.Error()
 			if len(tagErr) > 80 {
@@ -105,6 +125,9 @@ func (s *Server) Recall(ctx context.Context, req *pb.RecallRequest) (*pb.RecallR
 		Type:       req.Type,
 		Tags:       req.Tags,
 		Visibility: "", // gRPC API: exclude private memories by default
+		Speaker:    req.Speaker,
+		Area:       req.Area,
+		SubArea:    req.SubArea,
 	}
 
 	resp, err := search.Adaptive(ctx, s.db, s.embedder.Embed, req.Query, filter, topK, req.MinRelevance, req.RecencyDecay)
@@ -156,6 +179,9 @@ func (s *Server) List(_ context.Context, req *pb.ListRequest) (*pb.ListResponse,
 		Limit:      limit,
 		Offset:     int(req.Offset),
 		Visibility: "", // exclude private by default
+		Speaker:    req.Speaker,
+		Area:       req.Area,
+		SubArea:    req.SubArea,
 	}
 
 	memories, err := s.db.ListMemories(filter)
@@ -279,6 +305,9 @@ func memoryToProto(m *db.Memory) *pb.Memory {
 		UpdatedAt:  m.UpdatedAt,
 		TokenCount: int32(m.TokenCount),
 		Tags:       m.Tags,
+		Speaker:    m.Speaker,
+		Area:       m.Area,
+		SubArea:    m.SubArea,
 	}
 }
 

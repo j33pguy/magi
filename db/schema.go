@@ -29,6 +29,7 @@ func (s *Schema) run() error {
 		{2, migrationV2},
 		{3, migrationV3},
 		{4, migrationV4},
+		{5, migrationV5},
 	}
 
 	for _, m := range migrations {
@@ -208,6 +209,19 @@ END;
 const migrationV4 = `
 UPDATE memories SET type = 'memory' WHERE type = 'note';
 CREATE INDEX IF NOT EXISTS idx_memories_type_created ON memories(type, created_at DESC);
+`
+
+// migrationV5 adds structured taxonomy fields for categorized recall.
+// speaker: who said/wrote this (j33p, gilfoyle, agent, system)
+// area: top-level domain (work, home, family, homelab, project, meta)
+// sub_area: sub-domain, free-form (power-platform, proxmox, claude-memory, etc.)
+const migrationV5 = `
+ALTER TABLE memories ADD COLUMN speaker TEXT NOT NULL DEFAULT '';
+ALTER TABLE memories ADD COLUMN area TEXT NOT NULL DEFAULT '';
+ALTER TABLE memories ADD COLUMN sub_area TEXT NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS idx_memories_speaker ON memories(speaker) WHERE speaker != '';
+CREATE INDEX IF NOT EXISTS idx_memories_area ON memories(area) WHERE area != '';
+CREATE INDEX IF NOT EXISTS idx_memories_area_sub ON memories(area, sub_area) WHERE area != '';
 `
 
 // migrationV2 adds visibility field for access control.

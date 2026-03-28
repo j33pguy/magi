@@ -62,6 +62,12 @@ message Memory {
   string updated_at = 12;
   int32 token_count = 13;
   repeated string tags = 14;
+  // Taxonomy: who said/wrote this (j33p, gilfoyle, agent, system)
+  string speaker = 15;
+  // Taxonomy: top-level domain (work, home, family, homelab, project, meta)
+  string area = 16;
+  // Taxonomy: sub-domain, free-form (power-platform, proxmox, claude-memory, etc.)
+  string sub_area = 17;
 }
 
 // MemoryResult wraps a Memory with relevance scores from hybrid search.
@@ -85,6 +91,9 @@ message RememberRequest {
   string visibility = 5;
   repeated string tags = 6;
   string source = 7;
+  string speaker = 8;  // j33p, gilfoyle, agent, system
+  string area = 9;     // work, home, family, homelab, project, meta
+  string sub_area = 10; // free-form sub-domain
 }
 
 message RememberResponse {
@@ -103,6 +112,9 @@ message RecallRequest {
   int32 top_k = 6;
   double min_relevance = 7;
   double recency_decay = 8;
+  string speaker = 9;
+  string area = 10;
+  string sub_area = 11;
 }
 
 message RecallResponse {
@@ -129,6 +141,9 @@ message ListRequest {
   string project = 3;
   string type = 4;
   string tags = 5; // comma-separated for HTTP GET query param compat
+  string speaker = 6;
+  string area = 7;
+  string sub_area = 8;
 }
 
 message ListResponse {
