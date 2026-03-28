@@ -38,6 +38,11 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	mux.HandleFunc("DELETE /api/memories/{id}", h.apiDeleteMemory)
 	mux.HandleFunc("GET /api/memories/{id}/related", h.apiRelatedMemories)
 	mux.HandleFunc("GET /api/graph", h.apiGraph)
+
+	// Conversations
+	mux.HandleFunc("GET /conversations", h.conversationsPage)
+	mux.HandleFunc("GET /api/conversations/list", h.apiConversationsList)
+	mux.HandleFunc("POST /api/conversations/search", h.apiConversationsSearch)
 }
 
 type handler struct {
@@ -57,6 +62,9 @@ func parseTemplates() *template.Template {
 		"areaBadge":    areaBadge,
 		"speakerColor": speakerColor,
 		"areaColor":    areaColor,
+		"channelBadge": channelBadge,
+		"isTopicTag":   isTopicTag,
+		"stripPrefix":  strings.TrimPrefix,
 	}
 	return template.Must(
 		template.New("").Funcs(funcMap).ParseFS(WebFS, "templates/*.html"),
@@ -626,6 +634,211 @@ func (h *handler) getStats() (*statsData, error) {
 	}
 
 	return stats, nil
+}
+
+// --- Conversation handlers ---
+
+type dateGroup struct {
+	Label         string
+	Conversations []*db.Memory
+}
+
+type conversationsData struct {
+	Nav           string
+	Conversations []*db.Memory
+	DateGroups    []dateGroup
+}
+
+func (h *handler) conversationsPage(w http.ResponseWriter, r *http.Request) {
+	channel := r.URL.Query().Get("channel")
+
+	tags := []string{"conversation"}
+	if channel != "" {
+		tags = append(tags, "channel:"+channel)
+	}
+
+	memories, err := h.db.ListMemories(&db.MemoryFilter{
+		Type:       "conversation",
+		Tags:       tags,
+		Limit:      50,
+		Visibility: "all",
+	})
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	for _, m := range memories {
+		t, err := h.db.GetTags(m.ID)
+		if err != nil {
+			continue
+		}
+		m.Tags = t
+	}
+
+	data := conversationsData{
+		Nav:           "conversations",
+		Conversations: memories,
+		DateGroups:    groupByDate(memories),
+	}
+	h.render(w, "base", data)
+}
+
+func (h *handler) apiConversationsList(w http.ResponseWriter, r *http.Request) {
+	channel := r.URL.Query().Get("channel")
+
+	tags := []string{"conversation"}
+	if channel != "" {
+		tags = append(tags, "channel:"+channel)
+	}
+
+	memories, err := h.db.ListMemories(&db.MemoryFilter{
+		Type:       "conversation",
+		Tags:       tags,
+		Limit:      50,
+		Visibility: "all",
+	})
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	for _, m := range memories {
+		t, err := h.db.GetTags(m.ID)
+		if err != nil {
+			continue
+		}
+		m.Tags = t
+	}
+
+	data := conversationsData{
+		Conversations: memories,
+		DateGroups:    groupByDate(memories),
+	}
+	h.renderPartial(w, "conv_rows", data)
+}
+
+func (h *handler) apiConversationsSearch(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Query   string `json:"query"`
+		Channel string `json:"channel"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.renderPartial(w, "conv_search_results", struct{ Results []searchResult }{})
+		return
+	}
+
+	if req.Query == "" {
+		// Empty query — return normal list
+		h.apiConversationsList(w, r)
+		return
+	}
+
+	embedding, err := h.embedder.Embed(r.Context(), req.Query)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	var filterTags []string
+	if req.Channel != "" {
+		filterTags = append(filterTags, "channel:"+req.Channel)
+	}
+
+	filter := &db.MemoryFilter{
+		Type:       "conversation",
+		Tags:       filterTags,
+		Visibility: "all",
+	}
+	results, err := h.db.HybridSearch(embedding, req.Query, filter, 20)
+	if err != nil {
+		h.serverError(w, err)
+		return
+	}
+
+	var sResults []searchResult
+	for _, r := range results {
+		if r.Memory.Tags == nil {
+			t, err := h.db.GetTags(r.Memory.ID)
+			if err == nil {
+				r.Memory.Tags = t
+			}
+		}
+		score := r.Score * 100
+		if score < 0 {
+			score = 0
+		}
+		sResults = append(sResults, searchResult{
+			Memory:       r.Memory,
+			ScorePercent: score,
+		})
+	}
+
+	h.renderPartial(w, "conv_search_results", struct{ Results []searchResult }{Results: sResults})
+}
+
+func groupByDate(memories []*db.Memory) []dateGroup {
+	groups := make(map[string]*dateGroup)
+	var order []string
+
+	for _, m := range memories {
+		var dayLabel string
+		parsed := false
+		for _, layout := range []string{time.DateTime, time.RFC3339} {
+			if t, err := time.Parse(layout, m.CreatedAt); err == nil {
+				now := time.Now()
+				today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+				memDay := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+
+				switch {
+				case memDay.Equal(today):
+					dayLabel = "Today"
+				case memDay.Equal(today.AddDate(0, 0, -1)):
+					dayLabel = "Yesterday"
+				case memDay.After(today.AddDate(0, 0, -7)):
+					dayLabel = t.Format("Monday")
+				default:
+					dayLabel = t.Format("January 2, 2006")
+				}
+				parsed = true
+				break
+			}
+		}
+		if !parsed {
+			dayLabel = "Unknown"
+		}
+
+		if _, ok := groups[dayLabel]; !ok {
+			groups[dayLabel] = &dateGroup{Label: dayLabel}
+			order = append(order, dayLabel)
+		}
+		groups[dayLabel].Conversations = append(groups[dayLabel].Conversations, m)
+	}
+
+	result := make([]dateGroup, 0, len(order))
+	for _, key := range order {
+		result = append(result, *groups[key])
+	}
+	return result
+}
+
+func channelBadge(s string) string {
+	switch s {
+	case "discord":
+		return "badge-discord"
+	case "webchat":
+		return "badge-webchat"
+	case "claude-code":
+		return "badge-claude-code"
+	case "slack":
+		return "badge-slack"
+	default:
+		return "badge-channel"
+	}
+}
+
+func isTopicTag(s string) bool {
+	return strings.HasPrefix(s, "topic:")
 }
 
 // --- Helpers ---

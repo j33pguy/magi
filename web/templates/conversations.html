@@ -1,0 +1,165 @@
+{{define "title"}}conversations{{end}}
+{{define "content"}}
+<style>
+    .conv-search { margin-bottom: 20px; }
+    .conv-search-input {
+        width: 100%;
+        padding: 12px 16px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font-family: var(--font-ui);
+        font-size: 14px;
+        outline: none;
+    }
+    .conv-search-input:focus { border-color: var(--accent); }
+    .conv-search-input::placeholder { color: var(--text-muted); }
+    .conv-filters { display: flex; gap: 8px; margin-top: 8px; }
+    .day-group { margin-bottom: 24px; }
+    .day-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 8px;
+    }
+    .conv-entry {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+        transition: background 0.1s;
+    }
+    .conv-entry:hover { background: rgba(255,255,255,0.02); }
+    .conv-entry:last-child { border-bottom: none; }
+    .conv-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .conv-time {
+        font-size: 11px;
+        color: var(--text-muted);
+        font-variant-numeric: tabular-nums;
+    }
+    .conv-summary {
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--text);
+    }
+    .conv-topics {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+    }
+    .conv-details {
+        display: none;
+        margin-top: 12px;
+        padding: 12px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: var(--font-mono);
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .conv-entry.expanded .conv-details { display: block; }
+    .badge-discord { background: rgba(88,101,242,0.15); color: #5865f2; }
+    .badge-webchat { background: rgba(16,185,129,0.15); color: var(--green); }
+    .badge-claude-code { background: rgba(168,85,247,0.15); color: var(--purple); }
+    .badge-slack { background: rgba(245,158,11,0.15); color: var(--amber); }
+    .badge-channel { background: rgba(100,116,139,0.15); color: var(--text-muted); }
+</style>
+
+<div class="conv-search">
+    <input type="text" class="conv-search-input" id="conv-search"
+        placeholder="Search conversations... (e.g. 'homelab network changes')"
+        hx-post="/api/conversations/search"
+        hx-trigger="keyup changed delay:400ms"
+        hx-target="#conv-timeline"
+        hx-include="#conv-channel-filter"
+        hx-vals='js:{"query": document.getElementById("conv-search").value, "channel": document.getElementById("conv-channel-filter").value}'>
+    <div class="conv-filters">
+        <select class="filter-select" id="conv-channel-filter"
+            hx-get="/api/conversations/list" hx-target="#conv-timeline" hx-include="#conv-channel-filter">
+            <option value="">All channels</option>
+            <option value="discord">Discord</option>
+            <option value="webchat">Webchat</option>
+            <option value="claude-code">Claude Code</option>
+            <option value="slack">Slack</option>
+        </select>
+    </div>
+</div>
+
+<div class="card" style="padding: 0; overflow: hidden;">
+    <div id="conv-timeline">
+        {{template "conv_rows" .}}
+    </div>
+</div>
+
+<script>
+document.addEventListener('click', function(e) {
+    const entry = e.target.closest('.conv-entry');
+    if (entry) entry.classList.toggle('expanded');
+});
+</script>
+{{end}}
+
+{{define "conv_rows"}}
+{{if .Conversations}}
+{{range .DateGroups}}
+<div class="day-group">
+    <div class="day-label">{{.Label}}</div>
+    {{range .Conversations}}
+    <div class="conv-entry">
+        <div class="conv-header">
+            <span class="badge {{channelBadge .Source}}">{{if .Source}}{{.Source}}{{else}}unknown{{end}}</span>
+            <span class="conv-time">{{formatDate .CreatedAt}}</span>
+        </div>
+        <div class="conv-summary">{{if .Summary}}{{.Summary}}{{else}}{{truncate .Content 120}}{{end}}</div>
+        {{if .Tags}}
+        <div class="conv-topics">
+            {{range .Tags}}{{if isTopicTag .}}<span class="badge badge-accent">{{stripPrefix . "topic:"}}</span>{{end}}{{end}}
+        </div>
+        {{end}}
+        <div class="conv-details">{{.Content}}</div>
+    </div>
+    {{end}}
+</div>
+{{end}}
+{{else}}
+<div class="empty-state">No conversations found</div>
+{{end}}
+{{end}}
+
+{{define "conv_search_results"}}
+{{if .Results}}
+{{range .Results}}
+<div class="conv-entry">
+    <div class="conv-header">
+        <span class="badge {{channelBadge .Memory.Source}}">{{if .Memory.Source}}{{.Memory.Source}}{{else}}unknown{{end}}</span>
+        <span class="conv-time">{{formatDate .Memory.CreatedAt}}</span>
+        <span class="score-badge">{{printf "%.0f" .ScorePercent}}%</span>
+    </div>
+    <div class="conv-summary">{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 120}}{{end}}</div>
+    {{if .Memory.Tags}}
+    <div class="conv-topics">
+        {{range .Memory.Tags}}{{if isTopicTag .}}<span class="badge badge-accent">{{stripPrefix . "topic:"}}</span>{{end}}{{end}}
+    </div>
+    {{end}}
+    <div class="conv-details">{{.Memory.Content}}</div>
+</div>
+{{end}}
+{{else}}
+<div class="empty-state">No matching conversations</div>
+{{end}}
+{{end}}

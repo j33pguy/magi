@@ -198,6 +198,28 @@ func (s *Server) handleSearchConversations(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (s *Server) handleGetConversation(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id is required"})
+		return
+	}
+
+	memory, err := s.db.GetMemory(id)
+	if err != nil {
+		s.logger.Error("getting conversation", "error", err, "id", id)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "conversation not found"})
+		return
+	}
+
+	if memory.Type != "conversation" {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not a conversation"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, memory)
+}
+
 func formatConversationContent(req *conversationRequest) string {
 	var b strings.Builder
 
