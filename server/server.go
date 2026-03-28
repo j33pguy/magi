@@ -126,6 +126,9 @@ func (s *Server) registerTools() {
 
 	indexSession := &tools.IndexSession{DB: s.dbClient, Embedder: s.embedder}
 	s.mcp.AddTool(indexSession.Tool(), indexSession.Handle)
+
+	checkContra := &tools.CheckContradictions{DB: s.dbClient, Embedder: s.embedder}
+	s.mcp.AddTool(checkContra.Tool(), checkContra.Handle)
 }
 
 func (s *Server) registerResources() {

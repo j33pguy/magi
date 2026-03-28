@@ -15,7 +15,8 @@ Claude Code (stdio) → claude-memory (Go binary)
 - `main.go` — Entry point, stdio MCP server
 - `server/` — MCP server setup, tool/resource registration
 - `db/` — Turso client, schema migrations, Memory CRUD, tags
-- `tools/` — MCP tool handlers (remember, recall, forget, list, update)
+- `tools/` — MCP tool handlers (remember, recall, forget, list, update, check_contradictions)
+- `contradiction/` — Contradiction detection heuristics
 - `resources/` — MCP resource handlers (recent, decisions, preferences)
 - `embeddings/` — ONNX embedding provider + BERT WordPiece tokenizer
 - `chunking/` — Markdown-aware text splitter
@@ -70,6 +71,7 @@ claude mcp add -s user claude-memory -- claude-memory
 | `update_memory` | Modify content/metadata, re-embeds if changed |
 | `index_turn` | Index a single conversation turn as a memory |
 | `index_session` | Bulk-index a completed conversation session |
+| `check_contradictions` | Check if content contradicts existing memories |
 
 ## Passive Indexing
 
@@ -86,11 +88,16 @@ At the beginning of every session, read the `memory://context` resource to get
 recent and important memories pre-loaded. This ensures you have relevant context
 without needing explicit recall calls.
 
-## Session Start
+## Contradiction Detection
 
-At the beginning of every session, read the `memory://context` resource to get
-recent and important memories pre-loaded. This ensures you have relevant context
-without needing explicit recall calls.
+When `remember` stores a new memory, it automatically checks for potential contradictions
+against existing memories in the same area/sub_area. If contradictions are found, they are
+returned as warnings alongside the saved memory ID — writes are never blocked.
+
+When `remember` returns contradiction warnings, review the candidates.
+If the new memory supersedes the old one, call `forget` to archive the old memory,
+or call `update_memory` to modify it. The standalone `check_contradictions` tool can also
+be used to check content before storing.
 
 ## Conventions
 
