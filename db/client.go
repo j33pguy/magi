@@ -13,23 +13,26 @@ import (
 	"github.com/tursodatabase/go-libsql"
 )
 
-// Client wraps a Turso database connection with embedded replica support.
-type Client struct {
+// TursoClient wraps a Turso database connection with embedded replica support.
+type TursoClient struct {
 	DB        *sql.DB
 	connector *libsql.Connector
 	logger    *slog.Logger
 }
 
-// Config holds database connection settings.
-type Config struct {
+// Client is an alias for TursoClient, preserving backward compatibility.
+type Client = TursoClient
+
+// TursoConfig holds Turso database connection settings.
+type TursoConfig struct {
 	URL          string
 	AuthToken    string
 	ReplicaPath  string
 	SyncInterval time.Duration
 }
 
-// ConfigFromEnv reads database configuration from environment variables.
-func ConfigFromEnv() *Config {
+// tursoConfigFromEnv reads Turso configuration from environment variables.
+func tursoConfigFromEnv() *TursoConfig {
 	replicaPath := os.Getenv("CLAUDE_MEMORY_REPLICA_PATH")
 	if replicaPath == "" {
 		home, _ := os.UserHomeDir()
@@ -43,7 +46,7 @@ func ConfigFromEnv() *Config {
 		}
 	}
 
-	return &Config{
+	return &TursoConfig{
 		URL:          os.Getenv("TURSO_URL"),
 		AuthToken:    os.Getenv("TURSO_AUTH_TOKEN"),
 		ReplicaPath:  replicaPath,
@@ -51,8 +54,8 @@ func ConfigFromEnv() *Config {
 	}
 }
 
-// NewClient creates a new database client connected to Turso with an embedded replica.
-func NewClient(cfg *Config, logger *slog.Logger) (*Client, error) {
+// NewTursoClient creates a new database client connected to Turso with an embedded replica.
+func NewTursoClient(cfg *TursoConfig, logger *slog.Logger) (*TursoClient, error) {
 	// Ensure the replica directory exists
 	if err := os.MkdirAll(filepath.Dir(cfg.ReplicaPath), 0o755); err != nil {
 		return nil, fmt.Errorf("creating replica directory: %w", err)
@@ -84,7 +87,7 @@ func NewClient(cfg *Config, logger *slog.Logger) (*Client, error) {
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
 
-	return &Client{
+	return &TursoClient{
 		DB:        db,
 		connector: connector,
 		logger:    logger,
@@ -92,7 +95,11 @@ func NewClient(cfg *Config, logger *slog.Logger) (*Client, error) {
 }
 
 // Sync manually triggers a sync with the remote Turso database.
-func (c *Client) Sync() error {
+// No-op when running without a remote (e.g. SQLite backend).
+func (c *TursoClient) Sync() error {
+	if c.connector == nil {
+		return nil
+	}
 	rep, err := c.connector.Sync()
 	if err != nil {
 		return fmt.Errorf("syncing database: %w", err)
@@ -102,12 +109,14 @@ func (c *Client) Sync() error {
 }
 
 // Close shuts down the database connection and connector.
-func (c *Client) Close() error {
+func (c *TursoClient) Close() error {
 	if err := c.DB.Close(); err != nil {
 		return fmt.Errorf("closing database: %w", err)
 	}
-	if err := c.connector.Close(); err != nil {
-		return fmt.Errorf("closing connector: %w", err)
+	if c.connector != nil {
+		if err := c.connector.Close(); err != nil {
+			return fmt.Errorf("closing connector: %w", err)
+		}
 	}
 	return nil
 }

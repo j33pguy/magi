@@ -27,7 +27,7 @@ func main() {
 
 	// Initialize database
 	dbCfg := db.ConfigFromEnv()
-	dbClient, err := db.NewClient(dbCfg, logger.WithGroup("db"))
+	dbClient, err := db.NewStore(dbCfg, logger.WithGroup("db"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "database error: %v\n", err)
 		os.Exit(1)

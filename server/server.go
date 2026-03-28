@@ -41,7 +41,7 @@ type Server struct {
 func New(logger *slog.Logger) (*Server, error) {
 	// Initialize database
 	dbCfg := db.ConfigFromEnv()
-	dbClient, err := db.NewClient(dbCfg, logger.WithGroup("db"))
+	dbClient, err := db.NewStore(dbCfg, logger.WithGroup("db"))
 	if err != nil {
 		return nil, fmt.Errorf("initializing database: %w", err)
 	}
