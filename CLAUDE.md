@@ -86,6 +86,12 @@ At the beginning of every session, read the `memory://context` resource to get
 recent and important memories pre-loaded. This ensures you have relevant context
 without needing explicit recall calls.
 
+## Session Start
+
+At the beginning of every session, read the `memory://context` resource to get
+recent and important memories pre-loaded. This ensures you have relevant context
+without needing explicit recall calls.
+
 ## Conventions
 
 - One struct per file, file named after the struct
