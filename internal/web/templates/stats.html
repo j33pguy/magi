@@ -1,0 +1,60 @@
+{{define "title"}}stats{{end}}
+{{define "content"}}
+<div class="stats-grid">
+    <div class="card stat-card">
+        <div class="stat-value">{{.TotalMemories}}</div>
+        <div class="stat-label">Total memories</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-value">{{.ThisWeek}}</div>
+        <div class="stat-label">This week</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-value" style="font-size: 20px;">{{if .TopArea}}{{.TopArea}}{{else}}-{{end}}</div>
+        <div class="stat-label">Most active area</div>
+    </div>
+</div>
+
+{{if .SpeakerCounts}}
+<div class="card" style="margin-bottom: 16px;">
+    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">By speaker</div>
+    <div class="bar-chart">
+    {{range .SpeakerCounts}}
+        <div class="bar-row">
+            <span class="bar-label">{{if .Name}}{{.Name}}{{else}}(none){{end}}</span>
+            <div class="bar-track">
+                <div class="bar-fill {{speakerBadge .Name}}" style="width: {{.Percent}}%; background-color: {{speakerColor .Name}};">{{.Count}}</div>
+            </div>
+        </div>
+    {{end}}
+    </div>
+</div>
+{{end}}
+
+{{if .AreaCounts}}
+<div class="card" style="margin-bottom: 16px;">
+    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">By area</div>
+    <div class="bar-chart">
+    {{range .AreaCounts}}
+        <div class="bar-row">
+            <span class="bar-label">{{if .Name}}{{.Name}}{{else}}(none){{end}}</span>
+            <div class="bar-track">
+                <div class="bar-fill" style="width: {{.Percent}}%; background-color: {{areaColor .Name}};">{{.Count}}</div>
+            </div>
+        </div>
+    {{end}}
+    </div>
+</div>
+{{end}}
+
+{{if .TopTags}}
+<div class="card">
+    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Top tags</div>
+    <div class="tags-cloud">
+    {{range .TopTags}}
+        <span class="badge badge-gray">{{.Name}} <span style="opacity: 0.6; margin-left: 4px;">{{.Count}}</span></span>
+    {{end}}
+    </div>
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,34 @@
+{{define "title"}}search memories{{end}}
+{{define "content"}}
+<div style="margin-bottom: 24px;">
+    <input type="text" class="search-input" name="q" placeholder="Search memories..."
+        hx-get="/api/search" hx-target="#results" hx-trigger="keyup changed delay:300ms"
+        autofocus>
+</div>
+<div id="results">
+    <div class="empty-state">Start typing to search memories</div>
+</div>
+{{end}}
+
+{{define "search_results"}}
+{{if .Results}}
+<div class="card" style="padding: 0; overflow: hidden;">
+{{range .Results}}
+<div class="memory-row" id="srow-{{.Memory.ID}}"
+    hx-get="/memory/{{.Memory.ID}}/partial" hx-target="#srow-{{.Memory.ID}}" hx-swap="outerHTML">
+    <span class="memory-summary">{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 80}}{{end}}</span>
+    <div class="memory-meta">
+        <span class="score-badge">{{printf "%.0f" .ScorePercent}}%</span>
+        {{if .Memory.Speaker}}<span class="badge {{speakerBadge .Memory.Speaker}}">{{.Memory.Speaker}}</span>{{end}}
+        {{if .Memory.Area}}<span class="badge {{areaBadge .Memory.Area}}">{{.Memory.Area}}</span>{{end}}
+        <span class="memory-date">{{formatDate .Memory.CreatedAt}}</span>
+    </div>
+</div>
+{{end}}
+</div>
+{{else if .Query}}
+<div class="empty-state">No results for "{{.Query}}"</div>
+{{else}}
+<div class="empty-state">Start typing to search memories</div>
+{{end}}
+{{end}}

@@ -1,0 +1,216 @@
+{{template "base" .}}
+{{define "title"}}memory — graph{{end}}
+{{define "content"}}
+<style>
+    main.container { max-width: 100%; padding: 0; }
+</style>
+<div id="graph-container" style="width:100%;height:calc(100vh - 53px);position:relative;background:#0f1117;">
+    <div id="graph-controls" style="position:absolute;top:16px;left:16px;z-index:10;"></div>
+    <div id="graph-stats" style="position:absolute;top:16px;right:16px;z-index:10;color:#64748b;font-size:12px;">
+        <span id="node-count">0 nodes</span> · <span id="edge-count">0 edges</span>
+    </div>
+    <svg id="graph-svg" width="100%" height="100%"></svg>
+    <div id="node-tooltip" style="position:absolute;display:none;background:#1a1d27;border:1px solid #2a2d3a;border-radius:8px;padding:12px;max-width:280px;font-size:13px;color:#e2e8f0;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.4);"></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script>
+const AREA_COLORS = {
+    work:    "#3b82f6",
+    homelab: "#f59e0b",
+    home:    "#10b981",
+    family:  "#ec4899",
+    project: "#a855f7",
+    meta:    "#64748b",
+    "":      "#64748b",
+};
+
+const RELATION_COLORS = {
+    caused_by:   "#ef4444",
+    led_to:      "#10b981",
+    related_to:  "#6366f1",
+    supersedes:  "#f59e0b",
+    part_of:     "#3b82f6",
+    contradicts: "#ec4899",
+};
+
+async function loadGraph() {
+    const res = await fetch("/api/graph");
+    const data = await res.json();
+    if (!data.nodes || data.nodes.length === 0) {
+        document.getElementById("graph-container").innerHTML =
+            '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;font-size:14px;">No memories with links found</div>';
+        return;
+    }
+
+    // Compute link_count from edges
+    const linkCounts = {};
+    (data.edges || []).forEach(e => {
+        linkCounts[e.from] = (linkCounts[e.from] || 0) + 1;
+        linkCounts[e.to] = (linkCounts[e.to] || 0) + 1;
+    });
+    data.nodes.forEach(n => { n.link_count = linkCounts[n.id] || 0; });
+
+    renderGraph(data.nodes, data.edges || []);
+    buildControls(data.nodes);
+}
+
+function renderGraph(nodes, edges) {
+    const svg = d3.select("#graph-svg");
+    const width = svg.node().clientWidth;
+    const height = svg.node().clientHeight;
+
+    // Arrow markers
+    const defs = svg.append("defs");
+    Object.entries(RELATION_COLORS).forEach(([rel, color]) => {
+        defs.append("marker")
+            .attr("id", "arrow-" + rel)
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 20).attr("refY", 0)
+            .attr("markerWidth", 6).attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("fill", color)
+            .attr("d", "M0,-5L10,0L0,5");
+    });
+    // Default arrow
+    defs.append("marker")
+        .attr("id", "arrow-default")
+        .attr("viewBox", "0 -5 10 10")
+        .attr("refX", 20).attr("refY", 0)
+        .attr("markerWidth", 6).attr("markerHeight", 6)
+        .attr("orient", "auto")
+        .append("path")
+        .attr("fill", "#2a2d3a")
+        .attr("d", "M0,-5L10,0L0,5");
+
+    // Zoom/pan container
+    const g = svg.append("g");
+    svg.call(d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on("zoom", e => g.attr("transform", e.transform))
+    );
+
+    // Map edges: from/to → source/target for d3
+    const edgeData = edges.map(e => ({...e, source: e.from, target: e.to}));
+
+    // Force simulation
+    const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(edgeData).id(d => d.id).distance(80))
+        .force("charge", d3.forceManyBody().strength(-200))
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("collision", d3.forceCollide().radius(d => nodeRadius(d) + 4));
+
+    // Edges
+    const link = g.append("g").selectAll("line")
+        .data(edgeData).enter().append("line")
+        .attr("stroke", d => RELATION_COLORS[d.relation] || "#2a2d3a")
+        .attr("stroke-width", d => d.auto ? 0.5 : 1.5)
+        .attr("stroke-dasharray", d => d.auto ? "4,4" : null)
+        .attr("stroke-opacity", 0.6)
+        .attr("marker-end", d => "url(#arrow-" + (RELATION_COLORS[d.relation] ? d.relation : "default") + ")");
+
+    // Nodes
+    const node = g.append("g").selectAll("circle")
+        .data(nodes).enter().append("circle")
+        .attr("r", d => nodeRadius(d))
+        .attr("fill", d => AREA_COLORS[d.area] || "#64748b")
+        .attr("fill-opacity", 0.85)
+        .attr("stroke", "#0f1117")
+        .attr("stroke-width", 2)
+        .style("cursor", "pointer")
+        .call(d3.drag()
+            .on("start", (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+            .on("drag", (e, d) => { d.fx = e.x; d.fy = e.y; })
+            .on("end", (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+        )
+        .on("mouseover", showTooltip)
+        .on("mouseout", hideTooltip)
+        .on("click", (e, d) => { window.location.href = "/memory/" + d.id; });
+
+    // Labels for high-degree nodes
+    const label = g.append("g").selectAll("text")
+        .data(nodes.filter(d => d.link_count >= 3)).enter().append("text")
+        .text(d => d.summary ? (d.summary.length > 30 ? d.summary.slice(0, 30) + "\u2026" : d.summary) : d.id.slice(0, 8))
+        .attr("font-size", 11)
+        .attr("font-family", "'Inter', sans-serif")
+        .attr("fill", "#94a3b8")
+        .attr("dy", d => -nodeRadius(d) - 4)
+        .attr("text-anchor", "middle")
+        .style("pointer-events", "none");
+
+    // Update stats
+    document.getElementById("node-count").textContent = nodes.length + " nodes";
+    document.getElementById("edge-count").textContent = edgeData.length + " edges";
+
+    simulation.on("tick", () => {
+        link
+            .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+        node.attr("cx", d => d.x).attr("cy", d => d.y);
+        label.attr("x", d => d.x).attr("y", d => d.y);
+    });
+
+    // Store refs for filtering
+    window._graphRefs = { node, link, label, simulation, nodes, edgeData };
+}
+
+function nodeRadius(d) {
+    return Math.max(5, Math.min(20, 5 + (d.link_count || 0) * 1.5));
+}
+
+function showTooltip(event, d) {
+    const t = document.getElementById("node-tooltip");
+    t.innerHTML =
+        '<div style="font-weight:600;margin-bottom:4px;">' + escHtml(d.summary || "Untitled") + '</div>' +
+        '<div style="color:#64748b;font-size:11px;">' +
+            (d.area || "no area") + ' \u00b7 ' + (d.type || "memory") + ' \u00b7 ' + (d.link_count || 0) + ' links' +
+        '</div>' +
+        '<div style="color:#64748b;font-size:11px;margin-top:2px;">Click to open</div>';
+    t.style.display = "block";
+    t.style.left = (event.pageX + 12) + "px";
+    t.style.top = (event.pageY - 10) + "px";
+}
+
+function hideTooltip() {
+    document.getElementById("node-tooltip").style.display = "none";
+}
+
+function escHtml(s) {
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+function buildControls(nodes) {
+    const areas = [...new Set(nodes.map(d => d.area).filter(Boolean))].sort();
+    if (areas.length === 0) return;
+    const controls = document.getElementById("graph-controls");
+    controls.innerHTML = '<div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:8px;padding:12px;font-size:12px;">' +
+        '<div style="color:#64748b;margin-bottom:8px;font-weight:600;">FILTER BY AREA</div>' +
+        areas.map(a =>
+            '<label style="display:flex;align-items:center;gap:6px;margin-bottom:4px;cursor:pointer;color:' + (AREA_COLORS[a]||"#64748b") + '">' +
+            '<input type="checkbox" checked data-area="' + a + '" onchange="filterAreas()">' + a +
+            '</label>'
+        ).join("") +
+    '</div>';
+}
+
+function filterAreas() {
+    const checked = new Set();
+    document.querySelectorAll("#graph-controls input[data-area]").forEach(cb => {
+        if (cb.checked) checked.add(cb.dataset.area);
+    });
+    const refs = window._graphRefs;
+    if (!refs) return;
+    refs.node.attr("opacity", d => (!d.area || checked.has(d.area)) ? 1 : 0.1);
+    refs.label.attr("opacity", d => (!d.area || checked.has(d.area)) ? 1 : 0.1);
+    refs.link.attr("opacity", d => {
+        const sVis = !d.source.area || checked.has(d.source.area);
+        const tVis = !d.target.area || checked.has(d.target.area);
+        return (sVis && tVis) ? 0.6 : 0.05;
+    });
+}
+
+loadGraph();
+</script>
+{{end}}

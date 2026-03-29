@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <PackageId>Magi.Client</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>j33pguy</Authors>
+    <Description>MAGI client SDK — Multi-Agent Graph Intelligence. Universal memory for AI agents.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/j33pguy/magi</PackageProjectUrl>
+    <PackageTags>ai;memory;rag;mcp;multi-agent;semantic-search</PackageTags>
+    <RepositoryUrl>https://github.com/j33pguy/magi</RepositoryUrl>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.*" />
+  </ItemGroup>
+</Project>

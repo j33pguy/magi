@@ -1,0 +1,17 @@
+{
+  "name": "@j33pguy/magi",
+  "version": "0.1.0",
+  "description": "MAGI client SDK — Multi-Agent Graph Intelligence",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "keywords": ["ai", "memory", "rag", "mcp", "multi-agent", "semantic-search"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/j33pguy/magi"
+  }
+}

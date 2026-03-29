@@ -1,0 +1,189 @@
+{{define "title"}}import — memory{{end}}
+{{define "content"}}
+<style>
+    .drop-zone {
+        border: 2px dashed var(--border);
+        border-radius: 12px;
+        padding: 48px 24px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 16px;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+        border-color: var(--accent);
+        background: rgba(99,102,241,0.05);
+    }
+    .drop-zone-text {
+        color: var(--text-muted);
+        font-size: 15px;
+        margin-bottom: 8px;
+    }
+    .drop-zone-hint {
+        color: var(--text-muted);
+        font-size: 12px;
+        opacity: 0.7;
+    }
+    .ingest-results {
+        margin-top: 16px;
+    }
+    .ingest-summary {
+        padding: 12px 16px;
+        border-radius: 8px;
+        background: rgba(16,185,129,0.1);
+        border: 1px solid rgba(16,185,129,0.2);
+        color: var(--green);
+        font-size: 14px;
+        margin-bottom: 12px;
+    }
+    .ingest-summary.error {
+        background: rgba(239,68,68,0.1);
+        border-color: rgba(239,68,68,0.2);
+        color: var(--red);
+    }
+    .ingest-memory-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .ingest-memory-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+        border-bottom: 1px solid var(--border);
+    }
+    .format-badge {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        background: rgba(99,102,241,0.12);
+        color: var(--accent);
+    }
+    .paste-section { margin-top: 16px; }
+    .action-row { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+</style>
+
+<div style="margin-bottom: 24px;">
+    <h2 style="font-size: 20px; font-weight: 600; margin-bottom: 4px;">Import Conversations</h2>
+    <p style="font-size: 13px; color: var(--text-muted);">Drop a Grok or ChatGPT export file, or paste text below</p>
+</div>
+
+<div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <div class="drop-zone-text">Drop a conversation export file here</div>
+    <div class="drop-zone-hint">Supports Grok JSON, ChatGPT JSON, and plain text</div>
+    <input type="file" id="fileInput" accept=".json,.txt,.md" style="display:none">
+</div>
+
+<div id="formatDetected"></div>
+
+<div class="paste-section">
+    <label for="pasteArea">Or paste conversation text</label>
+    <textarea id="pasteArea" class="textarea" rows="8" placeholder="Paste Grok/ChatGPT JSON export or plain text conversation here..."></textarea>
+</div>
+
+<div class="action-row">
+    <button class="btn" id="detectBtn" onclick="detectFormat()">Detect Format</button>
+    <button class="btn btn-primary" id="importBtn" onclick="importConversation()">Import</button>
+    <span class="htmx-indicator" id="loadingIndicator"><span class="spinner"></span> Analyzing conversation…</span>
+</div>
+
+<div id="results" class="ingest-results"></div>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const pasteArea = document.getElementById('pasteArea');
+let currentData = null;
+
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) readFile(file);
+});
+fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) readFile(fileInput.files[0]);
+});
+
+function readFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        pasteArea.value = e.target.result;
+        currentData = e.target.result;
+        dropZone.querySelector('.drop-zone-text').textContent = file.name;
+    };
+    reader.readAsText(file);
+}
+
+function getContent() {
+    return pasteArea.value || currentData || '';
+}
+
+function detectFormat() {
+    const content = getContent();
+    if (!content) return;
+    fetch('/api/ingest/detect', {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain'},
+        body: content
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('formatDetected').innerHTML =
+            '<div style="margin:8px 0"><span class="format-badge">Detected: ' + data.format + '</span>' +
+            (data.turns ? ' <span style="color:var(--text-muted);font-size:12px">' + data.turns + ' turns</span>' : '') +
+            '</div>';
+    })
+    .catch(() => {
+        document.getElementById('formatDetected').innerHTML =
+            '<div class="ingest-summary error">Could not detect format</div>';
+    });
+}
+
+function importConversation() {
+    const content = getContent();
+    if (!content) return;
+    const indicator = document.getElementById('loadingIndicator');
+    indicator.style.display = 'inline-flex';
+
+    fetch('/ingest', {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain'},
+        body: content
+    })
+    .then(r => r.json())
+    .then(data => {
+        indicator.style.display = 'none';
+        let html = '';
+        if (data.error) {
+            html = '<div class="ingest-summary error">' + data.error + '</div>';
+        } else {
+            html = '<div class="ingest-summary">Imported ' + data.imported + ' memories · Skipped ' + data.skipped + ' duplicates</div>';
+            if (data.memories && data.memories.length > 0) {
+                html += '<div class="card"><div class="ingest-memory-list">';
+                data.memories.forEach(m => {
+                    html += '<div class="ingest-memory-item">' +
+                        '<span class="badge badge-accent">' + m.type + '</span>' +
+                        '<span>' + m.summary + '</span></div>';
+                });
+                html += '</div></div>';
+            }
+        }
+        document.getElementById('results').innerHTML = html;
+    })
+    .catch(() => {
+        indicator.style.display = 'none';
+        document.getElementById('results').innerHTML =
+            '<div class="ingest-summary error">Import failed</div>';
+    });
+}
+</script>
+{{end}}

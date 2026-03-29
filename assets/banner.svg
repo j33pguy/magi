@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="200" viewBox="0 0 800 200">
+  <rect width="800" height="200" fill="#0f1117"/>
+  <text x="400" y="90" font-family="monospace" font-size="48" font-weight="bold" fill="#6366f1" text-anchor="middle">🧠 MAGI</text>
+  <text x="400" y="130" font-family="monospace" font-size="18" fill="#64748b" text-anchor="middle">Multi-Agent Graph Intelligence</text>
+  <text x="400" y="170" font-family="monospace" font-size="14" fill="#10b981" text-anchor="middle" font-style="italic">Don't Panic.</text>
+</svg>
