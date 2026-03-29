@@ -26,7 +26,7 @@ func (r *Recall) Tool() mcp.Tool {
 		mcp.WithArray("projects", mcp.Description("Filter by multiple namespaces — results from any match (e.g. ['agent:dinesh','crew:shared'])"), mcp.WithStringItems()),
 		mcp.WithString("type",
 			mcp.Description("Filter by memory type"),
-			mcp.Enum("memory", "incident", "lesson", "decision", "project_context", "conversation", "audit", "runbook", "preference", "context", "security"),
+			mcp.Enum("memory", "incident", "lesson", "decision", "project_context", "conversation", "audit", "runbook", "preference", "context", "security", "state"),
 		),
 		mcp.WithArray("tags", mcp.Description("Filter by tags (any match)"), mcp.WithStringItems()),
 		mcp.WithNumber("top_k", mcp.Description("Number of results to return (default 5)")),
