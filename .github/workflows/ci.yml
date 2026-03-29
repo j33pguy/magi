@@ -45,14 +45,14 @@ jobs:
 
       - name: Get deploy key from Vault
         env:
-          VAULT_ROLE_ID: ${{ secrets.VAULT_ROLE_ID }}
-          VAULT_SECRET_ID: ${{ secrets.VAULT_SECRET_ID }}
+          VAULT_ROLE_ID: ${{ secrets.ANSIBLE_ROLE_ID }}
+          VAULT_SECRET_ID: ${{ secrets.ANSIBLE_SECRET_ID }}
         run: |
           VAULT_TOKEN=$(curl -sk -X POST ${VAULT_ADDR}/v1/auth/approle/login \
             -d "{\"role_id\":\"${VAULT_ROLE_ID}\",\"secret_id\":\"${VAULT_SECRET_ID}\"}" \
             | jq -r '.auth.client_token')
           curl -sk -H "X-Vault-Token: ${VAULT_TOKEN}" \
-            ${VAULT_ADDR}/v1/homelab/data/ssh | jq -r '.data.data.ansible_private_key' \
+            ${VAULT_ADDR}/v1/homelab/data/ssh | jq -r '.data.data.ansible_private_key_b64' | base64 -d \
             > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
 
