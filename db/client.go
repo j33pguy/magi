@@ -36,7 +36,7 @@ func tursoConfigFromEnv() *TursoConfig {
 	replicaPath := os.Getenv("MAGI_REPLICA_PATH")
 	if replicaPath == "" {
 		home, _ := os.UserHomeDir()
-		replicaPath = filepath.Join(home, ".claude", "memory.db")
+		replicaPath = filepath.Join(home, ".magi", "memory.db")
 	}
 
 	syncInterval := 60 * time.Second

@@ -92,7 +92,7 @@ func indexTurn(ctx context.Context, dbClient *db.Client, embedder embeddings.Pro
 		Embedding:  embedding,
 		Project:    project,
 		Type:       "conversation",
-		Source:     "claude-code",
+		Source:     "mcp",
 		Speaker:    speaker,
 		Area:       c.Area,
 		SubArea:    c.SubArea,

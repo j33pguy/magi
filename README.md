@@ -1,225 +1,180 @@
-# magi
+# MAGI
 
-> Personal AI memory server. Semantic search, cross-channel conversation sync, and behavioral pattern learning for Claude.
+> **Multi-Agent Graph Intelligence** — Universal memory server for AI agents.
 
-## What is this?
+MAGI gives your AI agents persistent, semantic memory that works across platforms, sessions, and providers. Store conversations, recall context, detect behavioral patterns, and visualize knowledge graphs — all from a single self-hosted server.
 
-Claude has no persistent memory across sessions or channels. Every conversation starts from scratch — context vanishes the moment a session ends. **magi** fixes that.
-
-It's a self-hosted Go server that gives Claude (and any other AI agent) a persistent, searchable memory layer. Memories are stored as vector embeddings in [Turso](https://turso.tech) (distributed libSQL), with a local embedded replica for fast offline reads. Embeddings are generated locally using ONNX Runtime (all-MiniLM-L6-v2, 384 dimensions) — no OpenAI API key, no cloud embedding service, no data leaving your machine.
-
-magi exposes four interfaces: **MCP** (for Claude Code via stdio), **gRPC** (for services), **HTTP/JSON** (via grpc-gateway), and a **web UI** (for humans). Whether Claude is talking to you in a terminal, a Discord bot, or a web chat — it remembers.
+Works with **any agent**: Claude, GPT, Grok, Gemini, Cursor, Codex, local LLMs, or custom agents via MCP, gRPC, or REST.
 
 ## Features
 
-### Memory Storage
-- **Semantic vector search** — hybrid retrieval (BM25 keyword + cosine similarity) fused via RRF
-- **Local ONNX embeddings** — all-MiniLM-L6-v2, 384 dims, no API keys needed
-- **Structured taxonomy** — area, sub_area, type, speaker, importance
-- **Auto-classification** — rules-based inference of area/sub_area from content
-- **Contradiction detection** — automatic checks on write, never blocks, warns
-- **Deduplication** — content-hash and cosine similarity checks prevent duplicates
-- **Visibility levels** — private, internal, public
-- **Memory graph** — directed relationships between memories (caused_by, led_to, supersedes, etc.)
-- **Soft-delete** (archive) and hard-delete
-
-### MCP Tools (for Claude Code)
-
-| Tool | Purpose |
-|------|---------|
-| `remember` | Store a memory with auto-embedding and contradiction detection |
-| `recall` | Hybrid semantic + keyword search with adaptive query rewriting |
-| `forget` | Soft-delete (archive) or hard-delete a memory |
-| `list_memories` | Browse/filter memories without semantic search |
-| `update_memory` | Modify content/metadata, re-embeds if content changes |
-| `index_turn` | Index a single conversation turn (passive memory building) |
-| `index_session` | Bulk-index a completed conversation session |
-| `check_contradictions` | Check if content contradicts existing memories |
-| `store_conversation` | Store cross-channel conversation summary |
-| `recall_conversations` | Search conversation history semantically |
-| `recent_conversations` | List recent conversations across all channels |
-| `recall_lessons` | Search lesson memories (gotchas, hard-won knowledge) |
-| `recall_incidents` | Search incident memories (what broke, how it was fixed) |
-| `ingest_conversation` | Import Grok/ChatGPT/text conversation exports |
-| `link_memories` | Create directed relationships between memories |
-| `get_related` | Traverse the memory graph (BFS, configurable depth) |
-| `unlink_memories` | Remove a relationship between memories |
-
-### MCP Resources
-
-| Resource | Purpose |
-|----------|---------|
-| `memory://context` | Auto-inject recent/important memories at session start |
-| `memory://recent/{project}` | Recent memories for a project |
-| `memory://decisions/{project}` | Decision-type memories for a project |
-| `memory://preferences` | User preference memories |
-| `memory://conversations/recent` | Recent cross-channel conversations |
-| `memory://patterns` | Auto-detected behavioral patterns |
-
-### HTTP API
-Full REST API on `:8302` with Bearer token auth. See [docs/http-api.md](docs/http-api.md).
-
-### gRPC API
-Native gRPC on `:8300` with grpc-gateway JSON proxy on `:8301`. See [proto/memory/v1/memory.proto](proto/memory/v1/memory.proto).
-
-### Web UI
-Dark-theme HTMX interface on `:8080`:
-- Memory list with filtering (speaker, area, type)
-- Semantic search
-- Memory detail view with related memories
-- Create new memories
-- Knowledge graph visualization (D3 force-directed)
-- Conversations timeline
-- Import page (drag-and-drop Grok/ChatGPT exports)
-- Behavioral patterns dashboard
-- Statistics (totals, speaker/area breakdowns, top tags)
-
-### Behavioral Pattern Learning
-Heuristic-based analysis that detects patterns from your memory corpus:
-- **Technology preferences** — tools you consistently use or avoid
-- **Decision style** — security-first, comparative, decisive
-- **Work patterns** — weekend concentration, peak hours
-- **Communication style** — concise, detailed, direct
+- **Semantic Search** — Hybrid vector + BM25 retrieval with ONNX embeddings (all-MiniLM-L6-v2, 384-dim)
+- **Knowledge Graph** — Auto-linked memories with D3.js force-directed visualization
+- **Behavioral Patterns** — Detects preferences, work habits, decision styles across conversations
+- **Cross-Channel Sync** — Unify memory across Discord, Slack, webchat, MCP, and custom channels
+- **Conversation Tracking** — Store, search, and replay multi-turn conversations with topic extraction
+- **Web Dashboard** — Full UI for browsing, searching, graphing, and managing memories
+- **Multi-Protocol** — MCP (stdio), gRPC, REST API, and Web UI on separate ports
+- **Self-Hosted** — Your data stays on your hardware. SQLite or Turso/libSQL backend.
+- **Platform Agnostic** — No vendor lock-in. Standard protocols. MIT licensed.
 
 ## Quick Start
 
-### Prerequisites
-- Go 1.25+
-- ONNX Runtime (`brew install onnxruntime` on macOS, `dnf install onnxruntime-devel` on Fedora)
-- A [Turso](https://turso.tech) database (free tier works)
-
-### Build
+### Docker (easiest)
 
 ```bash
-git clone https://github.com/j33pguy/magi
+docker run -d --name magi \
+  -p 8300:8300 -p 8301:8301 -p 8302:8302 -p 8080:8080 \
+  -v magi-data:/data \
+  ghcr.io/j33pguy/magi:latest
+```
+
+### Binary
+
+```bash
+# Download latest release
+curl -L https://github.com/j33pguy/magi/releases/latest/download/magi-linux-amd64 -o magi
+chmod +x magi
+
+# Run with SQLite (no external deps)
+MEMORY_BACKEND=sqlite ./magi --http-only
+```
+
+### From Source
+
+```bash
+git clone https://github.com/j33pguy/magi.git
 cd magi
-CGO_ENABLED=1 make build
-```
-
-### Configure
-
-```bash
-export TURSO_URL=libsql://magi-<you>.turso.io
-export TURSO_AUTH_TOKEN=<token>
-export MAGI_API_TOKEN=<your-bearer-token>  # optional, unset = no auth
-```
-
-See [Environment Variables](#environment-variables) for the full list.
-
-### Run
-
-```bash
-# MCP mode (stdio) — for Claude Code
-./bin/magi
-
-# HTTP-only mode — for server deployments
-./bin/magi --http-only
-```
-
-### Claude Code MCP Setup
-
-```bash
-# Via MCP (Claude Code, Cursor, etc)
-claude mcp add -s user magi -- magi
-```
-
-Or add to your MCP config manually:
-
-```json
-{
-  "mcpServers": {
-    "magi": {
-      "command": "/usr/local/bin/magi",
-      "env": {
-        "TURSO_URL": "libsql://magi-<you>.turso.io",
-        "TURSO_AUTH_TOKEN": "<token>"
-      }
-    }
-  }
-}
+make build
+MEMORY_BACKEND=sqlite ./bin/magi --http-only
 ```
 
 ## Architecture
 
 ```
-┌─────────────────┐   stdio    ┌───────────────────────────────────────────┐
-│  Claude Code    │───────────▶│              magi                │
-└─────────────────┘            │                                           │
-┌─────────────────┐   gRPC    │  ┌─────────┐  ┌────────────────────────┐  │
-│  gRPC clients   │──:8300───▶│  │  Tools   │  │  ONNX Runtime          │  │
-└─────────────────┘            │  │  + API   │  │  all-MiniLM-L6-v2     │  │
-┌─────────────────┐   HTTP    │  │  handlers│  │  384-dim embeddings    │  │
-│  Services       │──:8301───▶│  └────┬─────┘  │  (local, no API key)  │  │
-│  (grpc-gateway) │            │       │        └────────────────────────┘  │
-└─────────────────┘            │       ▼                                    │
-┌─────────────────┐   HTTP    │  ┌─────────────────────────────────────┐   │
-│  Legacy clients │──:8302───▶│  │  Turso / libSQL                     │   │
-└─────────────────┘            │  │  ┌───────────────┐  ┌───────────┐  │   │
-┌─────────────────┐   HTTP    │  │  │ Local replica  │◀▶│  Cloud DB │  │   │
-│  Web browser    │──:8080───▶│  │  │ (fast reads)   │  │  (sync)   │  │   │
-└─────────────────┘            │  │  └───────────────┘  └───────────┘  │   │
-                               │  └─────────────────────────────────────┘   │
-                               └───────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                     AI Agents                           │
+│  Claude · GPT · Grok · Gemini · Cursor · Local LLMs    │
+├─────────┬──────────┬───────────┬────────────────────────┤
+│   MCP   │   gRPC   │   REST    │        Web UI          │
+│  :8301  │  :8300   │  :8302    │        :8080           │
+├─────────┴──────────┴───────────┴────────────────────────┤
+│                    MAGI Core                            │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
+│  │ Remember  │ │  Recall  │ │ Patterns │ │   Graph   │  │
+│  │ + Embed   │ │ + Search │ │ Analyzer │ │  Linker   │  │
+│  └──────────┘ └──────────┘ └──────────┘ └───────────┘  │
+├─────────────────────────────────────────────────────────┤
+│  ONNX Embeddings (all-MiniLM-L6-v2, 384-dim)          │
+├─────────────────────────────────────────────────────────┤
+│  SQLite / Turso libSQL (vector search + FTS5)          │
+└─────────────────────────────────────────────────────────┘
 ```
 
-See [docs/architecture.md](docs/architecture.md) for detailed data flow.
+## MCP Integration
 
-## Environment Variables
+MAGI exposes 20 MCP tools for direct agent integration:
+
+```bash
+# Claude Code
+claude mcp add -s user magi -- ./magi
+
+# Any MCP-compatible agent
+./magi  # Runs in stdio MCP mode by default
+```
+
+**Tools:** `remember`, `recall`, `recall_conversations`, `recall_incidents`, `recall_lessons`, `store_conversation`, `index_turn`, `index_session`, `forget`, `update_memory`, `list_memories`, `link_memories`, `unlink_memories`, `check_contradictions`, `ingest`, and more.
+
+## REST API
+
+```bash
+# Store a memory
+curl -X POST http://localhost:8302/remember \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "User prefers Go over Python", "type": "preference", "project": "global"}'
+
+# Semantic search
+curl -X POST http://localhost:8302/recall \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"query": "language preferences", "limit": 5}'
+
+# Store a conversation
+curl -X POST http://localhost:8302/conversations \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"channel": "discord", "summary": "Discussed architecture", "topics": ["grpc", "design"]}'
+```
+
+## Web Dashboard
+
+Access at `http://localhost:8080`:
+
+- **List** — Browse all memories with filters (speaker, area, type)
+- **Search** — Semantic search with hybrid scoring
+- **Stats** — Memory distribution, top tags, activity
+- **Conversations** — Timeline view grouped by date and channel
+- **Patterns** — Behavioral pattern detection with related memories
+- **Graph** — D3.js knowledge graph with area/type/weight filters
+- **Import** — Bulk ingest from markdown, JSON, or other formats
+
+## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TURSO_URL` | _(required)_ | libSQL database URL |
-| `TURSO_AUTH_TOKEN` | _(required)_ | Turso auth token |
-| `MAGI_REPLICA_PATH` | `~/.magi.db` | Local embedded replica path |
-| `MAGI_SYNC_INTERVAL` | `60` | Turso sync interval (seconds) |
-| `MAGI_MODEL_DIR` | `~/.magi/models` | ONNX model directory |
-| `MAGI_API_TOKEN` | _(unset = no auth)_ | Bearer token for gRPC/HTTP auth |
+| `MEMORY_BACKEND` | `turso` | Storage backend: `turso` or `sqlite` |
+| `TURSO_URL` | — | Turso database URL |
+| `TURSO_AUTH_TOKEN` | — | Turso auth token |
+| `MAGI_REPLICA_PATH` | `~/.magi/memory.db` | Local embedded replica path |
+| `MAGI_MODEL_DIR` | `~/.magi/models` | ONNX embedding model directory |
 | `MAGI_GRPC_PORT` | `8300` | gRPC server port |
-| `MAGI_HTTP_PORT` | `8301` | grpc-gateway HTTP port |
-| `MAGI_LEGACY_HTTP_PORT` | `8302` | Legacy HTTP API port |
-| `MAGI_UI_PORT` | `8080` | Web UI port |
-| `ONNXRUNTIME_LIB` | _(auto-detect)_ | Override ONNX Runtime library path |
+| `MAGI_HTTP_PORT` | `8301` | MCP gateway port |
+| `MAGI_LEGACY_HTTP_PORT` | `8302` | REST API port |
+| `MAGI_UI_PORT` | `8080` | Web dashboard port |
+| `MAGI_API_TOKEN` | — | API authentication token |
+| `MAGI_MACHINE_ID` | `default` | Machine identifier for multi-node |
 
-## Importing Existing Data
+## Memory Types
 
-### From memory markdown files
+| Type | Description |
+|------|-------------|
+| `memory` | General memory |
+| `conversation` | Multi-turn conversation summary |
+| `decision` | Architectural or operational decision |
+| `incident` | Something that went wrong + resolution |
+| `lesson` | Lesson learned from experience |
+| `preference` | User/agent preference |
+| `context` | Background context (identity, project info) |
+| `runbook` | Operational procedure |
+| `state` | Current infrastructure/project state |
+| `security` | Security-related information |
 
-```bash
-magi-import --dir ~/.magi/
+## Multi-Agent Architecture
+
+MAGI is designed for multi-agent environments:
+
+```
+  Agent A (Claude)     Agent B (GPT)     Agent C (Local LLM)
+       │                    │                    │
+       └────────────────────┼────────────────────┘
+                            │
+                      ┌─────┴─────┐
+                      │   MAGI    │
+                      │  Server   │
+                      └─────┬─────┘
+                            │
+                   ┌────────┼────────┐
+                   │        │        │
+              Memories   Graph    Patterns
 ```
 
-### From Grok/ChatGPT exports
+Each agent can:
+- **Remember** — Store observations, decisions, and context
+- **Recall** — Search semantically across all agents' memories
+- **Link** — Create relationships between memories (caused_by, led_to, related_to)
+- **Analyze** — Detect behavioral patterns across conversations
 
-Use the `ingest_conversation` MCP tool, the web UI import page, or POST to `/ingest`:
-
-```bash
-curl -X POST http://localhost:8302/ingest \
-  -H "Authorization: Bearer $TOKEN" \
-  -d @chatgpt-export.json
-```
-
-## Deployment
-
-See [docs/deployment.md](docs/deployment.md) for systemd unit files and reverse proxy setup.
-
-## Development
-
-```bash
-make test      # Run tests
-make fmt       # Format code
-make lint      # Run linter
-make proto     # Regenerate protobuf stubs (requires buf)
-```
-
-CI runs on push to `main` via GitHub Actions on a self-hosted runner, with auto-deploy to the homelab server.
-
-## Documentation
-
-- [MCP Tools Reference](docs/mcp-tools.md) — all 17 tools with parameters and examples
-- [HTTP API Reference](docs/http-api.md) — REST endpoints with curl examples
-- [Architecture](docs/architecture.md) — detailed data flow and design decisions
-- [Deployment Guide](docs/deployment.md) — systemd, reverse proxy, production setup
+Memories are tagged with `speaker` (which agent wrote it) and `source` (which channel it came from), enabling per-agent filtering while maintaining a unified knowledge base.
 
 ## License
 
-[MIT](LICENSE)
+MIT

@@ -19,7 +19,7 @@ type RecentConversations struct {
 func (r *RecentConversations) Tool() mcp.Tool {
 	return mcp.NewTool("recent_conversations",
 		mcp.WithDescription("List recent conversation summaries across channels. Use recall_conversations for semantic search instead."),
-		mcp.WithString("channel", mcp.Description("Filter by channel (e.g. 'claude-code', 'slack')")),
+		mcp.WithString("channel", mcp.Description("Filter by channel (e.g. 'mcp', 'discord', 'webchat')")),
 		mcp.WithString("since", mcp.Description("Only return conversations after this timestamp (RFC3339)")),
 		mcp.WithNumber("limit", mcp.Description("Max results (default 10)")),
 	)

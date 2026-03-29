@@ -98,7 +98,7 @@ sudo cp bin/magi /opt/magi/bin/
 
 # Download ONNX model (first run)
 # The model is auto-downloaded to MODEL_DIR on first startup,
-# or copy it manually from ~/.claude/models/
+# or copy it manually from ~/.magi/models/
 
 # Enable and start
 sudo systemctl daemon-reload
@@ -110,7 +110,7 @@ sudo systemctl status magi
 journalctl -u magi -f
 ```
 
-**Note:** The `--http-only` flag runs gRPC, grpc-gateway, legacy HTTP, and web UI servers without the stdio MCP server. MCP mode is for direct Claude Code integration (where the binary is launched by Claude Code as a subprocess).
+**Note:** The `--http-only` flag runs gRPC, grpc-gateway, legacy HTTP, and web UI servers without the stdio MCP server. MCP mode is for direct direct agent integration (where the binary is launched by an agent as a subprocess).
 
 ## Reverse Proxy (Traefik)
 
@@ -191,7 +191,7 @@ Schema migrations run automatically on startup. The embedded replica syncs to Tu
 
 ## Model Setup
 
-The ONNX model (all-MiniLM-L6-v2) is auto-downloaded on first run to `MAGI_MODEL_DIR` (default `~/.claude/models/`). For air-gapped deployments, download the model files manually:
+The ONNX model (all-MiniLM-L6-v2) is auto-downloaded on first run to `MAGI_MODEL_DIR` (default `~/.magi/models/`). For air-gapped deployments, download the model files manually:
 
 - `model.onnx` — the ONNX model
 - `tokenizer.json` or `vocab.txt` — BERT WordPiece vocabulary

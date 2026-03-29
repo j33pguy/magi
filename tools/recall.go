@@ -81,7 +81,7 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 		Projects:   projects,
 		Type:       memType,
 		Tags:       tags,
-		Visibility: "all", // MCP callers (Claude Code, Gilfoyle) see all including private
+		Visibility: "all", // MCP callers see all including private
 		Speaker:    speaker,
 		Area:       area,
 		SubArea:    subArea,

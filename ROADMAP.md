@@ -1,7 +1,7 @@
 # magi Roadmap
 
 ## v0.1 — Current (shipped)
-- MCP stdio server (Claude Code integration)
+- MCP stdio server (agent integration)
 - HTTP API (OpenClaw/external services)
 - Turso cloud sync with local libSQL replica
 - ONNX embeddings (all-MiniLM-L6-v2, local, no API key)
@@ -45,7 +45,7 @@ Download a repo → binary detects it → syncs project memories → work begins
   "status": "fresh"   // fresh | stale | syncing | error
 }
 ```
-Claude Code reads this before starting work. If `stale` or `syncing`, waits.
+The agent reads this before starting work. If `stale` or `syncing`, waits.
 
 #### New MCP tool: `sync_now`
 Force a sync immediately. Returns when complete.
@@ -56,7 +56,7 @@ Force a sync immediately. Returns when complete.
 #### New env var: `MAGI_SYNC_MAX_AGE`
 Seconds before a sync is considered stale. Default: 300 (5 min).
 
-### Config in Claude Code (`~/.claude/CLAUDE.md` injection)
+### Config injection (`project config` injection)
 ```markdown
 Before starting any task:
 1. Check memory://sync-status
@@ -77,11 +77,11 @@ tagged as `type: project_context`. Clean repos, instructions travel with the mem
 - Special memory type: `project_context` — highest priority in recall
 - Stored as: `remember("Use Go 1.21+. All errors wrapped. No globals.", type="project_context", project="j33pguy/IaC")`
 - On project detection, `memory://project-context` resource returns these immediately
-- Claude Code reads them before any other context
+- The agent reads them before any other context
 
 ### New MCP resource: `memory://project-context`
 Returns all `project_context` memories for the current project, formatted as instructions.
-Claude Code injects these at the top of context automatically.
+The agent injects these at the top of context automatically.
 
 ### Migration
 - Existing `CLAUDE.md` files can be imported: `magi-import --type project_context --file CLAUDE.md`
@@ -122,7 +122,7 @@ Shows which machines have written recently, last seen timestamps.
 ## v0.4 — Ingestion Pipeline
 
 ### The pattern
-Work offline on MacBook → Agent session logs captured → ingested into Turso → homelab Claude has full context on next session.
+Work offline on MacBook → Agent session logs captured → ingested into Turso → the homelab agent has full context on next session.
 
 ### Features
 
@@ -134,7 +134,7 @@ Work offline on MacBook → Agent session logs captured → ingested into Turso 
 - Calls `remember` API to store with project tag + `source: magi_session`
 
 #### Import sources
-- Agent session logs (`~/.magi/projects/**/*.jsonl`)
+- Session logs (`~/.magi/projects/**/*.jsonl`)
 - Git commit messages (decisions + context)
 - Markdown notes (manual, existing `cmd/import`)
 - Future: VS Code history, terminal history

@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-magi exposes 17 MCP tools via stdio for use with Claude Code. All tools accept JSON parameters and return JSON responses.
+magi exposes 17 MCP tools via stdio for use with any MCP-compatible agent. All tools accept JSON parameters and return JSON responses.
 
 ## Core Memory Operations
 
@@ -168,7 +168,7 @@ Store a cross-channel conversation summary with rich metadata.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `channel` | string | yes | Channel name (e.g. `claude-code`, `discord`, `webchat`) |
+| `channel` | string | yes | Channel name (e.g. `mcp`, `discord`, `webchat`) |
 | `summary` | string | yes | Conversation summary |
 | `session_key` | string | no | Unique session identifier |
 | `started_at` | string | no | Start time (RFC3339) |

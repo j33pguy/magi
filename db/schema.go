@@ -252,7 +252,7 @@ CREATE INDEX IF NOT EXISTS idx_memory_links_to ON memory_links(to_id);
 // migrationV2 adds visibility field for access control.
 // Values: "private" (owner only, never via HTTP API), "internal" (default, accessible within the system), "public" (no restrictions)
 // Private memories: MEMORY.md, USER.md, credentials, family info — never exposed via HTTP
-// Internal memories: code context, decisions, runbooks — accessible to all Claude instances
+// Internal memories: code context, decisions, runbooks — accessible to all connected agents
 // Public memories: shareable context, project docs — safe for any consumer
 const migrationV2 = `
 ALTER TABLE memories ADD COLUMN visibility TEXT NOT NULL DEFAULT 'internal'

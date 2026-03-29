@@ -46,7 +46,7 @@ func NewOnnxProvider(logger *slog.Logger) (*OnnxProvider, error) {
 	modelDir := os.Getenv("MAGI_MODEL_DIR")
 	if modelDir == "" {
 		home, _ := os.UserHomeDir()
-		modelDir = filepath.Join(home, ".claude", "models")
+		modelDir = filepath.Join(home, ".magi", "models")
 	}
 
 	dir := filepath.Join(modelDir, modelName)

@@ -120,7 +120,7 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 		Embedding:  embedding,
 		Project:    project,
 		Type:       memType,
-		Source:     "claude-code",
+		Source:     "mcp",
 		Speaker:    speaker,
 		Area:       area,
 		SubArea:    subArea,

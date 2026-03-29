@@ -18,7 +18,7 @@ type Memory struct {
 	Project    string    `json:"project"`
 	Type       string    `json:"type"`
 	// Visibility controls access: "private" (owner only, never via HTTP API),
-	// "internal" (default, all Claude instances), "public" (any consumer)
+	// "internal" (default, all connected agents), "public" (any consumer)
 	Visibility string `json:"visibility"`
 	Source     string `json:"source"`
 	SourceFile string `json:"sourceFile"`

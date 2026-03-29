@@ -21,7 +21,7 @@ type StoreConversation struct {
 func (s *StoreConversation) Tool() mcp.Tool {
 	return mcp.NewTool("store_conversation",
 		mcp.WithDescription("Store a conversation summary for cross-channel history. Auto-embeds for semantic search and tags by channel/topics."),
-		mcp.WithString("channel", mcp.Required(), mcp.Description("Channel the conversation happened on (e.g. 'claude-code', 'slack', 'openclaw')")),
+		mcp.WithString("channel", mcp.Required(), mcp.Description("Channel the conversation happened on (e.g. 'mcp', 'slack', 'discord', 'webchat', 'openclaw')")),
 		mcp.WithString("summary", mcp.Required(), mcp.Description("Summary of the conversation")),
 		mcp.WithString("session_key", mcp.Description("Unique session identifier")),
 		mcp.WithString("started_at", mcp.Description("When the conversation started (RFC3339)")),

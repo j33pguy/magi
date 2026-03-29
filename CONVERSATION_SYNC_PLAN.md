@@ -24,7 +24,7 @@ We need a **conversation layer**: recent, searchable, cross-channel context.
 ```
 Webchat session ──┐                                ┌── Webchat session
 Discord session ───┼──→ magi HTTP API ←────┤── Discord session  
-Future channels ──┘         (memory01)              └── Claude Code (MCP)
+Future channels ──┘         (memory01)              └── MCP Agent (MCP)
                                   │
                               Turso cloud
                           (persists everywhere)

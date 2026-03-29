@@ -28,7 +28,7 @@ func ConfigFromEnv() *Config {
 
 	replicaPath := os.Getenv("MAGI_REPLICA_PATH")
 	if replicaPath == "" {
-		replicaPath = filepath.Join(home, ".claude", "memory.db")
+		replicaPath = filepath.Join(home, ".magi", "memory.db")
 	}
 
 	syncInterval := 60 * time.Second
@@ -40,7 +40,7 @@ func ConfigFromEnv() *Config {
 
 	sqlitePath := os.Getenv("SQLITE_PATH")
 	if sqlitePath == "" {
-		sqlitePath = filepath.Join(home, ".claude", "memory-local.db")
+		sqlitePath = filepath.Join(home, ".magi", "memory-local.db")
 	}
 
 	return &Config{

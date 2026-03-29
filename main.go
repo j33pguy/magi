@@ -1,5 +1,5 @@
 // Package main is the entry point for the magi MCP server.
-// It provides a RAG-based memory system for Claude Code using Turso
+// MAGI - Multi-Agent Graph Intelligence. Universal memory server for AI agents.
 // (distributed libSQL with vector search) and local ONNX embeddings.
 package main
 
