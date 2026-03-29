@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/search"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/search"
 )
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {

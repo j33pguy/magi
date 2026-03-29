@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/magi/db"
 )
 
 // Forget soft-deletes (archives) or permanently deletes a memory.

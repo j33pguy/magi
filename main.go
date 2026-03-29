@@ -1,4 +1,4 @@
-// Package main is the entry point for the claude-memory MCP server.
+// Package main is the entry point for the magi MCP server.
 // It provides a RAG-based memory system for Claude Code using Turso
 // (distributed libSQL with vector search) and local ONNX embeddings.
 package main
@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/j33pguy/claude-memory/server"
+	"github.com/j33pguy/magi/server"
 )
 
 func main() {

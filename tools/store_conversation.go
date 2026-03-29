@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
 )
 
 // StoreConversation stores a conversation summary with auto-embedding and tagging.

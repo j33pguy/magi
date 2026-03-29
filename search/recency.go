@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/magi/db"
 )
 
 // ApplyRecencyWeighting multiplies each result's Score by an exponential decay

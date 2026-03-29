@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
 )
 
 // Candidate is a potentially contradicting memory pair.

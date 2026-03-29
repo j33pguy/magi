@@ -43,7 +43,7 @@ type OnnxProvider struct {
 // NewOnnxProvider creates a new ONNX embedding provider. Downloads the model
 // and vocab on first use if not already cached.
 func NewOnnxProvider(logger *slog.Logger) (*OnnxProvider, error) {
-	modelDir := os.Getenv("CLAUDE_MEMORY_MODEL_DIR")
+	modelDir := os.Getenv("MAGI_MODEL_DIR")
 	if modelDir == "" {
 		home, _ := os.UserHomeDir()
 		modelDir = filepath.Join(home, ".claude", "models")

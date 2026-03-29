@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
-	"github.com/j33pguy/claude-memory/search"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
+	"github.com/j33pguy/magi/search"
 )
 
 // RecallConversations searches conversation memories using hybrid retrieval.

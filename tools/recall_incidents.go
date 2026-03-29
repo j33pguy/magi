@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
-	"github.com/j33pguy/claude-memory/search"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
+	"github.com/j33pguy/magi/search"
 )
 
 // RecallIncidents searches only incident-type memories (things that broke + how they were fixed).

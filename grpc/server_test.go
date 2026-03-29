@@ -14,8 +14,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
-	memgrpc "github.com/j33pguy/claude-memory/grpc"
-	pb "github.com/j33pguy/claude-memory/proto/memory/v1"
+	memgrpc "github.com/j33pguy/magi/grpc"
+	pb "github.com/j33pguy/magi/proto/memory/v1"
 )
 
 // recoveryInterceptor catches panics from nil deps in test and returns Internal.

@@ -42,7 +42,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Build binary
-        run: go build -o /tmp/claude-memory-new .
+        run: go build -o /tmp/magi-new .
 
       - name: Get deploy key from Vault
         env:
@@ -60,24 +60,24 @@ jobs:
       - name: Deploy binary to memory01
         run: |
           scp -i /tmp/deploy_key -o StrictHostKeyChecking=no \
-            /tmp/claude-memory-new ansible@10.5.5.40:/tmp/claude-memory-new
+            /tmp/magi-new ansible@10.5.5.40:/tmp/magi-new
           ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
             ansible@10.5.5.40 \
-            'sudo /usr/bin/install -m 755 /tmp/claude-memory-new /opt/claude-memory/bin/claude-memory && rm -f /tmp/claude-memory-new'
+            'sudo /usr/bin/install -m 755 /tmp/magi-new /opt/magi/bin/magi && rm -f /tmp/magi-new'
 
       - name: Restart service on memory01
         run: |
           ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
             ansible@10.5.5.40 \
-            'sudo systemctl restart claude-memory'
+            'sudo systemctl restart magi'
 
       - name: Health check
         run: |
           sleep 4
           ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
             ansible@10.5.5.40 \
-            'status=$(sudo systemctl is-active claude-memory); echo "claude-memory is $status"; [ "$status" = "active" ]'
+            'status=$(sudo systemctl is-active magi); echo "magi is $status"; [ "$status" = "active" ]'
 
       - name: Cleanup
         if: always()
-        run: rm -f /tmp/deploy_key /tmp/claude-memory-new
+        run: rm -f /tmp/deploy_key /tmp/magi-new

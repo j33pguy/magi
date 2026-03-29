@@ -1,4 +1,4 @@
-// Package web provides an embedded web GUI for browsing claude-memory.
+// Package web provides an embedded web GUI for browsing magi.
 package web
 
 import (
@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/j33pguy/claude-memory/classify"
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
-	"github.com/j33pguy/claude-memory/patterns"
-"github.com/j33pguy/claude-memory/ingest"
+	"github.com/j33pguy/magi/classify"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
+	"github.com/j33pguy/magi/patterns"
+"github.com/j33pguy/magi/ingest"
 )
 
 const pageSize = 30

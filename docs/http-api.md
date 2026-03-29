@@ -1,16 +1,16 @@
 # HTTP API Reference
 
-claude-memory exposes two HTTP APIs:
+magi exposes two HTTP APIs:
 
 - **grpc-gateway** on `:8301` — auto-generated JSON proxy from the gRPC service definition
 - **Legacy HTTP API** on `:8302` — hand-written REST handlers (will be removed once grpc-gateway is proven)
 
-Both use Bearer token auth via the `Authorization` header. Set `CLAUDE_MEMORY_API_TOKEN` to enable authentication. If unset, all requests are allowed (dev mode).
+Both use Bearer token auth via the `Authorization` header. Set `MAGI_API_TOKEN` to enable authentication. If unset, all requests are allowed (dev mode).
 
 ## Authentication
 
 ```bash
-curl -H "Authorization: Bearer $CLAUDE_MEMORY_API_TOKEN" http://localhost:8302/memories
+curl -H "Authorization: Bearer $MAGI_API_TOKEN" http://localhost:8302/memories
 ```
 
 ## Legacy HTTP API (`:8302`)
@@ -202,7 +202,7 @@ curl -X POST http://localhost:8302/conversations \
   -H "Content-Type: application/json" \
   -d '{
     "channel": "discord",
-    "summary": "Discussed claude-memory deployment strategy and cross-channel sync",
+    "summary": "Discussed magi deployment strategy and cross-channel sync",
     "session_key": "abc123",
     "turn_count": 12,
     "topics": ["deployment", "cross-channel sync"],

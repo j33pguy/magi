@@ -1,6 +1,6 @@
 syntax = "proto3";
 package memory.v1;
-option go_package = "github.com/j33pguy/claude-memory/proto/memory/v1;memorypb";
+option go_package = "github.com/j33pguy/magi/proto/memory/v1;memorypb";
 
 import "google/api/annotations.proto";
 
@@ -77,7 +77,7 @@ message Memory {
   string speaker = 15;
   // Taxonomy: top-level domain (work, home, family, homelab, project, meta)
   string area = 16;
-  // Taxonomy: sub-domain, free-form (power-platform, proxmox, claude-memory, etc.)
+  // Taxonomy: sub-domain, free-form (power-platform, proxmox, magi, etc.)
   string sub_area = 17;
 }
 

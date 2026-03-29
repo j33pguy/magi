@@ -1,4 +1,4 @@
-module github.com/j33pguy/claude-memory
+module github.com/j33pguy/magi
 
 go 1.25.5
 

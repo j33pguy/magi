@@ -7,10 +7,10 @@ import (
 	"log/slog"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/j33pguy/claude-memory/classify"
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
-	"github.com/j33pguy/claude-memory/ingest"
+	"github.com/j33pguy/magi/classify"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
+	"github.com/j33pguy/magi/ingest"
 )
 
 // IngestConversation imports a conversation export into memory.

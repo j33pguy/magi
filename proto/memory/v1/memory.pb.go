@@ -43,7 +43,7 @@ type Memory struct {
 	Speaker string `protobuf:"bytes,15,opt,name=speaker,proto3" json:"speaker,omitempty"`
 	// Taxonomy: top-level domain (work, home, family, homelab, project, meta)
 	Area string `protobuf:"bytes,16,opt,name=area,proto3" json:"area,omitempty"`
-	// Taxonomy: sub-domain, free-form (power-platform, proxmox, claude-memory, etc.)
+	// Taxonomy: sub-domain, free-form (power-platform, proxmox, magi, etc.)
 	SubArea       string `protobuf:"bytes,17,opt,name=sub_area,json=subArea,proto3" json:"sub_area,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1479,7 +1479,7 @@ const file_memory_v1_memory_proto_rawDesc = "" +
 	"\x04List\x12\x16.memory.v1.ListRequest\x1a\x17.memory.v1.ListResponse\"\x11\x82\xd3\xe4\x93\x02\v\x12\t/memories\x12N\n" +
 	"\x06Health\x12\x18.memory.v1.HealthRequest\x1a\x19.memory.v1.HealthResponse\"\x0f\x82\xd3\xe4\x93\x02\t\x12\a/health\x12|\n" +
 	"\x12CreateConversation\x12$.memory.v1.CreateConversationRequest\x1a%.memory.v1.CreateConversationResponse\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/conversations\x12\x86\x01\n" +
-	"\x13SearchConversations\x12%.memory.v1.SearchConversationsRequest\x1a&.memory.v1.SearchConversationsResponse\" \x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/conversations/searchB;Z9github.com/j33pguy/claude-memory/proto/memory/v1;memorypbb\x06proto3"
+	"\x13SearchConversations\x12%.memory.v1.SearchConversationsRequest\x1a&.memory.v1.SearchConversationsResponse\" \x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/conversations/searchB;Z9github.com/j33pguy/magi/proto/memory/v1;memorypbb\x06proto3"
 
 var (
 	file_memory_v1_memory_proto_rawDescOnce sync.Once

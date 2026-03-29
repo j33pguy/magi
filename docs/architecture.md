@@ -2,11 +2,11 @@
 
 ## Overview
 
-claude-memory is a single Go binary that runs four server interfaces concurrently, all backed by the same database and embedding engine.
+magi is a single Go binary that runs four server interfaces concurrently, all backed by the same database and embedding engine.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                          claude-memory (Go binary)                       │
+│                          magi (Go binary)                       │
 │                                                                          │
 │  ┌─────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
 │  │  MCP    │  │   gRPC       │  │ grpc-gateway │  │  Legacy HTTP    │  │
@@ -43,7 +43,7 @@ claude-memory is a single Go binary that runs four server interfaces concurrentl
 │  │                                                                    │  │
 │  │  ┌──────────────────────┐      ┌────────────────────────────┐     │  │
 │  │  │  Local SQLite Replica │◀───▶│     Turso Cloud Database   │     │  │
-│  │  │  ~/.claude/memory.db  │ sync │  libsql + vector search   │     │  │
+│  │  │  ~/.magi.db  │ sync │  libsql + vector search   │     │  │
 │  │  │  (fast offline reads) │      │  (distributed, durable)   │     │  │
 │  │  └──────────────────────┘      └────────────────────────────┘     │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
@@ -99,7 +99,7 @@ Local embedded replica ◀──── periodic sync (default 60s) ────�
 
 - Reads: always from local replica (fast, offline-capable)
 - Writes: to local replica, synced to cloud
-- Multiple claude-memory instances stay in sync via Turso
+- Multiple magi instances stay in sync via Turso
 ```
 
 ## Database Schema
@@ -129,7 +129,7 @@ type TEXT DEFAULT 'memory'     -- decision, lesson, incident, etc.
 visibility TEXT DEFAULT 'internal'
 speaker TEXT                   -- j33p, gilfoyle, agent, system
 area TEXT                      -- work, home, family, homelab, project, meta
-sub_area TEXT                  -- power-platform, proxmox, claude-memory, etc.
+sub_area TEXT                  -- power-platform, proxmox, magi, etc.
 parent_id TEXT                 -- soft-grouping via dedup
 created_at TEXT
 updated_at TEXT
@@ -174,7 +174,7 @@ Content → BERT WordPiece tokenizer → all-MiniLM-L6-v2 (ONNX) → 384-dim flo
 |------|-----------|
 | work | power-platform, fabric, power-bi, sharepoint, td-synnex, azure |
 | homelab | iac, proxmox, dns, networking, vault, authentik, monitoring, lancache |
-| project | claude-memory, distify, labctl, vault-unsealer |
+| project | magi, distify, labctl, vault-unsealer |
 | home | lego, streaming, gaming |
 | family | kids, spouse |
 | meta | _(reserved)_ |
@@ -209,7 +209,7 @@ Patterns are stored as `type=preference` memories with `pattern` tag, deduplicat
 ## Project Structure
 
 ```
-claude-memory/
+magi/
 ├── main.go                  # Entry point, CLI flags, server startup
 ├── server/                  # MCP server setup, tool/resource registration
 ├── db/                      # Turso client, schema migrations, CRUD, tags, links

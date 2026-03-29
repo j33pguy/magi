@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/magi/db"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -34,7 +34,7 @@ func (l *List) Tool() mcp.Tool {
 			mcp.Description("Filter by area: work, home, family, homelab, project, meta"),
 			mcp.Enum("work", "home", "family", "homelab", "project", "meta"),
 		),
-		mcp.WithString("sub_area", mcp.Description("Filter by sub-area (e.g. power-platform, proxmox, claude-memory)")),
+		mcp.WithString("sub_area", mcp.Description("Filter by sub-area (e.g. power-platform, proxmox, magi)")),
 		mcp.WithString("after", mcp.Description("Only memories created after this time. Relative (7d, 2w, 1m, 1y) or absolute (2006-01-02, RFC3339).")),
 		mcp.WithString("before", mcp.Description("Only memories created before this time. Relative (7d, 2w, 1m, 1y) or absolute (2006-01-02, RFC3339).")),
 	)

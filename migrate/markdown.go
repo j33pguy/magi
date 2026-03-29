@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/j33pguy/claude-memory/chunking"
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/magi/chunking"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
 )
 
 // MarkdownImporter imports markdown memory files into the database.

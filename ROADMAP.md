@@ -1,4 +1,4 @@
-# claude-memory Roadmap
+# magi Roadmap
 
 ## v0.1 — Current (shipped)
 - MCP stdio server (Claude Code integration)
@@ -26,7 +26,7 @@ Download a repo → binary detects it → syncs project memories → work begins
 
 #### Sync gate
 - Before serving any MCP tool call, check last sync timestamp for current project
-- If stale (> `CLAUDE_MEMORY_SYNC_MAX_AGE`, default 5 min): force sync, wait for completion
+- If stale (> `MAGI_SYNC_MAX_AGE`, default 5 min): force sync, wait for completion
 - Emit a log line: `syncing project memories for j33pguy/IaC...`
 - Then serve the request
 
@@ -53,7 +53,7 @@ Force a sync immediately. Returns when complete.
 {"synced_at": "...", "records_pulled": 12, "project": "..."}
 ```
 
-#### New env var: `CLAUDE_MEMORY_SYNC_MAX_AGE`
+#### New env var: `MAGI_SYNC_MAX_AGE`
 Seconds before a sync is considered stale. Default: 300 (5 min).
 
 ### Config in Claude Code (`~/.claude/CLAUDE.md` injection)
@@ -84,7 +84,7 @@ Returns all `project_context` memories for the current project, formatted as ins
 Claude Code injects these at the top of context automatically.
 
 ### Migration
-- Existing `CLAUDE.md` files can be imported: `claude-memory-import --type project_context --file CLAUDE.md`
+- Existing `CLAUDE.md` files can be imported: `magi-import --type project_context --file CLAUDE.md`
 - After import: delete the file, add to `.gitignore` as a safety net
 - Instructions now invisible to anyone browsing the repo
 
@@ -105,7 +105,7 @@ Each machine has its own local replica. Writes sync up, reads pull down.
 ### Features
 
 #### Machine identity tag
-- Each binary instance has a `CLAUDE_MEMORY_MACHINE_ID` (e.g. `homelab`, `macbook`, `work-laptop`)
+- Each binary instance has a `MAGI_MACHINE_ID` (e.g. `homelab`, `macbook`, `work-laptop`)
 - Stored on every memory: `source_machine: homelab`
 - Useful for: "what did I work on from my MacBook last week?"
 
@@ -122,27 +122,27 @@ Shows which machines have written recently, last seen timestamps.
 ## v0.4 — Ingestion Pipeline
 
 ### The pattern
-Work offline on MacBook → Claude Code session logs captured → ingested into Turso → homelab Claude has full context on next session.
+Work offline on MacBook → Agent session logs captured → ingested into Turso → homelab Claude has full context on next session.
 
 ### Features
 
 #### Session log watcher service
-- Separate binary: `claude-memory-watcher`
-- Watches `~/.claude/projects/*/` for new session log files
+- Separate binary: `magi-watcher`
+- Watches `~/.magi/projects/*/` for new session log files
 - Parses JSONL session logs
 - Extracts: decisions made, code written, errors hit, solutions found
-- Calls `remember` API to store with project tag + `source: claude_session`
+- Calls `remember` API to store with project tag + `source: magi_session`
 
 #### Import sources
-- Claude Code session logs (`~/.claude/projects/**/*.jsonl`)
+- Agent session logs (`~/.magi/projects/**/*.jsonl`)
 - Git commit messages (decisions + context)
 - Markdown notes (manual, existing `cmd/import`)
 - Future: VS Code history, terminal history
 
-#### Watcher config (`~/.claude/memory-watcher.yaml`)
+#### Watcher config (`~/.magi-watcher.yaml`)
 ```yaml
 watch_paths:
-  - ~/.claude/projects
+  - ~/.magi/projects
   - ~/Projects
 import_on_startup: true
 sync_interval: 60
@@ -183,8 +183,8 @@ Summaries are lossy. Can't answer "what exactly did j33p say about X?"
 
 ### Design
 - Each turn stored as a separate embedding with channel + timestamp metadata
-- OpenClaw writes turns to a local queue; background worker batches to claude-memory
-- claude-memory chunks + embeds each turn
+- OpenClaw writes turns to a local queue; background worker batches to magi
+- magi chunks + embeds each turn
 - Recall returns ranked turns by semantic similarity
 
 ### Trade-offs
@@ -196,9 +196,9 @@ More storage, more writes → dramatically better recall precision. Verbatim quo
 
 | Machine | Role | Binary |
 |---|---|---|
-| memory01 (10.5.5.40) | Server — HTTP API + MCP | claude-memory (HTTP mode) |
-| homelab Gilfoyle | MCP client | claude-memory (stdio MCP) |
-| MacBook | MCP client + watcher | claude-memory + claude-memory-watcher |
+| memory01 (10.5.5.40) | Server — HTTP API + MCP | magi (HTTP mode) |
+| homelab Gilfoyle | MCP client | magi (stdio MCP) |
+| MacBook | MCP client + watcher | magi + magi-watcher |
 | Future machines | MCP client + watcher | same |
 
 ## Environment variables (full set)
@@ -207,11 +207,11 @@ More storage, more writes → dramatically better recall precision. Verbatim quo
 |---|---|---|
 | `TURSO_URL` | required | Turso DB URL |
 | `TURSO_AUTH_TOKEN` | required | Turso auth token |
-| `CLAUDE_MEMORY_REPLICA_PATH` | `~/.claude/memory.db` | Local replica path |
-| `CLAUDE_MEMORY_SYNC_INTERVAL` | `60` | Background sync interval (seconds) |
-| `CLAUDE_MEMORY_SYNC_MAX_AGE` | `300` | Stale threshold (seconds) |
-| `CLAUDE_MEMORY_MODEL_DIR` | `~/.claude/models` | ONNX model directory |
-| `CLAUDE_MEMORY_HTTP_PORT` | `8300` | HTTP API port |
-| `CLAUDE_MEMORY_API_TOKEN` | unset = no auth | Bearer token for HTTP API |
-| `CLAUDE_MEMORY_MACHINE_ID` | hostname | Machine identity tag |
-| `CLAUDE_MEMORY_AUTO_PROJECT` | `true` | Auto-detect project from git |
+| `MAGI_REPLICA_PATH` | `~/.magi.db` | Local replica path |
+| `MAGI_SYNC_INTERVAL` | `60` | Background sync interval (seconds) |
+| `MAGI_SYNC_MAX_AGE` | `300` | Stale threshold (seconds) |
+| `MAGI_MODEL_DIR` | `~/.magi/models` | ONNX model directory |
+| `MAGI_HTTP_PORT` | `8300` | HTTP API port |
+| `MAGI_API_TOKEN` | unset = no auth | Bearer token for HTTP API |
+| `MAGI_MACHINE_ID` | hostname | Machine identity tag |
+| `MAGI_AUTO_PROJECT` | `true` | Auto-detect project from git |

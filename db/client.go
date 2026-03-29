@@ -1,4 +1,4 @@
-// Package db provides database access for the claude-memory server using Turso
+// Package db provides database access for the magi server using Turso
 // with embedded replicas for fast local reads and cloud sync.
 package db
 
@@ -33,14 +33,14 @@ type TursoConfig struct {
 
 // tursoConfigFromEnv reads Turso configuration from environment variables.
 func tursoConfigFromEnv() *TursoConfig {
-	replicaPath := os.Getenv("CLAUDE_MEMORY_REPLICA_PATH")
+	replicaPath := os.Getenv("MAGI_REPLICA_PATH")
 	if replicaPath == "" {
 		home, _ := os.UserHomeDir()
 		replicaPath = filepath.Join(home, ".claude", "memory.db")
 	}
 
 	syncInterval := 60 * time.Second
-	if v := os.Getenv("CLAUDE_MEMORY_SYNC_INTERVAL"); v != "" {
+	if v := os.Getenv("MAGI_SYNC_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v + "s"); err == nil {
 			syncInterval = d
 		}

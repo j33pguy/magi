@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/magi/db"
 )
 
 func TestApplyRecencyWeighting_Disabled(t *testing.T) {

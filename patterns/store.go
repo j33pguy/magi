@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
 )
 
 // StorePatterns saves detected patterns as memories in the DB.

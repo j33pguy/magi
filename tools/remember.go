@@ -1,4 +1,4 @@
-// Package tools implements MCP tool handlers for the claude-memory server.
+// Package tools implements MCP tool handlers for the magi server.
 package tools
 
 import (
@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/j33pguy/claude-memory/classify"
-	"github.com/j33pguy/claude-memory/contradiction"
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/magi/classify"
+	"github.com/j33pguy/magi/contradiction"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
 )
 
 // Remember stores a new memory with auto-generated embedding.
@@ -43,7 +43,7 @@ func (r *Remember) Tool() mcp.Tool {
 			mcp.Enum("work", "home", "family", "homelab", "project", "meta"),
 		),
 		mcp.WithString("sub_area",
-			mcp.Description("Sub-domain within area (e.g. unifi-vlans, unifi-switches, pihole-ha, vault-cluster). For type=state: use a specific component name so current state is queryable by sub_area. Examples — work: power-platform, fabric, power-bi, sharepoint, teams, azure, td-synnex; homelab: proxmox, networking, security, dns, monitoring, storage, iac, vault, traefik, authentik, lancache; project: claude-memory, distify, labctl, vault-unsealer, iac; home: lego, gaming, streaming, media; family: kids, spouse, schedule"),
+			mcp.Description("Sub-domain within area (e.g. unifi-vlans, unifi-switches, pihole-ha, vault-cluster). For type=state: use a specific component name so current state is queryable by sub_area. Examples — work: power-platform, fabric, power-bi, sharepoint, teams, azure, td-synnex; homelab: proxmox, networking, security, dns, monitoring, storage, iac, vault, traefik, authentik, lancache; project: magi, distify, labctl, vault-unsealer, iac; home: lego, gaming, streaming, media; family: kids, spouse, schedule"),
 		),
 	)
 }
