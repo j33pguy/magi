@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/magi/db"
 )
 
 // PatternType categorizes what kind of behavioral pattern was detected.

@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-claude-memory exposes 17 MCP tools via stdio for use with Claude Code. All tools accept JSON parameters and return JSON responses.
+magi exposes 17 MCP tools via stdio for use with Claude Code. All tools accept JSON parameters and return JSON responses.
 
 ## Core Memory Operations
 
@@ -11,13 +11,13 @@ Store a memory with automatic semantic embedding, deduplication, and contradicti
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `content` | string | yes | The content to remember |
-| `project` | string | yes | Project namespace (e.g. `iac`, `claude-memory`, `global`) |
+| `project` | string | yes | Project namespace (e.g. `iac`, `magi`, `global`) |
 | `type` | string | no | Memory type: `memory`, `incident`, `lesson`, `decision`, `project_context`, `conversation`, `audit`, `runbook`, `preference`, `context`, `security` |
 | `summary` | string | no | Brief one-line summary |
 | `tags` | string[] | no | Tags for categorization |
 | `speaker` | string | no | Who said this: `j33p`, `gilfoyle`, `agent`, `system`. Default: `gilfoyle` |
 | `area` | string | no | Top-level domain: `work`, `home`, `family`, `homelab`, `project`, `meta` |
-| `sub_area` | string | no | Sub-domain (e.g. `power-platform`, `proxmox`, `claude-memory`) |
+| `sub_area` | string | no | Sub-domain (e.g. `power-platform`, `proxmox`, `magi`) |
 | `dedup_threshold` | number | no | Similarity threshold for dedup (0.0–1.0, default 0.95) |
 
 **Behavior:**

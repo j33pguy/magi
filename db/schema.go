@@ -216,7 +216,7 @@ CREATE INDEX IF NOT EXISTS idx_memories_type_created ON memories(type, created_a
 // migrationV5 adds structured taxonomy fields for categorized recall.
 // speaker: who said/wrote this (j33p, gilfoyle, agent, system)
 // area: top-level domain (work, home, family, homelab, project, meta)
-// sub_area: sub-domain, free-form (power-platform, proxmox, claude-memory, etc.)
+// sub_area: sub-domain, free-form (power-platform, proxmox, magi, etc.)
 const migrationV5 = `
 ALTER TABLE memories ADD COLUMN speaker TEXT NOT NULL DEFAULT '';
 ALTER TABLE memories ADD COLUMN area TEXT NOT NULL DEFAULT '';

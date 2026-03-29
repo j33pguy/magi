@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
 )
 
 // Update modifies an existing memory's content or metadata, re-embedding if content changed.

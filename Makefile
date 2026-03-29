@@ -1,7 +1,7 @@
 .PHONY: build install test clean import fmt lint proto
 
-BINARY   := claude-memory
-IMPORT   := claude-memory-import
+BINARY   := magi
+IMPORT   := magi-import
 GOFLAGS  := -trimpath
 CGO      := 1
 

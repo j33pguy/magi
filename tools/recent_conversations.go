@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/magi/db"
 )
 
 // RecentConversations lists recent conversation summaries with optional filtering.

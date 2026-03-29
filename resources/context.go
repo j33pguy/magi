@@ -8,7 +8,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/j33pguy/claude-memory/db"
+	"github.com/j33pguy/magi/db"
 )
 
 // Context provides recent and important memories for session auto-injection.

@@ -1,14 +1,14 @@
-# claude-memory
+# magi
 
 > Personal AI memory server. Semantic search, cross-channel conversation sync, and behavioral pattern learning for Claude.
 
 ## What is this?
 
-Claude has no persistent memory across sessions or channels. Every conversation starts from scratch — context vanishes the moment a session ends. **claude-memory** fixes that.
+Claude has no persistent memory across sessions or channels. Every conversation starts from scratch — context vanishes the moment a session ends. **magi** fixes that.
 
 It's a self-hosted Go server that gives Claude (and any other AI agent) a persistent, searchable memory layer. Memories are stored as vector embeddings in [Turso](https://turso.tech) (distributed libSQL), with a local embedded replica for fast offline reads. Embeddings are generated locally using ONNX Runtime (all-MiniLM-L6-v2, 384 dimensions) — no OpenAI API key, no cloud embedding service, no data leaving your machine.
 
-claude-memory exposes four interfaces: **MCP** (for Claude Code via stdio), **gRPC** (for services), **HTTP/JSON** (via grpc-gateway), and a **web UI** (for humans). Whether Claude is talking to you in a terminal, a Discord bot, or a web chat — it remembers.
+magi exposes four interfaces: **MCP** (for Claude Code via stdio), **gRPC** (for services), **HTTP/JSON** (via grpc-gateway), and a **web UI** (for humans). Whether Claude is talking to you in a terminal, a Discord bot, or a web chat — it remembers.
 
 ## Features
 
@@ -91,17 +91,17 @@ Heuristic-based analysis that detects patterns from your memory corpus:
 ### Build
 
 ```bash
-git clone https://github.com/j33pguy/claude-memory
-cd claude-memory
+git clone https://github.com/j33pguy/magi
+cd magi
 CGO_ENABLED=1 make build
 ```
 
 ### Configure
 
 ```bash
-export TURSO_URL=libsql://claude-memory-<you>.turso.io
+export TURSO_URL=libsql://magi-<you>.turso.io
 export TURSO_AUTH_TOKEN=<token>
-export CLAUDE_MEMORY_API_TOKEN=<your-bearer-token>  # optional, unset = no auth
+export MAGI_API_TOKEN=<your-bearer-token>  # optional, unset = no auth
 ```
 
 See [Environment Variables](#environment-variables) for the full list.
@@ -110,16 +110,17 @@ See [Environment Variables](#environment-variables) for the full list.
 
 ```bash
 # MCP mode (stdio) — for Claude Code
-./bin/claude-memory
+./bin/magi
 
 # HTTP-only mode — for server deployments
-./bin/claude-memory --http-only
+./bin/magi --http-only
 ```
 
 ### Claude Code MCP Setup
 
 ```bash
-claude mcp add -s user claude-memory -- claude-memory
+# Via MCP (Claude Code, Cursor, etc)
+claude mcp add -s user magi -- magi
 ```
 
 Or add to your MCP config manually:
@@ -127,10 +128,10 @@ Or add to your MCP config manually:
 ```json
 {
   "mcpServers": {
-    "claude-memory": {
-      "command": "/usr/local/bin/claude-memory",
+    "magi": {
+      "command": "/usr/local/bin/magi",
       "env": {
-        "TURSO_URL": "libsql://claude-memory-<you>.turso.io",
+        "TURSO_URL": "libsql://magi-<you>.turso.io",
         "TURSO_AUTH_TOKEN": "<token>"
       }
     }
@@ -142,7 +143,7 @@ Or add to your MCP config manually:
 
 ```
 ┌─────────────────┐   stdio    ┌───────────────────────────────────────────┐
-│  Claude Code    │───────────▶│              claude-memory                │
+│  Claude Code    │───────────▶│              magi                │
 └─────────────────┘            │                                           │
 ┌─────────────────┐   gRPC    │  ┌─────────┐  ┌────────────────────────┐  │
 │  gRPC clients   │──:8300───▶│  │  Tools   │  │  ONNX Runtime          │  │
@@ -169,14 +170,14 @@ See [docs/architecture.md](docs/architecture.md) for detailed data flow.
 |----------|---------|-------------|
 | `TURSO_URL` | _(required)_ | libSQL database URL |
 | `TURSO_AUTH_TOKEN` | _(required)_ | Turso auth token |
-| `CLAUDE_MEMORY_REPLICA_PATH` | `~/.claude/memory.db` | Local embedded replica path |
-| `CLAUDE_MEMORY_SYNC_INTERVAL` | `60` | Turso sync interval (seconds) |
-| `CLAUDE_MEMORY_MODEL_DIR` | `~/.claude/models` | ONNX model directory |
-| `CLAUDE_MEMORY_API_TOKEN` | _(unset = no auth)_ | Bearer token for gRPC/HTTP auth |
-| `CLAUDE_MEMORY_GRPC_PORT` | `8300` | gRPC server port |
-| `CLAUDE_MEMORY_HTTP_PORT` | `8301` | grpc-gateway HTTP port |
-| `CLAUDE_MEMORY_LEGACY_HTTP_PORT` | `8302` | Legacy HTTP API port |
-| `CLAUDE_MEMORY_UI_PORT` | `8080` | Web UI port |
+| `MAGI_REPLICA_PATH` | `~/.magi.db` | Local embedded replica path |
+| `MAGI_SYNC_INTERVAL` | `60` | Turso sync interval (seconds) |
+| `MAGI_MODEL_DIR` | `~/.magi/models` | ONNX model directory |
+| `MAGI_API_TOKEN` | _(unset = no auth)_ | Bearer token for gRPC/HTTP auth |
+| `MAGI_GRPC_PORT` | `8300` | gRPC server port |
+| `MAGI_HTTP_PORT` | `8301` | grpc-gateway HTTP port |
+| `MAGI_LEGACY_HTTP_PORT` | `8302` | Legacy HTTP API port |
+| `MAGI_UI_PORT` | `8080` | Web UI port |
 | `ONNXRUNTIME_LIB` | _(auto-detect)_ | Override ONNX Runtime library path |
 
 ## Importing Existing Data
@@ -184,7 +185,7 @@ See [docs/architecture.md](docs/architecture.md) for detailed data flow.
 ### From memory markdown files
 
 ```bash
-claude-memory-import --dir ~/.claude/memory/
+magi-import --dir ~/.magi/
 ```
 
 ### From Grok/ChatGPT exports

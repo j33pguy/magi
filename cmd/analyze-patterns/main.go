@@ -1,5 +1,5 @@
 // Package main provides a CLI tool for analyzing behavioral patterns
-// from the claude-memory database.
+// from the magi database.
 package main
 
 import (
@@ -10,9 +10,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
-	"github.com/j33pguy/claude-memory/patterns"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
+	"github.com/j33pguy/magi/patterns"
 )
 
 func main() {

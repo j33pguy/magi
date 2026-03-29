@@ -29,14 +29,14 @@ sudo ldconfig
 ## Building
 
 ```bash
-git clone https://github.com/j33pguy/claude-memory
-cd claude-memory
+git clone https://github.com/j33pguy/magi
+cd magi
 CGO_ENABLED=1 make build
 ```
 
 This produces two binaries in `bin/`:
-- `claude-memory` — main server
-- `claude-memory-import` — memory file importer
+- `magi` — main server
+- `magi-import` — memory file importer
 
 Install system-wide:
 ```bash
@@ -45,38 +45,38 @@ sudo make install   # copies to /usr/local/bin/
 
 ## Systemd Service
 
-Create `/etc/systemd/system/claude-memory.service`:
+Create `/etc/systemd/system/magi.service`:
 
 ```ini
 [Unit]
-Description=claude-memory AI memory server
+Description=magi AI memory server
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=claude-memory
-Group=claude-memory
-ExecStart=/opt/claude-memory/bin/claude-memory --http-only
+User=magi
+Group=magi
+ExecStart=/opt/magi/bin/magi --http-only
 Restart=on-failure
 RestartSec=5
 
 # Environment
-Environment=TURSO_URL=libsql://claude-memory-<you>.turso.io
+Environment=TURSO_URL=libsql://magi-<you>.turso.io
 Environment=TURSO_AUTH_TOKEN=<token>
-Environment=CLAUDE_MEMORY_API_TOKEN=<bearer-token>
-Environment=CLAUDE_MEMORY_REPLICA_PATH=/var/lib/claude-memory/memory.db
-Environment=CLAUDE_MEMORY_MODEL_DIR=/opt/claude-memory/models
-Environment=CLAUDE_MEMORY_GRPC_PORT=8300
-Environment=CLAUDE_MEMORY_HTTP_PORT=8301
-Environment=CLAUDE_MEMORY_LEGACY_HTTP_PORT=8302
-Environment=CLAUDE_MEMORY_UI_PORT=8080
+Environment=MAGI_API_TOKEN=<bearer-token>
+Environment=MAGI_REPLICA_PATH=/var/lib/magi/memory.db
+Environment=MAGI_MODEL_DIR=/opt/magi/models
+Environment=MAGI_GRPC_PORT=8300
+Environment=MAGI_HTTP_PORT=8301
+Environment=MAGI_LEGACY_HTTP_PORT=8302
+Environment=MAGI_UI_PORT=8080
 
 # Hardening
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/claude-memory
+ReadWritePaths=/var/lib/magi
 PrivateTmp=true
 
 [Install]
@@ -87,14 +87,14 @@ Set up the service:
 
 ```bash
 # Create service user
-sudo useradd -r -s /sbin/nologin claude-memory
+sudo useradd -r -s /sbin/nologin magi
 
 # Create data directory
-sudo mkdir -p /var/lib/claude-memory /opt/claude-memory/bin /opt/claude-memory/models
-sudo chown claude-memory:claude-memory /var/lib/claude-memory
+sudo mkdir -p /var/lib/magi /opt/magi/bin /opt/magi/models
+sudo chown magi:magi /var/lib/magi
 
 # Install binary
-sudo cp bin/claude-memory /opt/claude-memory/bin/
+sudo cp bin/magi /opt/magi/bin/
 
 # Download ONNX model (first run)
 # The model is auto-downloaded to MODEL_DIR on first startup,
@@ -102,12 +102,12 @@ sudo cp bin/claude-memory /opt/claude-memory/bin/
 
 # Enable and start
 sudo systemctl daemon-reload
-sudo systemctl enable claude-memory
-sudo systemctl start claude-memory
+sudo systemctl enable magi
+sudo systemctl start magi
 
 # Check status
-sudo systemctl status claude-memory
-journalctl -u claude-memory -f
+sudo systemctl status magi
+journalctl -u magi -f
 ```
 
 **Note:** The `--http-only` flag runs gRPC, grpc-gateway, legacy HTTP, and web UI servers without the stdio MCP server. MCP mode is for direct Claude Code integration (where the binary is launched by Claude Code as a subprocess).
@@ -117,12 +117,12 @@ journalctl -u claude-memory -f
 Example Traefik dynamic config to expose the web UI and API behind authentication:
 
 ```yaml
-# traefik/dynamic/claude-memory.yml
+# traefik/dynamic/magi.yml
 http:
   routers:
-    claude-memory-ui:
+    magi-ui:
       rule: "Host(`memory.example.com`)"
-      service: claude-memory-ui
+      service: magi-ui
       entryPoints:
         - websecure
       tls:
@@ -130,9 +130,9 @@ http:
       middlewares:
         - authentik@docker   # or your auth middleware
 
-    claude-memory-api:
+    magi-api:
       rule: "Host(`memory-api.example.com`)"
-      service: claude-memory-api
+      service: magi-api
       entryPoints:
         - websecure
       tls:
@@ -140,12 +140,12 @@ http:
       # API uses Bearer token auth, no middleware needed
 
   services:
-    claude-memory-ui:
+    magi-ui:
       loadBalancer:
         servers:
           - url: "http://localhost:8080"
 
-    claude-memory-api:
+    magi-api:
       loadBalancer:
         servers:
           - url: "http://localhost:8302"
@@ -155,17 +155,17 @@ http:
 
 | Port | Protocol | Interface | Purpose |
 |------|----------|-----------|---------|
-| 8300 | gRPC (h2) | `CLAUDE_MEMORY_GRPC_PORT` | Native gRPC clients |
-| 8301 | HTTP/JSON | `CLAUDE_MEMORY_HTTP_PORT` | grpc-gateway reverse proxy |
-| 8302 | HTTP/JSON | `CLAUDE_MEMORY_LEGACY_HTTP_PORT` | Legacy REST API |
-| 8080 | HTTP | `CLAUDE_MEMORY_UI_PORT` | Web UI |
+| 8300 | gRPC (h2) | `MAGI_GRPC_PORT` | Native gRPC clients |
+| 8301 | HTTP/JSON | `MAGI_HTTP_PORT` | grpc-gateway reverse proxy |
+| 8302 | HTTP/JSON | `MAGI_LEGACY_HTTP_PORT` | Legacy REST API |
+| 8080 | HTTP | `MAGI_UI_PORT` | Web UI |
 
 ## CI/CD
 
 The project uses GitHub Actions with a self-hosted runner. On push to `main`:
 
 1. **Build & Test** — `go build`, `go test`, `go vet`
-2. **Deploy** — builds production binary, installs to `/opt/claude-memory/bin/`, restarts systemd service, verifies health
+2. **Deploy** — builds production binary, installs to `/opt/magi/bin/`, restarts systemd service, verifies health
 
 The runner runs directly on the target server, so deployment is a local copy + restart (no SSH/SCP).
 
@@ -174,24 +174,24 @@ The runner runs directly on the target server, so deployment is a local copy + r
 1. Create a free Turso account at [turso.tech](https://turso.tech)
 2. Create a database:
    ```bash
-   turso db create claude-memory
+   turso db create magi
    ```
 3. Get the URL and token:
    ```bash
-   turso db show claude-memory --url
-   turso db tokens create claude-memory
+   turso db show magi --url
+   turso db tokens create magi
    ```
 4. Set environment variables:
    ```bash
-   export TURSO_URL=libsql://claude-memory-<you>.turso.io
+   export TURSO_URL=libsql://magi-<you>.turso.io
    export TURSO_AUTH_TOKEN=<token>
    ```
 
-Schema migrations run automatically on startup. The embedded replica syncs to Turso cloud every 60 seconds (configurable via `CLAUDE_MEMORY_SYNC_INTERVAL`).
+Schema migrations run automatically on startup. The embedded replica syncs to Turso cloud every 60 seconds (configurable via `MAGI_SYNC_INTERVAL`).
 
 ## Model Setup
 
-The ONNX model (all-MiniLM-L6-v2) is auto-downloaded on first run to `CLAUDE_MEMORY_MODEL_DIR` (default `~/.claude/models/`). For air-gapped deployments, download the model files manually:
+The ONNX model (all-MiniLM-L6-v2) is auto-downloaded on first run to `MAGI_MODEL_DIR` (default `~/.claude/models/`). For air-gapped deployments, download the model files manually:
 
 - `model.onnx` — the ONNX model
 - `tokenizer.json` or `vocab.txt` — BERT WordPiece vocabulary

@@ -10,11 +10,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
-	pb "github.com/j33pguy/claude-memory/proto/memory/v1"
-	"github.com/j33pguy/claude-memory/search"
-	"github.com/j33pguy/claude-memory/tools"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
+	pb "github.com/j33pguy/magi/proto/memory/v1"
+	"github.com/j33pguy/magi/search"
+	"github.com/j33pguy/magi/tools"
 )
 
 // Server implements the MemoryService gRPC service.

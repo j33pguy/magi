@@ -46,10 +46,10 @@ func TestInfer(t *testing.T) {
 			subArea: "dns",
 		},
 		{
-			name:    "claude-memory project",
-			content: "Refactored claude-memory MCP server to use gRPC transport",
+			name:    "magi project",
+			content: "Refactored magi MCP server to use gRPC transport",
 			area:    "project",
-			subArea: "claude-memory",
+			subArea: "magi",
 		},
 		{
 			name:    "vault unsealer",

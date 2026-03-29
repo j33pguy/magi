@@ -1,4 +1,4 @@
-// Package api provides an HTTP API layer for claude-memory.
+// Package api provides an HTTP API layer for magi.
 package api
 
 import (
@@ -10,11 +10,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
 )
 
-// Server is the HTTP API server for claude-memory.
+// Server is the HTTP API server for magi.
 type Server struct {
 	httpServer *http.Server
 	db         *db.Client
@@ -29,10 +29,10 @@ func NewServer(dbClient *db.Client, embedder embeddings.Provider, logger *slog.L
 		db:       dbClient,
 		embedder: embedder,
 		logger:   logger,
-		token:    os.Getenv("CLAUDE_MEMORY_API_TOKEN"),
+		token:    os.Getenv("MAGI_API_TOKEN"),
 	}
 
-	port := os.Getenv("CLAUDE_MEMORY_LEGACY_HTTP_PORT")
+	port := os.Getenv("MAGI_LEGACY_HTTP_PORT")
 	if port == "" {
 		port = "8302"
 	}
@@ -61,7 +61,7 @@ func NewServer(dbClient *db.Client, embedder embeddings.Provider, logger *slog.L
 // Start begins listening for HTTP requests. Blocks until the server stops.
 func (s *Server) Start() error {
 	if s.token == "" {
-		s.logger.Warn("CLAUDE_MEMORY_API_TOKEN not set, running without auth (dev mode)")
+		s.logger.Warn("MAGI_API_TOKEN not set, running without auth (dev mode)")
 	}
 	s.logger.Info("Starting HTTP API server", "addr", s.httpServer.Addr)
 	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {

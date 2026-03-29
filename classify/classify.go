@@ -26,7 +26,7 @@ var rules = []rule{
 	{regexp.MustCompile(`(?i)azure|microsoft 365|m365|\bteams\b|entra`), "work", "azure"},
 
 	// project (before homelab — more specific patterns like vault-unsealer must match before generic vault)
-	{regexp.MustCompile(`(?i)claude.?memory|memory server|mcp server`), "project", "claude-memory"},
+	{regexp.MustCompile(`(?i)claude.?memory|memory server|mcp server`), "project", "magi"},
 	{regexp.MustCompile(`(?i)distify|behavioral trust|trust verification`), "project", "distify"},
 	{regexp.MustCompile(`(?i)labctl|lab.?ctl`), "project", "labctl"},
 	{regexp.MustCompile(`(?i)vault.?unsealer|auto.?unseal`), "project", "vault-unsealer"},

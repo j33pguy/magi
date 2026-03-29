@@ -26,13 +26,13 @@ type Config struct {
 func ConfigFromEnv() *Config {
 	home, _ := os.UserHomeDir()
 
-	replicaPath := os.Getenv("CLAUDE_MEMORY_REPLICA_PATH")
+	replicaPath := os.Getenv("MAGI_REPLICA_PATH")
 	if replicaPath == "" {
 		replicaPath = filepath.Join(home, ".claude", "memory.db")
 	}
 
 	syncInterval := 60 * time.Second
-	if v := os.Getenv("CLAUDE_MEMORY_SYNC_INTERVAL"); v != "" {
+	if v := os.Getenv("MAGI_SYNC_INTERVAL"); v != "" {
 		if d, err := time.ParseDuration(v + "s"); err == nil {
 			syncInterval = d
 		}

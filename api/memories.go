@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/tools"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/tools"
 )
 
 func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {

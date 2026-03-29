@@ -1,11 +1,11 @@
-# claude-memory — RAG-based MCP Memory Server
+# magi — RAG-based MCP Memory Server
 
 Go MCP server that provides semantic memory for Claude Code using Turso (distributed libSQL with vector search) and local ONNX embeddings (all-MiniLM-L6-v2).
 
 ## Architecture
 
 ```
-Claude Code (stdio) → claude-memory (Go binary)
+Claude Code (stdio) → magi (Go binary)
     → Local ONNX embeddings (all-MiniLM-L6-v2, 384 dims)
     → Embedded SQLite replica (fast reads) ↔ Turso Cloud DB (sync)
 ```
@@ -38,11 +38,11 @@ brew install onnxruntime   # macOS
 ## Environment Variables
 
 ```
-TURSO_URL=libsql://claude-memory-<user>.turso.io
+TURSO_URL=libsql://magi-<user>.turso.io
 TURSO_AUTH_TOKEN=<token>
-CLAUDE_MEMORY_REPLICA_PATH=~/.claude/memory.db
-CLAUDE_MEMORY_SYNC_INTERVAL=60
-CLAUDE_MEMORY_MODEL_DIR=~/.claude/models
+MAGI_REPLICA_PATH=~/.magi.db
+MAGI_SYNC_INTERVAL=60
+MAGI_MODEL_DIR=~/.claude/models
 ONNXRUNTIME_LIB=/opt/homebrew/lib/libonnxruntime.dylib  # override auto-detect
 ```
 
@@ -57,7 +57,7 @@ make test     # Run tests
 ## Claude Code Integration
 
 ```bash
-claude mcp add -s user claude-memory -- claude-memory
+claude mcp add -s user magi -- magi
 ```
 
 ## MCP Tools

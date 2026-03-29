@@ -1,5 +1,5 @@
 // Package main provides a CLI tool for importing existing markdown memory files
-// into the claude-memory database.
+// into the magi database.
 package main
 
 import (
@@ -9,10 +9,10 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/j33pguy/claude-memory/chunking"
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
-	"github.com/j33pguy/claude-memory/migrate"
+	"github.com/j33pguy/magi/chunking"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
+	"github.com/j33pguy/magi/migrate"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 	flag.Parse()
 
 	if *dir == "" {
-		fmt.Fprintln(os.Stderr, "Usage: claude-memory-import --dir <path>")
+		fmt.Fprintln(os.Stderr, "Usage: magi-import --dir <path>")
 		os.Exit(1)
 	}
 

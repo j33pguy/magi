@@ -28,7 +28,7 @@ type Memory struct {
 	Speaker string `json:"speaker,omitempty"`
 	// Area is the top-level domain: work, home, family, homelab, project, meta
 	Area string `json:"area,omitempty"`
-	// SubArea is a free-form sub-domain (power-platform, proxmox, claude-memory, etc.)
+	// SubArea is a free-form sub-domain (power-platform, proxmox, magi, etc.)
 	SubArea   string   `json:"subArea,omitempty"`
 	CreatedAt  string  `json:"createdAt"`
 	UpdatedAt  string  `json:"updatedAt"`
@@ -57,7 +57,7 @@ type MemoryFilter struct {
 	Speaker string
 	// Area filters by top-level domain (work, home, family, homelab, project, meta).
 	Area string
-	// SubArea filters by sub-domain (power-platform, proxmox, claude-memory, etc.).
+	// SubArea filters by sub-domain (power-platform, proxmox, magi, etc.).
 	SubArea string
 	// AfterTime filters to memories created after this time.
 	AfterTime *time.Time

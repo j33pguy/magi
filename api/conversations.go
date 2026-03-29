@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/search"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/search"
 )
 
 type conversationRequest struct {

@@ -23,7 +23,7 @@ We need a **conversation layer**: recent, searchable, cross-channel context.
 
 ```
 Webchat session ──┐                                ┌── Webchat session
-Discord session ───┼──→ claude-memory HTTP API ←────┤── Discord session  
+Discord session ───┼──→ magi HTTP API ←────┤── Discord session  
 Future channels ──┘         (memory01)              └── Claude Code (MCP)
                                   │
                               Turso cloud
@@ -52,7 +52,7 @@ New memory type: `conversation`
     "started_at": "2026-03-26T17:00:00Z",
     "ended_at": "2026-03-26T17:45:00Z",
     "turn_count": 12,
-    "topics": ["claude-memory", "conversation sync", "deployment"]
+    "topics": ["magi", "conversation sync", "deployment"]
   },
   "created_at": "2026-03-26T17:45:00Z",
   "source_machine": "homelab"
@@ -82,19 +82,19 @@ Start with **option B** (heartbeat) — zero infrastructure changes, ships fast.
 ```
 After significant conversations (5+ turns since last sync):
 - Summarize key topics, decisions, questions asked, anything to remember
-- POST to claude-memory /remember with type=conversation, tag=channel:discord or channel:webchat
+- POST to magi /remember with type=conversation, tag=channel:discord or channel:webchat
 - Update heartbeat-state.json with last_conversation_sync timestamp
 ```
 
 ### 1.2 — Context injection at session start
 
-At the start of each main session (webchat), I query claude-memory for recent conversations:
+At the start of each main session (webchat), I query magi for recent conversations:
 - `POST /recall` with query: "recent conversations cross-channel" + time filter
 - Inject as context: "In our last Discord conversation (2h ago), we discussed X, Y, Z"
 
 **AGENTS.md addition** (Every Session checklist):
 ```
-5. Query claude-memory for recent cross-channel conversations (last 24h)
+5. Query magi for recent cross-channel conversations (last 24h)
    - If any found: brief mental note before responding
 ```
 
@@ -102,7 +102,7 @@ At the start of each main session (webchat), I query claude-memory for recent co
 
 Currently blocked by group policy. Since it's just us:
 - Option A: OpenClaw config whitelist for guild `1466843154182574134` → load MEMORY.md
-- Option B: Don't touch MEMORY.md in Discord, rely entirely on claude-memory queries
+- Option B: Don't touch MEMORY.md in Discord, rely entirely on magi queries
 - **Recommendation: Option B** — cleaner, more scalable, works for any future channel
 
 ---
@@ -135,15 +135,15 @@ When I write a summary, it includes:
 Channel: discord
 Time: 2026-03-26 17:36 EDT
 Duration: ~20 min, 8 turns
-Topics: conversation sync feature, claude-memory deployment, cross-channel memory
-Key decisions: build session summary pipeline, add /conversations endpoint to claude-memory
+Topics: conversation sync feature, magi deployment, cross-channel memory
+Key decisions: build session summary pipeline, add /conversations endpoint to magi
 Action items: j33p wants full continuity across webchat/discord/future channels
 Notable: j33p emphasized "talk to you wherever, remember everything" as core requirement
 ```
 
 This is semantically rich enough that future recall works well:
 - "what did j33p say about memory?" → finds this
-- "what did we decide about claude-memory?" → finds this
+- "what did we decide about magi?" → finds this
 - "any action items from yesterday?" → finds this
 
 ---
@@ -161,8 +161,8 @@ Trade-off: more storage, more API calls to write, but dramatically better recall
 
 Architecture:
 - OpenClaw writes each turn to a local queue
-- Background worker batches queue → claude-memory in bulk
-- claude-memory chunks and embeds
+- Background worker batches queue → magi in bulk
+- magi chunks and embeds
 - Recall returns ranked turns by semantic similarity
 
 This is the "full memory" end state.
@@ -173,7 +173,7 @@ This is the "full memory" end state.
 
 Right now OpenClaw has:
 - Group chat policy blocking MEMORY.md (security)
-- No mechanism to tell claude-memory "this is j33p talking"
+- No mechanism to tell magi "this is j33p talking"
 
 Phase 4: verified identity tag on memories/conversations
 - In direct chats with j33p (verified by channel + user ID): tag `identity:j33p`
@@ -190,16 +190,16 @@ security risk if j33p ever adds someone else to the server.
 
 ### Now (no code changes)
 1. Add conversation sync to HEARTBEAT.md
-2. Add claude-memory recall to AGENTS.md session startup checklist
+2. Add magi recall to AGENTS.md session startup checklist
 3. Write first batch of conversation summaries manually to bootstrap
 
-### Soon (claude-memory v0.5)
+### Soon (magi v0.5)
 4. Add `/conversations` endpoints to HTTP API
 5. Add `store_conversation` / `recall_conversations` MCP tools  
 6. gRPC-ify (Issue #5 already open)
 7. Deploy to memory01 (Issue #1)
 
-### Later (claude-memory v0.6)
+### Later (magi v0.6)
 8. Per-turn indexing with chunking
 9. OpenClaw channel identity tags
 10. Session log watcher (v0.4, already planned)
@@ -211,21 +211,21 @@ security risk if j33p ever adds someone else to the server.
 1. **[v0.5] Cross-channel conversation sync** — `/conversations` endpoints + MCP tools
 2. **[v0.5] Conversation summary schema** — define the storage format
 3. **[bootstrap] Seed initial conversation history** — manual backfill from current sessions
-4. **[openclaw] Discord MEMORY.md policy** — evaluate whitelist vs claude-memory-only approach
+4. **[openclaw] Discord MEMORY.md policy** — evaluate whitelist vs magi-only approach
 
 ---
 
 ## Quick Win (Do Now Without Deployment)
 
-Even before claude-memory is deployed on memory01, I can start writing conversation 
+Even before magi is deployed on memory01, I can start writing conversation 
 summaries *as memories* using the existing `/remember` endpoint once it's running.
 
 The separation into a dedicated `/conversations` API can come later — the data model 
 (type=conversation + tags) works with the existing schema today.
 
 **Day 1 plan:**
-1. Deploy claude-memory to memory01 (unblock Issue #1)
-2. Add to HEARTBEAT.md: "summarize this session, POST to claude-memory"
+1. Deploy magi to memory01 (unblock Issue #1)
+2. Add to HEARTBEAT.md: "summarize this session, POST to magi"
 3. Add to AGENTS.md: "on startup, recall recent conversations"
 4. Start accumulating conversation history
 5. Open Issue for proper /conversations API

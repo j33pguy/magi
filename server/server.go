@@ -15,17 +15,17 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/j33pguy/claude-memory/api"
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/embeddings"
-	memgrpc "github.com/j33pguy/claude-memory/grpc"
-	pb "github.com/j33pguy/claude-memory/proto/memory/v1"
-	"github.com/j33pguy/claude-memory/resources"
-	"github.com/j33pguy/claude-memory/tools"
-	"github.com/j33pguy/claude-memory/web"
+	"github.com/j33pguy/magi/api"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/embeddings"
+	memgrpc "github.com/j33pguy/magi/grpc"
+	pb "github.com/j33pguy/magi/proto/memory/v1"
+	"github.com/j33pguy/magi/resources"
+	"github.com/j33pguy/magi/tools"
+	"github.com/j33pguy/magi/web"
 )
 
-// Server is the claude-memory MCP server.
+// Server is the magi MCP server.
 type Server struct {
 	mcp        *mcpserver.MCPServer
 	httpAPI    *api.Server
@@ -37,7 +37,7 @@ type Server struct {
 	logger     *slog.Logger
 }
 
-// New creates and configures a new claude-memory MCP server.
+// New creates and configures a new magi MCP server.
 func New(logger *slog.Logger) (*Server, error) {
 	// Initialize database
 	dbCfg := db.ConfigFromEnv()
@@ -66,7 +66,7 @@ func New(logger *slog.Logger) (*Server, error) {
 	}
 
 	s.mcp = mcpserver.NewMCPServer(
-		"claude-memory",
+		"magi",
 		"0.1.0",
 		mcpserver.WithToolCapabilities(false),
 		mcpserver.WithResourceCapabilities(false, false),
@@ -77,7 +77,7 @@ func New(logger *slog.Logger) (*Server, error) {
 	s.registerResources()
 
 	// gRPC server with auth interceptor
-	token := os.Getenv("CLAUDE_MEMORY_API_TOKEN")
+	token := os.Getenv("MAGI_API_TOKEN")
 	s.grpcServer = grpc.NewServer(
 		grpc.UnaryInterceptor(memgrpc.AuthInterceptor(token)),
 	)
@@ -163,7 +163,7 @@ pats := &resources.Patterns{DB: s.dbClient}
 
 // ServeGRPC starts the gRPC server. Blocks until the server stops.
 func (s *Server) ServeGRPC() error {
-	port := os.Getenv("CLAUDE_MEMORY_GRPC_PORT")
+	port := os.Getenv("MAGI_GRPC_PORT")
 	if port == "" {
 		port = "8300"
 	}
@@ -183,11 +183,11 @@ func (s *Server) ServeGRPC() error {
 // ServeGateway starts the grpc-gateway HTTP/JSON reverse proxy.
 // It connects to the gRPC server and proxies JSON requests.
 func (s *Server) ServeGateway() error {
-	port := os.Getenv("CLAUDE_MEMORY_HTTP_PORT")
+	port := os.Getenv("MAGI_HTTP_PORT")
 	if port == "" {
 		port = "8301"
 	}
-	grpcPort := os.Getenv("CLAUDE_MEMORY_GRPC_PORT")
+	grpcPort := os.Getenv("MAGI_GRPC_PORT")
 	if grpcPort == "" {
 		grpcPort = "8300"
 	}
@@ -216,7 +216,7 @@ func (s *Server) ServeGateway() error {
 
 // ServeWeb starts the web UI server. Blocks until the server stops.
 func (s *Server) ServeWeb() error {
-	port := os.Getenv("CLAUDE_MEMORY_UI_PORT")
+	port := os.Getenv("MAGI_UI_PORT")
 	if port == "" {
 		port = "8080"
 	}
@@ -266,7 +266,7 @@ func (s *Server) ShutdownGRPC(ctx context.Context) error {
 
 // Run starts the MCP server on stdio.
 func (s *Server) Run() error {
-	s.logger.Info("Starting claude-memory MCP server")
+	s.logger.Info("Starting magi MCP server")
 	return mcpserver.ServeStdio(s.mcp)
 }
 

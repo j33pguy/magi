@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/j33pguy/claude-memory/db"
-	"github.com/j33pguy/claude-memory/rewrite"
+	"github.com/j33pguy/magi/db"
+	"github.com/j33pguy/magi/rewrite"
 )
 
 // Response wraps search results with adaptive retrieval metadata.
