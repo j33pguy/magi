@@ -29,7 +29,7 @@ func (r *Remember) Tool() mcp.Tool {
 		mcp.WithString("project", mcp.Required(), mcp.Description("Project name (e.g. 'iac', 'famtask', 'global')")),
 		mcp.WithString("type",
 			mcp.Description("Memory type"),
-			mcp.Enum("memory", "incident", "lesson", "decision", "project_context", "conversation", "audit", "runbook", "preference", "context", "security"),
+			mcp.Enum("memory", "incident", "lesson", "decision", "project_context", "conversation", "audit", "runbook", "preference", "context", "security", "state"),
 		),
 		mcp.WithString("summary", mcp.Description("Brief one-line summary of the memory")),
 		mcp.WithArray("tags", mcp.Description("Tags for categorization"), mcp.WithStringItems()),
@@ -43,7 +43,7 @@ func (r *Remember) Tool() mcp.Tool {
 			mcp.Enum("work", "home", "family", "homelab", "project", "meta"),
 		),
 		mcp.WithString("sub_area",
-			mcp.Description("Sub-domain within area. Examples — work: power-platform, fabric, power-bi, sharepoint, teams, azure, td-synnex; homelab: proxmox, networking, security, dns, monitoring, storage, iac, vault, traefik, authentik, lancache; project: claude-memory, distify, labctl, vault-unsealer, iac; home: lego, gaming, streaming, media; family: kids, spouse, schedule"),
+			mcp.Description("Sub-domain within area (e.g. unifi-vlans, unifi-switches, pihole-ha, vault-cluster). For type=state: use a specific component name so current state is queryable by sub_area. Examples — work: power-platform, fabric, power-bi, sharepoint, teams, azure, td-synnex; homelab: proxmox, networking, security, dns, monitoring, storage, iac, vault, traefik, authentik, lancache; project: claude-memory, distify, labctl, vault-unsealer, iac; home: lego, gaming, streaming, media; family: kids, spouse, schedule"),
 		),
 	)
 }
