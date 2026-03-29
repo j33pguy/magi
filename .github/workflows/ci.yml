@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never run on PRs — build/test only on merge to main
+# Self-hosted runners must never execute untrusted code from forks
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: [self-hosted, homelab]
+    # Only run for repo owner
+    if: github.actor == 'j33pguy' || github.actor == 'dependabot[bot]'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
+
+  deploy:
+    name: Deploy
+    runs-on: [self-hosted, homelab]
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.actor == 'j33pguy'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        run: go build -o /tmp/magi-new .
+
+      - name: Get deploy key from Vault
+        env:
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+          VAULT_SKIP_VERIFY: "true"
+          VAULT_ROLE_ID: ${{ secrets.ANSIBLE_ROLE_ID }}
+          VAULT_SECRET_ID: ${{ secrets.ANSIBLE_SECRET_ID }}
+        run: |
+          VAULT_TOKEN=$(curl -sk -X POST ${VAULT_ADDR}/v1/auth/approle/login \
+            -d "{\"role_id\":\"${VAULT_ROLE_ID}\",\"secret_id\":\"${VAULT_SECRET_ID}\"}" \
+            | jq -r '.auth.client_token')
+          curl -sk -H "X-Vault-Token: ${VAULT_TOKEN}" \
+            ${VAULT_ADDR}/v1/homelab/data/ssh | jq -r '.data.data.ansible_private_key' \
+            > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+      - name: Deploy binary
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          scp -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+            /tmp/magi-new ${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/magi-new
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+            ${DEPLOY_USER}@${DEPLOY_HOST} \
+            "sudo /usr/bin/install -m 755 /tmp/magi-new ${DEPLOY_PATH}/bin/magi && rm -f /tmp/magi-new"
+
+      - name: Restart service
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+            ${DEPLOY_USER}@${DEPLOY_HOST} \
+            'sudo systemctl restart magi'
+
+      - name: Health check
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          sleep 4
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
+            ${DEPLOY_USER}@${DEPLOY_HOST} \
+            'status=$(sudo systemctl is-active magi); echo "magi is $status"; [ "$status" = "active" ]'
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/deploy_key /tmp/magi-new

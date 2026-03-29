@@ -1,0 +1,30 @@
+# Binaries
+bin/
+claude-memory
+claude-memory-import
+
+# Environment
+.env
+*.env
+
+# Local database replica
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ONNX models (downloaded at runtime)
+models/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# AI instruction files — keep out of repos
+CLAUDE.md
+.claude/

@@ -1,0 +1,244 @@
+syntax = "proto3";
+package memory.v1;
+option go_package = "github.com/j33pguy/magi/proto/memory/v1;memorypb";
+
+import "google/api/annotations.proto";
+
+service MemoryService {
+  rpc Remember(RememberRequest) returns (RememberResponse) {
+    option (google.api.http) = {
+      post: "/remember"
+      body: "*"
+    };
+  }
+  rpc Recall(RecallRequest) returns (RecallResponse) {
+    option (google.api.http) = {
+      post: "/recall"
+      body: "*"
+    };
+  }
+  rpc Forget(ForgetRequest) returns (ForgetResponse) {
+    option (google.api.http) = {
+      delete: "/memories/{id}"
+    };
+  }
+  rpc List(ListRequest) returns (ListResponse) {
+    option (google.api.http) = {
+      get: "/memories"
+    };
+  }
+  rpc Health(HealthRequest) returns (HealthResponse) {
+    option (google.api.http) = {
+      get: "/health"
+    };
+  }
+  rpc CreateConversation(CreateConversationRequest) returns (CreateConversationResponse) {
+    option (google.api.http) = {
+      post: "/conversations"
+      body: "*"
+    };
+  }
+  rpc SearchConversations(SearchConversationsRequest) returns (SearchConversationsResponse) {
+    option (google.api.http) = {
+      post: "/conversations/search"
+      body: "*"
+    };
+  }
+  rpc LinkMemories(LinkMemoriesRequest) returns (LinkMemoriesResponse) {
+    option (google.api.http) = {
+      post: "/links"
+      body: "*"
+    };
+  }
+  rpc GetRelated(GetRelatedRequest) returns (GetRelatedResponse) {
+    option (google.api.http) = {
+      get: "/memories/{memory_id}/related"
+    };
+  }
+}
+
+// Memory is the core memory record.
+message Memory {
+  string id = 1;
+  string content = 2;
+  string summary = 3;
+  string project = 4;
+  string type = 5;
+  string visibility = 6;
+  string source = 7;
+  string source_file = 8;
+  string parent_id = 9;
+  int32 chunk_index = 10;
+  string created_at = 11;
+  string updated_at = 12;
+  int32 token_count = 13;
+  repeated string tags = 14;
+  // Taxonomy: who said/wrote this (j33p, gilfoyle, agent, system)
+  string speaker = 15;
+  // Taxonomy: top-level domain (work, home, family, homelab, project, meta)
+  string area = 16;
+  // Taxonomy: sub-domain, free-form (power-platform, proxmox, magi, etc.)
+  string sub_area = 17;
+}
+
+// MemoryResult wraps a Memory with relevance scores from hybrid search.
+message MemoryResult {
+  Memory memory = 1;
+  double rrf_score = 2;
+  int32 vec_rank = 3;
+  int32 bm25_rank = 4;
+  double distance = 5;
+  double score = 6;
+  double recency_weight = 7;
+  double weighted_score = 8;
+}
+
+// Remember
+message RememberRequest {
+  string content = 1;
+  string summary = 2;
+  string project = 3;
+  string type = 4;
+  string visibility = 5;
+  repeated string tags = 6;
+  string source = 7;
+  string speaker = 8;  // j33p, gilfoyle, agent, system
+  string area = 9;     // work, home, family, homelab, project, meta
+  string sub_area = 10; // free-form sub-domain
+}
+
+message RememberResponse {
+  string id = 1;
+  bool ok = 2;
+  string tag_warning = 3;
+}
+
+// Recall
+message RecallRequest {
+  string query = 1;
+  string project = 2;
+  repeated string projects = 3;
+  string type = 4;
+  repeated string tags = 5;
+  int32 top_k = 6;
+  double min_relevance = 7;
+  double recency_decay = 8;
+  string speaker = 9;
+  string area = 10;
+  string sub_area = 11;
+  string after_time = 12;   // only memories after this time (ISO-8601 or relative: 7d, 2w, 1m)
+  string before_time = 13;  // only memories before this time
+}
+
+message RecallResponse {
+  repeated MemoryResult results = 1;
+  bool rewritten = 2;
+  string rewritten_query = 3;
+  int32 attempts = 4;
+}
+
+// Forget
+message ForgetRequest {
+  string id = 1;
+}
+
+message ForgetResponse {
+  string id = 1;
+  bool ok = 2;
+}
+
+// List
+message ListRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string project = 3;
+  string type = 4;
+  string tags = 5; // comma-separated for HTTP GET query param compat
+  string speaker = 6;
+  string area = 7;
+  string sub_area = 8;
+  string after_time = 9;   // only memories after this time (ISO-8601 or relative: 7d, 2w, 1m)
+  string before_time = 10;  // only memories before this time
+}
+
+message ListResponse {
+  repeated Memory memories = 1;
+}
+
+// Health
+message HealthRequest {}
+
+message HealthResponse {
+  bool ok = 1;
+  string version = 2;
+}
+
+// CreateConversation
+message CreateConversationRequest {
+  string channel = 1;
+  string summary = 2;
+  string session_key = 3;
+  string started_at = 4;
+  string ended_at = 5;
+  int32 turn_count = 6;
+  repeated string topics = 7;
+  repeated string decisions = 8;
+  repeated string action_items = 9;
+}
+
+message CreateConversationResponse {
+  string id = 1;
+  bool ok = 2;
+  string tag_warning = 3;
+}
+
+// MemoryLink represents a directed relationship between two memories.
+message MemoryLink {
+  string id = 1;
+  string from_id = 2;
+  string to_id = 3;
+  string relation = 4;
+  double weight = 5;
+  bool auto = 6;
+  string created_at = 7;
+}
+
+// LinkMemories
+message LinkMemoriesRequest {
+  string from_id = 1;
+  string to_id = 2;
+  string relation = 3;
+  double weight = 4;
+}
+
+message LinkMemoriesResponse {
+  MemoryLink link = 1;
+}
+
+// GetRelated
+message GetRelatedRequest {
+  string memory_id = 1;
+  int32 depth = 2;
+  string direction = 3;
+}
+
+message GetRelatedResponse {
+  repeated Memory memories = 1;
+  repeated MemoryLink links = 2;
+}
+
+// SearchConversations
+message SearchConversationsRequest {
+  string query = 1;
+  int32 limit = 2;
+  string channel = 3;
+  double min_relevance = 4;
+  double recency_decay = 5;
+}
+
+message SearchConversationsResponse {
+  repeated MemoryResult results = 1;
+  bool rewritten = 2;
+  string rewritten_query = 3;
+  int32 attempts = 4;
+}
