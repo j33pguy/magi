@@ -28,6 +28,9 @@ jobs:
     runs-on: [self-hosted, claude-memory]
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    env:
+      VAULT_ADDR: "https://10.5.5.30:8200"
+      VAULT_SKIP_VERIFY: "true"
 
     steps:
       - uses: actions/checkout@v4
@@ -40,27 +43,40 @@ jobs:
       - name: Build binary
         run: go build -o /tmp/claude-memory-new .
 
+      - name: Get deploy key from Vault
+        env:
+          VAULT_ROLE_ID: ${{ secrets.VAULT_ROLE_ID }}
+          VAULT_SECRET_ID: ${{ secrets.VAULT_SECRET_ID }}
+        run: |
+          VAULT_TOKEN=$(curl -sk -X POST ${VAULT_ADDR}/v1/auth/approle/login \
+            -d "{\"role_id\":\"${VAULT_ROLE_ID}\",\"secret_id\":\"${VAULT_SECRET_ID}\"}" \
+            | jq -r '.auth.client_token')
+          curl -sk -H "X-Vault-Token: ${VAULT_TOKEN}" \
+            ${VAULT_ADDR}/v1/homelab/data/ssh | jq -r '.data.data.ansible_private_key' \
+            > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
       - name: Deploy binary to memory01
         run: |
-          scp -i /home/runner/.ssh/ansible_ed25519 -o StrictHostKeyChecking=no \
+          scp -i /tmp/deploy_key -o StrictHostKeyChecking=no \
             /tmp/claude-memory-new ansible@10.5.5.40:/tmp/claude-memory-new
-          ssh -i /home/runner/.ssh/ansible_ed25519 -o StrictHostKeyChecking=no \
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
             ansible@10.5.5.40 \
             'sudo /usr/bin/install -m 755 /tmp/claude-memory-new /opt/claude-memory/bin/claude-memory && rm -f /tmp/claude-memory-new'
 
       - name: Restart service on memory01
         run: |
-          ssh -i /home/runner/.ssh/ansible_ed25519 -o StrictHostKeyChecking=no \
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
             ansible@10.5.5.40 \
             'sudo systemctl restart claude-memory'
 
       - name: Health check
         run: |
           sleep 4
-          ssh -i /home/runner/.ssh/ansible_ed25519 -o StrictHostKeyChecking=no \
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no \
             ansible@10.5.5.40 \
             'status=$(sudo systemctl is-active claude-memory); echo "claude-memory is $status"; [ "$status" = "active" ]'
 
       - name: Cleanup
         if: always()
-        run: rm -f /tmp/claude-memory-new
+        run: rm -f /tmp/deploy_key /tmp/claude-memory-new
