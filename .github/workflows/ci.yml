@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     name: Build & Test
-    runs-on: [self-hosted, homelab]
+    runs-on: self-hosted
 
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
 
   deploy:
     name: Deploy to memory01
-    runs-on: [self-hosted, homelab]
+    runs-on: self-hosted
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
