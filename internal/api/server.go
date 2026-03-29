@@ -49,6 +49,20 @@ func NewServer(dbClient *db.Client, embedder embeddings.Provider, logger *slog.L
 	mux.HandleFunc("POST /conversations/search", s.requireAuth(s.handleSearchConversations))
 	mux.HandleFunc("GET /conversations/{id}", s.requireAuth(s.handleGetConversation))
 
+	// Agent Registry
+	mux.HandleFunc("POST /agents", s.requireAuth(s.handleRegisterAgent))
+	mux.HandleFunc("GET /agents", s.requireAuth(s.handleListAgents))
+	mux.HandleFunc("GET /agents/{id}", s.requireAuth(s.handleGetAgent))
+	mux.HandleFunc("POST /agents/{id}/heartbeat", s.requireAuth(s.handleHeartbeatAgent))
+	mux.HandleFunc("DELETE /agents/{id}", s.requireAuth(s.handleDeregisterAgent))
+
+	// Task Orchestration
+	mux.HandleFunc("POST /tasks", s.requireAuth(s.handleCreateTask))
+	mux.HandleFunc("GET /tasks", s.requireAuth(s.handleListTasks))
+	mux.HandleFunc("GET /tasks/{id}", s.requireAuth(s.handleGetTask))
+	mux.HandleFunc("POST /tasks/subtasks/{subtask_id}/progress", s.requireAuth(s.handleReportProgress))
+	mux.HandleFunc("PATCH /tasks/subtasks/{subtask_id}", s.requireAuth(s.handleUpdateSubtask))
+
 	s.httpServer = &http.Server{
 		Addr:              net.JoinHostPort("", port),
 		Handler:           mux,

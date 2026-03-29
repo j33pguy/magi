@@ -13,7 +13,11 @@ type Schema struct {
 // Migrate runs all database migrations. Safe to call on every startup.
 func (c *Client) Migrate() error {
 	s := &Schema{client: c}
-	return s.run()
+	if err := s.run(); err != nil {
+		return err
+	}
+	// Apply orchestration tables (agent registry + task management)
+	return c.RunOrchestrationMigrations()
 }
 
 func (s *Schema) run() error {

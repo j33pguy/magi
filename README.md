@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">MAGI</h1>
 <p align="center"><strong>Multi-Agent Graph Intelligence</strong></p>
-<p align="center">Universal memory for AI agents. Self-hosted. Multi-protocol. Agent-agnostic.</p>
+<p align="center">Universal memory and orchestration for AI agents. Self-hosted. Multi-protocol. Agent-agnostic.</p>
 <p align="center"><em>Don't Panic.</em></p>
 
 <p align="center">
