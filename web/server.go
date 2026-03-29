@@ -23,7 +23,8 @@ const pageSize = 30
 
 // RegisterRoutes registers all web UI routes on the given mux.
 func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings.Provider, logger *slog.Logger) {
-	h := &handler{db: dbClient, embedder: embedder, logger: logger, tmpl: parseTemplates()}
+	tmpl, pages := parseTemplates()
+	h := &handler{db: dbClient, embedder: embedder, logger: logger, tmpl: tmpl, pages: pages}
 
 	// Pages
 	mux.HandleFunc("GET /", h.listPage)
@@ -61,11 +62,12 @@ type handler struct {
 	embedder embeddings.Provider
 	logger   *slog.Logger
 	tmpl     *template.Template
+	pages    map[string]*template.Template
 }
 
 // --- Template helpers ---
 
-func parseTemplates() *template.Template {
+func parseTemplates() (*template.Template, map[string]*template.Template) {
 	funcMap := template.FuncMap{
 		"truncate":     truncate,
 		"formatDate":   formatDate,
@@ -77,9 +79,41 @@ func parseTemplates() *template.Template {
 		"isTopicTag":   isTopicTag,
 		"stripPrefix":  strings.TrimPrefix,
 	}
-	return template.Must(
+
+	// Parse base template
+	base := template.Must(
+		template.New("").Funcs(funcMap).ParseFS(WebFS, "templates/base.html"),
+	)
+
+	// Create per-page clones so {{define "content"}} blocks don't collide
+	pageFiles := []string{
+		"templates/list.html",
+		"templates/search.html",
+		"templates/detail.html",
+		"templates/new.html",
+		"templates/stats.html",
+		"templates/graph.html",
+		"templates/conversations.html",
+		"templates/patterns.html",
+		"templates/ingest.html",
+	}
+
+	pages := make(map[string]*template.Template, len(pageFiles))
+	for _, pf := range pageFiles {
+		clone := template.Must(base.Clone())
+		template.Must(clone.ParseFS(WebFS, pf))
+		// Key is the page name without path/extension
+		name := strings.TrimPrefix(pf, "templates/")
+		name = strings.TrimSuffix(name, ".html")
+		pages[name] = clone
+	}
+
+	// Also keep a combined set for partial templates (conv_rows, search_results, etc.)
+	combined := template.Must(
 		template.New("").Funcs(funcMap).ParseFS(WebFS, "templates/*.html"),
 	)
+
+	return combined, pages
 }
 
 func truncate(s string, n int) string {
@@ -231,7 +265,7 @@ func (h *handler) detailPage(w http.ResponseWriter, r *http.Request) {
 	data := struct {
 		Nav    string
 		Memory *db.Memory
-	}{Nav: "", Memory: mem}
+	}{Nav: "detail", Memory: mem}
 	h.render(w, "base", data)
 }
 
@@ -669,19 +703,22 @@ func (h *handler) conversationsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	memories, err := h.db.ListMemories(&db.MemoryFilter{
-		Type:  "conversation",
-		Tags:  tags,
-		Limit: 50,
+		Type:       "conversation",
+		Tags:       tags,
+		Limit:      50,
+		Visibility: "all",
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	h.render(w, "base", map[string]interface{}{
-		"Nav":           "conversations",
-		"Conversations": memories,
-	})
+	data := conversationsData{
+		Nav:           "conversations",
+		Conversations: memories,
+		DateGroups:    groupByDate(memories),
+	}
+	h.render(w, "base", data)
 }
 
 // --- Patterns ---
@@ -1082,9 +1119,58 @@ func filterFromQuery(r *http.Request) db.MemoryFilter {
 
 func (h *handler) render(w http.ResponseWriter, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if name == "base" {
+		// Determine page from Nav field
+		page := ""
+		switch v := data.(type) {
+		case map[string]interface{}:
+			if n, ok := v["Nav"].(string); ok {
+				page = n
+			}
+		case map[string]string:
+			page = v["Nav"]
+		default:
+			// Use reflection-free approach: check known types
+			page = getNavFromData(data)
+		}
+		if t, ok := h.pages[page]; ok {
+			if err := t.ExecuteTemplate(w, "base", data); err != nil {
+				h.logger.Error("template render error", "page", page, "error", err)
+			}
+			return
+		}
+	}
 	if err := h.tmpl.ExecuteTemplate(w, name, data); err != nil {
 		h.logger.Error("template render error", "template", name, "error", err)
 	}
+}
+
+// getNavFromData extracts the Nav field from known data structs.
+func getNavFromData(data any) string {
+	switch v := data.(type) {
+	case conversationsData:
+		return v.Nav
+	case *conversationsData:
+		return v.Nav
+	case patternsData:
+		return v.Nav
+	case *patternsData:
+		return v.Nav
+	case statsData:
+		return v.Nav
+	case *statsData:
+		return v.Nav
+	case listData:
+		return v.Nav
+	case *listData:
+		return v.Nav
+	}
+	// Fallback: try to get Nav via fmt
+	type hasNav interface{ GetNav() string }
+	if n, ok := data.(hasNav); ok {
+		return n.GetNav()
+	}
+	return ""
 }
 
 func (h *handler) renderPartial(w http.ResponseWriter, name string, data any) {
