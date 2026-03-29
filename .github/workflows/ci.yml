@@ -40,17 +40,27 @@ jobs:
       - name: Build binary
         run: go build -o /tmp/claude-memory-new .
 
-      - name: Deploy binary
+      - name: Deploy binary to memory01
         run: |
-          sudo install -m 755 /tmp/claude-memory-new /opt/claude-memory/bin/claude-memory
-          rm -f /tmp/claude-memory-new
+          scp -i /home/runner/.ssh/ansible_ed25519 -o StrictHostKeyChecking=no \
+            /tmp/claude-memory-new ansible@10.5.5.40:/tmp/claude-memory-new
+          ssh -i /home/runner/.ssh/ansible_ed25519 -o StrictHostKeyChecking=no \
+            ansible@10.5.5.40 \
+            'sudo /usr/bin/install -m 755 /tmp/claude-memory-new /opt/claude-memory/bin/claude-memory && rm -f /tmp/claude-memory-new'
 
-      - name: Restart service
-        run: sudo systemctl restart claude-memory
+      - name: Restart service on memory01
+        run: |
+          ssh -i /home/runner/.ssh/ansible_ed25519 -o StrictHostKeyChecking=no \
+            ansible@10.5.5.40 \
+            'sudo systemctl restart claude-memory'
 
       - name: Health check
         run: |
           sleep 4
-          status=$(sudo systemctl is-active claude-memory)
-          echo "claude-memory is $status"
-          [ "$status" = "active" ]
+          ssh -i /home/runner/.ssh/ansible_ed25519 -o StrictHostKeyChecking=no \
+            ansible@10.5.5.40 \
+            'status=$(sudo systemctl is-active claude-memory); echo "claude-memory is $status"; [ "$status" = "active" ]'
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/claude-memory-new
