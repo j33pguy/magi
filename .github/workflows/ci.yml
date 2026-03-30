@@ -3,10 +3,11 @@ name: CI
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
-# Never run on PRs — build/test only on merge to main
-# Self-hosted runners must never execute untrusted code from forks
+# Self-hosted runners — only run for trusted actors (repo owner + dependabot)
 
 jobs:
   build:
