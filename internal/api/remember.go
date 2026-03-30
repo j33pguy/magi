@@ -48,6 +48,22 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Deduplication: check for near-duplicate before inserting
+	const maxDistance = 1.0 - 0.95 // cosine distance for 95% similarity
+	match, err := s.db.FindSimilar(embedding, maxDistance)
+	if err != nil {
+		s.logger.Warn("dedup check failed, proceeding with insert", "error", err)
+	} else if match != nil && match.Distance <= maxDistance {
+		s.logger.Info("deduplicated memory", "existing_id", match.Memory.ID, "distance", match.Distance)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"id":          match.Memory.ID,
+			"ok":          true,
+			"deduplicated": true,
+			"note":        fmt.Sprintf("existing memory %s is %.1f%% similar", match.Memory.ID, (1.0-match.Distance)*100),
+		})
+		return
+	}
+
 	speaker := req.Speaker
 	if speaker == "" {
 		speaker = "assistant"
