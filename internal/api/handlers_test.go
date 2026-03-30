@@ -101,6 +101,48 @@ func TestHandleHealth(t *testing.T) {
 	if resp["version"] != "0.1.0" {
 		t.Errorf("version = %v, want 0.1.0", resp["version"])
 	}
+	if resp["db_status"] != "ok" {
+		t.Errorf("db_status = %v, want ok", resp["db_status"])
+	}
+	if resp["uptime"] == nil || resp["uptime"] == "" {
+		t.Error("expected non-empty uptime")
+	}
+}
+
+func TestHandleReadyz(t *testing.T) {
+	s := newTestServer(t)
+
+	req := httptest.NewRequest("GET", "/readyz", nil)
+	w := httptest.NewRecorder()
+	s.handleReadyz(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]any
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["ready"] != true {
+		t.Errorf("ready = %v, want true", resp["ready"])
+	}
+}
+
+func TestHandleLivez(t *testing.T) {
+	s := newTestServer(t)
+
+	req := httptest.NewRequest("GET", "/livez", nil)
+	w := httptest.NewRecorder()
+	s.handleLivez(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var resp map[string]any
+	json.NewDecoder(w.Body).Decode(&resp)
+	if resp["alive"] != true {
+		t.Errorf("alive = %v, want true", resp["alive"])
+	}
 }
 
 // ---------- Remember ----------
