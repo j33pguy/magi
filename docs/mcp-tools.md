@@ -2,6 +2,39 @@
 
 magi exposes 17 MCP tools via stdio for use with any MCP-compatible agent. All tools accept JSON parameters and return JSON responses.
 
+## MCP Config Generator
+
+Generate a ready-to-paste MCP configuration block for Claude, Codex, or any MCP-compatible client:
+
+```bash
+magi mcp-config
+```
+
+**Output:**
+```json
+{
+  "mcpServers": {
+    "magi": {
+      "command": "magi",
+      "args": [],
+      "env": {
+        "MAGI_DB_URL": "${MAGI_DB_URL}",
+        "MAGI_AUTH_TOKEN": "${MAGI_AUTH_TOKEN}",
+        "MAGI_API_TOKEN": "${MAGI_API_TOKEN}",
+        "MAGI_GRPC_PORT": "8300",
+        "MAGI_HTTP_PORT": "8301",
+        "MAGI_LEGACY_HTTP_PORT": "8302",
+        "MAGI_UI_PORT": "8080"
+      }
+    }
+  }
+}
+```
+
+Copy the output into your agent's MCP configuration file (e.g., `claude_desktop_config.json`, `.codex/config.json`). Replace the `${...}` placeholders with your actual values.
+
+---
+
 ## Core Memory Operations
 
 ### remember

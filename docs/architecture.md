@@ -55,6 +55,79 @@ magi is a single Go binary that runs four server interfaces concurrently, all ba
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
+## Distributed Node Mesh
+
+Located in `internal/node/`. The node mesh introduces a coordination layer between protocol handlers and the database, routing reads and writes through typed goroutine pools.
+
+### Node Types
+
+| Type | Interface | Responsibility |
+|------|-----------|----------------|
+| Writer | `node.Writer` | Persists memories: Save, Update, Archive, Delete |
+| Reader | `node.Reader` | Retrieves memories: Get, List, Search, SearchBM25, HybridSearch |
+| Index | `node.Index` | Manages search index updates (tag reindexing) |
+| Coordinator | `node.Coordinator` | Routes requests to Writer/Reader pools, manages lifecycle |
+
+### Architecture (Phase 1 — Embedded Mode)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Protocol Layer                                   │
+│         MCP · gRPC · REST · Web UI                                   │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────────────┐
+│                     Coordinator                                      │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                    Router (session affinity)                   │   │
+│  │  Tracks per-session write sequence numbers for                │   │
+│  │  read-your-writes consistency                                 │   │
+│  └───────────┬──────────────────────────────┬────────────────────┘   │
+│              │                              │                        │
+│  ┌───────────▼───────────┐    ┌─────────────▼─────────────────┐     │
+│  │    Writer Pool (4)    │    │      Reader Pool (8)           │     │
+│  │  ┌──┐ ┌──┐ ┌──┐ ┌──┐ │    │  ┌──┐ ┌──┐ ┌──┐ ┌──┐        │     │
+│  │  │W1│ │W2│ │W3│ │W4│ │    │  │R1│ │R2│ │R3│ ... │R8│      │     │
+│  │  └──┘ └──┘ └──┘ └──┘ │    │  └──┘ └──┘ └──┘     └──┘      │     │
+│  │  channel buffer: 8    │    │  channel buffer: 16            │     │
+│  └───────────┬───────────┘    └─────────────┬─────────────────┘     │
+│              │                              │                        │
+│  ┌───────────▼──────────────────────────────▼────────────────────┐  │
+│  │                    Index Pool                                  │  │
+│  │  Tag updates, FTS trigger pass-through (inline in embedded)   │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                    Registry                                    │   │
+│  │  Tracks registered node capabilities and pool sizes            │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────────────┐
+│                     db.Store (any backend)                            │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Session Affinity
+
+The Router tracks a monotonic write sequence per session. After a write completes, subsequent reads from the same session are guaranteed to see that write. Session IDs propagate via `context.Context` from HTTP/gRPC handlers down to the pools.
+
+### CoordinatedStore
+
+`local.CoordinatedStore` implements the `db.Store` interface by delegating core operations (Save, Get, Update, Archive, Delete, List, Search) through the Coordinator pools. Operations not yet routed through pools (links, graph traversal, tags) pass through to the underlying store directly. This makes the node mesh a **drop-in replacement** — all existing API/gRPC/MCP endpoints work unchanged.
+
+### Configuration
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `MAGI_NODE_MODE` | `embedded` | Node communication mode (Phase 1: embedded only) |
+| `MAGI_WRITER_POOL_SIZE` | `4` | Number of writer goroutines |
+| `MAGI_READER_POOL_SIZE` | `8` | Number of reader goroutines |
+| `MAGI_COORDINATOR_ENABLED` | `true` | Enable the coordinator (set `false` for direct store access) |
+
+In embedded mode, all pools run as in-process goroutines communicating via Go channels. Zero serialization overhead — the same `*db.Memory` pointers pass through the pools.
+
 ## Data Flow
 
 ### Write Path (remember)
@@ -153,6 +226,46 @@ Located in `internal/cache/`. Three independent caches reduce latency for repeat
 
 - Conservative invalidation: the query cache is cleared on any write operation
 - Memory and embedding caches use LRU eviction
+
+## Observability
+
+### Prometheus Metrics
+
+Located in `internal/metrics/`. Exposed at `GET /metrics` in Prometheus exposition format.
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `magi_write_latency_seconds` | Histogram | Latency of memory write operations |
+| `magi_search_latency_seconds` | Histogram | Latency of memory search operations |
+| `magi_embedding_duration_seconds` | Histogram | Duration of ONNX embedding generation |
+| `magi_queue_depth` | Gauge | Current depth of async write pipeline |
+| `magi_memory_count` | Gauge | Current number of memories in database |
+| `magi_active_sessions` | Gauge | Number of active MCP sessions |
+| `magi_cache_hits_total` | Counter | Cache hits (label: `cache` = query/memory/embedding) |
+| `magi_cache_misses_total` | Counter | Cache misses (label: `cache` = query/memory/embedding) |
+| `magi_git_commits_total` | Counter | Total git commits made for memory versioning |
+
+### Health Probes
+
+| Endpoint | Auth | Checks | Success | Failure |
+|----------|------|--------|---------|---------|
+| `GET /health` | No | DB query, git status | 200 with version, uptime, db_status, memory_count, git_status | 503 |
+| `GET /readyz` | No | DB list query | 200 `{"ready": true}` | 503 with error |
+| `GET /livez` | No | None (process alive) | 200 `{"alive": true}` | — |
+
+`/readyz` is suitable for Kubernetes readiness probes. `/livez` is suitable for liveness probes.
+
+### Write Tracking
+
+Located in `internal/tracking/`. Convenience helpers for production dogfooding — MAGI recording its own operational state as memories.
+
+| Helper | Memory Type | Tags | Content Format |
+|--------|-------------|------|----------------|
+| `TrackTask(id, state, metadata)` | `task` | `task`, `state:<state>`, `task:<id>` | `Task {id} → {state}` + metadata |
+| `TrackDecision(summary, context)` | `decision` | `decision`, `architectural` | `Decision: {summary}\n\nContext: {context}` |
+| `TrackConversation(summary, topics, decisions, items)` | `conversation` | `conversation`, `tracking`, `topic:<t>` | Structured summary with sections |
+
+All tracking writes use `speaker: "system"` and `source: "tracking"`.
 
 ## Pluggable SQL Backends
 
@@ -272,18 +385,39 @@ Heuristic-based analysis (no LLM) detects four pattern types:
 
 Patterns are stored as `type=preference` memories with `pattern` tag, deduplicated at 0.9 similarity.
 
+## Chaos Testing
+
+Located in `internal/chaos/`. Build tag: `chaos`. Run with `go test -tags chaos ./internal/chaos/`.
+
+| Test | What It Validates |
+|------|-------------------|
+| `TestConcurrentWrites` | 10 writers × 20 writes — no data corruption, all successful writes durable |
+| `TestSearchDuringIngestion` | 3 writer + 3 search goroutines running concurrently — reads don't block writes in WAL mode |
+| `TestKillMidWriteRecovery` | Cancel context mid-write — pre-existing data survives, DB remains functional |
+| `TestCacheOverflow` | 200 sequential writes then 5 concurrent readers — cache pressure doesn't corrupt reads |
+
+Some SQLite contention errors (`database is locked`) are expected under heavy concurrent writes. Tests verify that successful writes are durable and the system recovers.
+
 ## Project Structure
 
 ```
 magi/
 ├── main.go                  # Entry point, CLI flags, server startup
+├── cmd/mcp-config/          # MCP config generator subcommand
 ├── server/                  # MCP server setup, tool/resource registration
 ├── db/                      # Turso client, schema migrations, CRUD, tags, links
 ├── internal/
+│   ├── api/                 # HTTP API server, health/readyz/livez handlers
 │   ├── db/                  # Pluggable SQL backends (factory, store interface)
+│   ├── node/                # Distributed node mesh (types, pool, router, registry)
+│   │   └── local/           # Embedded-mode implementations (coordinator, writer, reader, index, store)
+│   ├── metrics/             # Prometheus metrics (9 metrics, /metrics handler)
+│   ├── tracking/            # Write tracking helpers (TrackTask, TrackDecision, TrackConversation)
+│   ├── chaos/               # Chaos testing framework (concurrent writes, kill recovery, etc.)
 │   ├── vcs/                 # Git-backed memory versioning (VersionedStore)
 │   ├── pipeline/            # Async write pipeline (workers, batching, status)
-│   └── cache/               # Caching layer (query, memory, embedding caches)
+│   ├── cache/               # Caching layer (query, memory, embedding caches)
+│   └── server/              # Server initialization and lifecycle
 ├── tools/                   # MCP tool handlers (17 tools)
 ├── resources/               # MCP resource handlers (6 resources)
 ├── api/                     # Legacy HTTP API handlers

@@ -14,6 +14,18 @@
 
 ---
 
+## What's New in v0.2.0
+
+- **Distributed Node Mesh** — Writer, Reader, Index, and Coordinator node types with goroutine pool routing, session affinity for read-your-writes consistency, zero overhead in embedded mode (PR #74)
+- **Prometheus Metrics** — 9 metrics: write/search latency, embedding duration, queue depth, memory count, session count, cache hit/miss, git commits. Scrape `/metrics` (PR #73)
+- **Health Probes** — `/readyz` and `/livez` for Kubernetes, expanded `/health` with DB status, uptime, memory count, git status (PR #73)
+- **Write Tracking Helpers** — `TrackTask`, `TrackDecision`, `TrackConversation` for production dogfooding (PR #73)
+- **MCP Config Generator** — `magi mcp-config` outputs ready-to-paste JSON for Claude/Codex (PR #73)
+- **Chaos Testing** — Concurrent writes, search-during-ingestion, kill recovery, cache overflow (PR #73)
+- **SQL Server Backend** — Full support for SQL Server / Azure SQL (PR #71)
+
+---
+
 Your AI agents are brilliant — and completely amnesiac. Grok discovers a breaking API change. Claude doesn't know about it when reviewing your code. Codex builds a module. Your local LLM has no idea it exists.
 
 **MAGI gives all your agents a shared brain.**
@@ -68,10 +80,13 @@ Route work however you want — [OpenClaw](https://github.com/openclaw/openclaw)
 ## Why MAGI?
 
 - **Git-Versioned Memory** — Every mutation is a git commit. Full history, diffs, and rollback for every memory. The database is a derived index; the git repo is the source of truth. No other AI memory system has this.
+- **Distributed Node Mesh** — Writer/Reader/Index/Coordinator pools with session affinity. Zero-overhead embedded mode, ready for multi-node in Phase 2.
 - **Semantic Search** — Hybrid vector + BM25 with local ONNX embeddings
 - **Knowledge Graph** — Auto-linked memories with D3.js visualization
 - **Pattern Detection** — Surfaces behavioral insights across all agents
 - **Async Write Pipeline** — Returns 202 Accepted in <10ms. Worker pool with batch INSERT for throughput.
+- **Prometheus Metrics** — Write/search latency, queue depth, cache stats, embedding duration. Scrape `/metrics`.
+- **Health Probes** — `/readyz`, `/livez`, expanded `/health`. Kubernetes-ready.
 - **Multi-Protocol** — MCP · gRPC · REST · Web UI
 - **Multi-Backend** — SQLite · Turso · PostgreSQL (pgvector) · MySQL/MariaDB · SQL Server/Azure SQL
 - **Self-Hosted** — Your data, your hardware. Zero cloud dependencies.
@@ -88,6 +103,25 @@ MEMORY_BACKEND=postgres ./magi --http-only
 
 # From source
 git clone https://github.com/j33pguy/magi.git && cd magi && make build
+
+# Generate MCP config for Claude/Codex
+magi mcp-config
+```
+
+### Verify It's Running
+
+```bash
+# Liveness
+curl http://localhost:8302/livez
+
+# Readiness (checks DB)
+curl http://localhost:8302/readyz
+
+# Full health (DB status, uptime, memory count, git status)
+curl http://localhost:8302/health
+
+# Prometheus metrics
+curl http://localhost:8302/metrics
 ```
 
 ## Use It
@@ -107,9 +141,13 @@ curl -X POST http://localhost:8302/recall \
 
 | Feature | Description |
 |---------|-------------|
+| Distributed Node Mesh | Writer/Reader/Index/Coordinator pools, session affinity, zero-overhead embedded mode. |
 | Git-Backed Memory Versioning | Every mutation = git commit. Full history, diffs, rollback. DB is a derived index. |
 | Async Write Pipeline | 202 Accepted in <10ms. Worker pool with batch INSERT for high throughput. |
 | Caching Layer | Query cache (SHA256 key, 60s TTL), LRU memory cache (1000 items), embedding cache. |
+| Prometheus Metrics | 9 metrics: write/search latency, queue depth, cache stats, embedding duration, git commits. |
+| Health Probes | `/readyz`, `/livez`, expanded `/health` with DB status, uptime, memory count, git status. |
+| Write Tracking | TrackTask, TrackDecision, TrackConversation helpers for production dogfooding. |
 | 20 MCP tools | Full agent integration via stdio |
 | REST + gRPC APIs | Any language, any platform |
 | Web Dashboard | Browse, search, graph, analyze |
@@ -117,15 +155,19 @@ curl -X POST http://localhost:8302/recall \
 | Pattern Analyzer | Detects preferences, habits, decision styles |
 | 10 Memory Types | Decisions, lessons, incidents, preferences, and more |
 | Pluggable Storage | SQLite · Turso · PostgreSQL (pgvector) · MySQL/MariaDB · SQL Server/Azure SQL |
+| Chaos Testing | Concurrent writes, search-during-ingestion, kill recovery, cache overflow. |
 
 ## vs. Alternatives
 
 | | MAGI | mem0 | Zep | ChromaDB |
 |-|------|------|-----|----------|
 | Git versioning | ✅ | ❌ | ❌ | ❌ |
+| Distributed node mesh | ✅ | ❌ | ❌ | ❌ |
 | Knowledge graph | ✅ | ❌ | ❌ | ❌ |
 | Pattern detection | ✅ | ❌ | ❌ | ❌ |
 | Async pipeline | ✅ | ❌ | ❌ | ❌ |
+| Prometheus metrics | ✅ | ❌ | ❌ | ❌ |
+| Health probes (k8s) | ✅ | ❌ | ❌ | ❌ |
 | Typed memories | ✅ | ❌ | Partial | ❌ |
 | Orchestrator-agnostic | ✅ | ❌ | ❌ | ❌ |
 | Self-hosted | ✅ | Cloud-first | ✅ | ✅ |
@@ -155,6 +197,19 @@ graph TB
         WEB["Web UI"]
     end
 
+    subgraph Observability["Observability"]
+        METRICS["Prometheus /metrics"]
+        HEALTH["Health Probes (/readyz, /livez)"]
+        TRACKING["Write Tracking"]
+    end
+
+    subgraph NodeMesh["Node Mesh (Coordinator)"]
+        WRITER["Writer Pool"]
+        READER["Reader Pool"]
+        INDEX["Index Pool"]
+        ROUTER["Router (session affinity)"]
+    end
+
     subgraph Core["MAGI Core"]
         ASYNC["Async Write Pipeline"]
         CACHE["Caching Layer"]
@@ -174,11 +229,15 @@ graph TB
         GIT["Git Repository (source of truth)"]
     end
 
-    Protocols --> Core
+    Protocols --> NodeMesh
+    NodeMesh --> Core
+    Observability -.-> Core
     Core --> Storage
     Core --> GIT
 
     style Protocols fill:#0f1117,stroke:#f59e0b,stroke-width:2px,color:#e2e8f0
+    style Observability fill:#0f1117,stroke:#ef4444,stroke-width:2px,color:#e2e8f0
+    style NodeMesh fill:#0f1117,stroke:#06b6d4,stroke-width:2px,color:#e2e8f0
     style Core fill:#0f1117,stroke:#6366f1,stroke-width:2px,color:#e2e8f0
     style Storage fill:#0f1117,stroke:#10b981,stroke-width:2px,color:#e2e8f0
     style VCS fill:#0f1117,stroke:#a855f7,stroke-width:2px,color:#e2e8f0
