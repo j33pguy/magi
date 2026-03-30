@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -506,8 +507,8 @@ func (c *Client) SearchMemoriesBM25(query string, filter *MemoryFilter, topK int
 	return results, nil
 }
 
-// HybridSearch runs both vector and BM25 search then fuses results using
-// Reciprocal Rank Fusion (RRF) with k=60 (standard default).
+// HybridSearch runs both vector and BM25 search concurrently then fuses
+// results using Reciprocal Rank Fusion (RRF) with k=60 (standard default).
 // Returns results ordered by combined RRF score (descending).
 func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryFilter, topK int) ([]*HybridResult, error) {
 	if topK <= 0 {
@@ -515,14 +516,31 @@ func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryF
 	}
 	fetchK := topK * 3 // over-fetch to have enough for fusion
 
-	vecResults, err := c.SearchMemories(embedding, filter, fetchK)
-	if err != nil {
-		return nil, fmt.Errorf("vector search: %w", err)
-	}
+	// Run vector and BM25 searches concurrently.
+	var (
+		vecResults  []*VectorResult
+		bm25Results []*VectorResult
+		vecErr      error
+		bm25Err     error
+		wg          sync.WaitGroup
+	)
 
-	bm25Results, err := c.SearchMemoriesBM25(query, filter, fetchK)
-	if err != nil {
-		return nil, fmt.Errorf("BM25 search: %w", err)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		vecResults, vecErr = c.SearchMemories(embedding, filter, fetchK)
+	}()
+	go func() {
+		defer wg.Done()
+		bm25Results, bm25Err = c.SearchMemoriesBM25(query, filter, fetchK)
+	}()
+	wg.Wait()
+
+	if vecErr != nil {
+		return nil, fmt.Errorf("vector search: %w", vecErr)
+	}
+	if bm25Err != nil {
+		return nil, fmt.Errorf("BM25 search: %w", bm25Err)
 	}
 
 	// Build RRF score map keyed by memory ID.
