@@ -2,14 +2,31 @@
 
 ## Recently Shipped
 
+### v0.2.0
+
+| Feature | PR | Notes |
+|---------|-----|-------|
+| Distributed node mesh (Phase 1) | #74 | Writer/Reader/Index/Coordinator pools, session affinity, embedded mode |
+| Prometheus metrics | #73 | 9 metrics: write/search latency, queue depth, cache stats, etc. |
+| Health probes (/readyz, /livez) | #73 | Kubernetes-style readiness and liveness probes |
+| Expanded /health endpoint | #73 | DB status, uptime, memory count, git status |
+| Write tracking helpers | #73 | TrackTask, TrackDecision, TrackConversation |
+| MCP config generator | #73 | `magi mcp-config` subcommand |
+| Chaos testing framework | #73 | Concurrent writes, search-during-ingestion, kill recovery, cache overflow |
+| SQL Server backend | #71 | Full SQL Server / Azure SQL support |
+| Go concurrency improvements | #72 | Benchmarks, performance tuning |
+
+### v0.1.0
+
 | Feature | PR | Notes |
 |---------|-----|-------|
 | Git-backed memory versioning | #62 | VersionedStore middleware, history/diff API |
 | Async write pipeline + caching layer | #63 | 202 Accepted in <10ms, query/memory/embedding caches |
-| Go concurrency improvements | -- | Benchmarks, performance tuning (on main) |
-| Pluggable SQL backends | #67 | SQLite, Turso, PostgreSQL, MySQL, SQL Server |
+| Go concurrency improvements | #65 | Benchmarks, performance tuning |
+| Pluggable SQL backends | #67 | SQLite, Turso, PostgreSQL, MySQL |
+| SetTags transaction + REST dedup fix | #58 | Bug fixes |
 
-## v0.1 — Current (shipped)
+### v0.1.0 — Baseline (shipped)
 - MCP stdio server (agent integration)
 - HTTP API (OpenClaw/external services)
 - Turso cloud sync with local libSQL replica
@@ -20,12 +37,74 @@
 - Git-backed memory versioning (PR #62)
 - Async write pipeline with worker pool (PR #63)
 - Caching layer: query, memory, embedding caches (PR #63)
-- Pluggable SQL backends: SQLite, Turso, PostgreSQL, MySQL, SQL Server (PR #67)
-- Go concurrency improvements and benchmarks
+- Pluggable SQL backends: SQLite, Turso, PostgreSQL, MySQL, SQL Server (PR #67, #71)
+- Go concurrency improvements and benchmarks (PR #65, #72)
 
 ---
 
-## v0.2 — Project-Scoped Memory (next)
+## v0.2.1 — Distributed Node Mesh Phase 2 (next)
+
+### The pattern
+Move from in-process goroutine pools to gRPC-based inter-node communication. Multiple MAGI instances form a mesh for horizontal scaling.
+
+### Features
+
+#### gRPC node transport
+- Replace Go channel communication with gRPC streams between nodes
+- Node discovery via registry (mDNS or static config)
+- Writer/Reader/Index nodes can run as separate processes
+
+#### Partition-aware routing
+- Coordinator routes writes by project hash to specific Writer nodes
+- Reader queries fan out to all Reader nodes, results merged
+- Consistent hashing for partition assignment
+
+#### Health-aware pool management
+- Unhealthy nodes removed from rotation
+- Automatic rebalancing when nodes join/leave
+- Metrics per-node for capacity planning
+
+---
+
+## v0.2.2 — Distributed Node Mesh Phase 3
+
+### The pattern
+Replicated reads with write-ahead log replication. Strong consistency for writes, eventual consistency for reads.
+
+### Features
+
+#### WAL replication
+- Writer nodes stream WAL entries to Reader nodes
+- Readers apply WAL for near-real-time consistency
+- Configurable replication lag tolerance
+
+#### Read replicas
+- Dedicated read-only nodes that receive WAL streams
+- Auto-scaling read capacity without affecting write path
+- Stale-read option for lower latency
+
+---
+
+## v0.2.3 — Distributed Node Mesh Phase 4
+
+### The pattern
+Full multi-region deployment with cross-datacenter replication.
+
+### Features
+
+#### Multi-region coordination
+- Region-aware routing (prefer local reads)
+- Cross-region write forwarding to primary
+- Conflict resolution for concurrent cross-region writes
+
+#### Sharded storage
+- Memories partitioned across storage nodes by project
+- Cross-shard queries via scatter-gather
+- Shard rebalancing on topology changes
+
+---
+
+## v0.3 — Project-Scoped Memory
 
 ### The pattern
 Download a repo → binary detects it → syncs project memories → work begins with full context.
@@ -81,7 +160,7 @@ Before starting any task:
 
 ---
 
-## v0.2.1 — Project Context in Turso (no CLAUDE.md in repos)
+## v0.3.1 — Project Context in Turso (no CLAUDE.md in repos)
 
 ### The pattern
 Instead of committing `CLAUDE.md` to every project, store project instructions in Turso
@@ -110,7 +189,7 @@ The agent injects these at the top of context automatically.
 
 ---
 
-## v0.3 — Cross-Machine Identity
+## v0.4 — Cross-Machine Identity
 
 ### The pattern
 Multiple machines (homelab server, MacBook, future machines) all write to the same Turso DB.
@@ -133,7 +212,7 @@ Shows which machines have written recently, last seen timestamps.
 
 ---
 
-## v0.4 — Ingestion Pipeline
+## v0.5 — Ingestion Pipeline
 
 ### The pattern
 Work offline on MacBook → Agent session logs captured → ingested into Turso → the homelab agent has full context on next session.
@@ -165,7 +244,7 @@ min_session_length: 5  # min turns before importing a session
 
 ---
 
-## v0.5 — Cross-Channel Conversation Sync (Issue #6)
+## v0.6 — Cross-Channel Conversation Sync (Issue #6)
 
 ### The problem
 OpenClaw sessions are isolated. MEMORY.md covers long-term facts. Nothing covers 
@@ -190,7 +269,7 @@ Use existing `/remember` with `type=conversation` tag written via heartbeat. Rec
 
 ---
 
-## v0.6 — Per-Turn Conversation Indexing (Issue #7)
+## v0.7 — Per-Turn Conversation Indexing (Issue #7)
 
 ### The problem
 Summaries are lossy. Can't answer "what exactly did the user say about X?"
@@ -234,3 +313,7 @@ More storage, more writes → dramatically better recall precision. Verbatim quo
 | `MAGI_GIT_PATH` | `~/.magi/memories` | Path to git repo for memory versioning |
 | `MAGI_GIT_COMMIT_MODE` | `immediate` | Git commit mode: `immediate` or `batch` |
 | `MAGI_ASYNC_WRITES` | `false` | Enable async write pipeline (returns 202) |
+| `MAGI_NODE_MODE` | `embedded` | Node mesh communication mode |
+| `MAGI_WRITER_POOL_SIZE` | `4` | Writer goroutine pool size |
+| `MAGI_READER_POOL_SIZE` | `8` | Reader goroutine pool size |
+| `MAGI_COORDINATOR_ENABLED` | `true` | Enable coordinator routing layer |

@@ -112,6 +112,143 @@ journalctl -u magi -f
 
 **Note:** The `--http-only` flag runs gRPC, grpc-gateway, legacy HTTP, and web UI servers without the stdio MCP server. MCP mode is for direct direct agent integration (where the binary is launched by an agent as a subprocess).
 
+## Node Mesh Configuration
+
+The distributed node mesh (PR #74) routes reads and writes through goroutine pools managed by a Coordinator. In embedded mode (Phase 1), all pools run in-process with zero serialization overhead.
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `MAGI_NODE_MODE` | `embedded` | Communication mode. Phase 1 supports `embedded` only. |
+| `MAGI_WRITER_POOL_SIZE` | `4` | Number of writer goroutines. Increase for write-heavy workloads. |
+| `MAGI_READER_POOL_SIZE` | `8` | Number of reader goroutines. Increase for search-heavy workloads. |
+| `MAGI_COORDINATOR_ENABLED` | `true` | Set to `false` to bypass the coordinator and use direct store access. |
+
+Add to systemd environment:
+
+```ini
+Environment=MAGI_COORDINATOR_ENABLED=true
+Environment=MAGI_WRITER_POOL_SIZE=4
+Environment=MAGI_READER_POOL_SIZE=8
+```
+
+To disable the coordinator (direct store access, same as pre-v0.2.0 behavior):
+
+```ini
+Environment=MAGI_COORDINATOR_ENABLED=false
+```
+
+## Prometheus Monitoring
+
+MAGI exposes a `/metrics` endpoint in Prometheus exposition format on the legacy HTTP port (default 8302).
+
+### Scrape Config
+
+Add to your `prometheus.yml`:
+
+```yaml
+scrape_configs:
+  - job_name: 'magi'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8302']
+    metrics_path: /metrics
+```
+
+### Available Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `magi_write_latency_seconds` | Histogram | Memory write latency |
+| `magi_search_latency_seconds` | Histogram | Memory search latency |
+| `magi_embedding_duration_seconds` | Histogram | ONNX embedding duration |
+| `magi_queue_depth` | Gauge | Async write pipeline depth |
+| `magi_memory_count` | Gauge | Total memories in DB |
+| `magi_active_sessions` | Gauge | Active MCP sessions |
+| `magi_cache_hits_total` | Counter | Cache hits by type |
+| `magi_cache_misses_total` | Counter | Cache misses by type |
+| `magi_git_commits_total` | Counter | Git commits for versioning |
+
+### Example Alert Rules
+
+```yaml
+groups:
+  - name: magi
+    rules:
+      - alert: MAGIWriteLatencyHigh
+        expr: histogram_quantile(0.95, rate(magi_write_latency_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MAGI write latency p95 > 1s"
+
+      - alert: MAGIQueueBacklog
+        expr: magi_queue_depth > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MAGI async write queue backlog"
+```
+
+## Kubernetes Health Probes
+
+MAGI provides `/readyz` and `/livez` endpoints for Kubernetes probes. No authentication required.
+
+### Pod Spec Example
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: magi
+spec:
+  containers:
+    - name: magi
+      image: ghcr.io/j33pguy/magi:latest
+      ports:
+        - containerPort: 8302
+          name: http
+        - containerPort: 8080
+          name: ui
+      env:
+        - name: MEMORY_BACKEND
+          value: postgres
+        - name: MAGI_COORDINATOR_ENABLED
+          value: "true"
+        - name: MAGI_WRITER_POOL_SIZE
+          value: "4"
+        - name: MAGI_READER_POOL_SIZE
+          value: "8"
+      livenessProbe:
+        httpGet:
+          path: /livez
+          port: http
+        initialDelaySeconds: 5
+        periodSeconds: 10
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: http
+        initialDelaySeconds: 10
+        periodSeconds: 5
+      resources:
+        requests:
+          memory: "256Mi"
+          cpu: "250m"
+        limits:
+          memory: "1Gi"
+          cpu: "1000m"
+```
+
+### Probe Behavior
+
+| Probe | Endpoint | Checks | Use For |
+|-------|----------|--------|---------|
+| Liveness | `GET /livez` | Process alive (no deps) | Restart if process is wedged |
+| Readiness | `GET /readyz` | Database accessible | Don't route traffic until DB is ready |
+| Health | `GET /health` | DB + git + memory count | Dashboards, debugging |
+
 ## Reverse Proxy (Traefik)
 
 Example Traefik dynamic config to expose the web UI and API behind authentication:
