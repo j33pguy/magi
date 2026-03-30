@@ -24,24 +24,101 @@ const (
 	vocabURL = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/vocab.txt"
 )
 
-// OnnxProvider generates embeddings using all-MiniLM-L6-v2 via ONNX runtime.
-// A single persistent session is reused across calls (sessions are not thread-safe;
-// access is serialized via mu).
-type OnnxProvider struct {
-	tokenizer *Tokenizer
-	session   *ort.AdvancedSession
-	logger    *slog.Logger
-	mu        sync.Mutex
-
-	// pre-allocated tensors reused across calls to avoid repeated alloc/free
+// workerSession holds a single ONNX inference session and its pre-allocated tensors.
+// Each worker is independent and can run inference concurrently with other workers.
+type workerSession struct {
+	session        *ort.AdvancedSession
 	inputIDsTensor *ort.Tensor[int64]
 	maskTensor     *ort.Tensor[int64]
 	typeTensor     *ort.Tensor[int64]
 	outputTensor   *ort.Tensor[float32]
 }
 
-// NewOnnxProvider creates a new ONNX embedding provider. Downloads the model
-// and vocab on first use if not already cached.
+// OnnxProvider generates embeddings using all-MiniLM-L6-v2 via ONNX runtime.
+// Uses a pool of worker sessions for concurrent embedding generation.
+// Each worker has its own ONNX session and pre-allocated tensors.
+type OnnxProvider struct {
+	tokenizer  *Tokenizer
+	logger     *slog.Logger
+	workers    chan *workerSession // buffered channel acts as a worker pool
+	numWorkers int
+	embPool    sync.Pool // pool for []float32 embedding output buffers
+}
+
+// newWorkerSession creates a single ONNX inference worker with its own session and tensors.
+func newWorkerSession(modelPath string) (*workerSession, error) {
+	batchSize := int64(1)
+	seqLen := int64(maxTokenLen)
+
+	inputIDsTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), make([]int64, batchSize*seqLen))
+	if err != nil {
+		return nil, fmt.Errorf("creating input_ids tensor: %w", err)
+	}
+	maskTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), make([]int64, batchSize*seqLen))
+	if err != nil {
+		inputIDsTensor.Destroy()
+		return nil, fmt.Errorf("creating attention_mask tensor: %w", err)
+	}
+	typeTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), make([]int64, batchSize*seqLen))
+	if err != nil {
+		inputIDsTensor.Destroy()
+		maskTensor.Destroy()
+		return nil, fmt.Errorf("creating token_type_ids tensor: %w", err)
+	}
+	outputTensor, err := ort.NewEmptyTensor[float32](ort.NewShape(batchSize, seqLen, int64(dimensions)))
+	if err != nil {
+		inputIDsTensor.Destroy()
+		maskTensor.Destroy()
+		typeTensor.Destroy()
+		return nil, fmt.Errorf("creating output tensor: %w", err)
+	}
+
+	session, err := ort.NewAdvancedSession(
+		modelPath,
+		[]string{"input_ids", "attention_mask", "token_type_ids"},
+		[]string{"last_hidden_state"},
+		[]ort.Value{inputIDsTensor, maskTensor, typeTensor},
+		[]ort.Value{outputTensor},
+		nil,
+	)
+	if err != nil {
+		inputIDsTensor.Destroy()
+		maskTensor.Destroy()
+		typeTensor.Destroy()
+		outputTensor.Destroy()
+		return nil, fmt.Errorf("creating ONNX session: %w", err)
+	}
+
+	return &workerSession{
+		session:        session,
+		inputIDsTensor: inputIDsTensor,
+		maskTensor:     maskTensor,
+		typeTensor:     typeTensor,
+		outputTensor:   outputTensor,
+	}, nil
+}
+
+func (w *workerSession) destroy() {
+	if w.session != nil {
+		w.session.Destroy()
+	}
+	if w.inputIDsTensor != nil {
+		w.inputIDsTensor.Destroy()
+	}
+	if w.maskTensor != nil {
+		w.maskTensor.Destroy()
+	}
+	if w.typeTensor != nil {
+		w.typeTensor.Destroy()
+	}
+	if w.outputTensor != nil {
+		w.outputTensor.Destroy()
+	}
+}
+
+// NewOnnxProvider creates a new ONNX embedding provider with a pool of worker
+// sessions for concurrent embedding generation. Downloads the model and vocab
+// on first use if not already cached.
 func NewOnnxProvider(logger *slog.Logger) (*OnnxProvider, error) {
 	modelDir := os.Getenv("MAGI_MODEL_DIR")
 	if modelDir == "" {
@@ -84,98 +161,114 @@ func NewOnnxProvider(logger *slog.Logger) (*OnnxProvider, error) {
 		return nil, fmt.Errorf("loading tokenizer: %w", err)
 	}
 
-	batchSize := int64(1)
-	seqLen := int64(maxTokenLen)
-
-	// Pre-allocate tensors once — reused across all inference calls.
-	inputIDsTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), make([]int64, batchSize*seqLen))
-	if err != nil {
-		return nil, fmt.Errorf("creating input_ids tensor: %w", err)
+	// Determine worker count: default to NumCPU, capped at 8, overridable via env.
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 8 {
+		numWorkers = 8
 	}
-	maskTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), make([]int64, batchSize*seqLen))
-	if err != nil {
-		inputIDsTensor.Destroy()
-		return nil, fmt.Errorf("creating attention_mask tensor: %w", err)
+	if numWorkers < 1 {
+		numWorkers = 1
 	}
-	typeTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), make([]int64, batchSize*seqLen))
-	if err != nil {
-		inputIDsTensor.Destroy()
-		maskTensor.Destroy()
-		return nil, fmt.Errorf("creating token_type_ids tensor: %w", err)
-	}
-	outputTensor, err := ort.NewEmptyTensor[float32](ort.NewShape(batchSize, seqLen, int64(dimensions)))
-	if err != nil {
-		inputIDsTensor.Destroy()
-		maskTensor.Destroy()
-		typeTensor.Destroy()
-		return nil, fmt.Errorf("creating output tensor: %w", err)
+	if v := os.Getenv("MAGI_EMBED_WORKERS"); v != "" {
+		var n int
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
+			numWorkers = n
+		}
 	}
 
-	// Create a single persistent session.
-	session, err := ort.NewAdvancedSession(
-		modelPath,
-		[]string{"input_ids", "attention_mask", "token_type_ids"},
-		[]string{"last_hidden_state"},
-		[]ort.Value{inputIDsTensor, maskTensor, typeTensor},
-		[]ort.Value{outputTensor},
-		nil,
-	)
-	if err != nil {
-		inputIDsTensor.Destroy()
-		maskTensor.Destroy()
-		typeTensor.Destroy()
-		outputTensor.Destroy()
-		return nil, fmt.Errorf("creating ONNX session: %w", err)
+	workers := make(chan *workerSession, numWorkers)
+	for i := 0; i < numWorkers; i++ {
+		w, err := newWorkerSession(modelPath)
+		if err != nil {
+			// Clean up already-created workers.
+			close(workers)
+			for w := range workers {
+				w.destroy()
+			}
+			return nil, fmt.Errorf("creating worker %d: %w", i, err)
+		}
+		workers <- w
 	}
+
+	logger.Info("ONNX embedding pool ready", "workers", numWorkers)
 
 	return &OnnxProvider{
-		tokenizer:      tokenizer,
-		session:        session,
-		logger:         logger,
-		inputIDsTensor: inputIDsTensor,
-		maskTensor:     maskTensor,
-		typeTensor:     typeTensor,
-		outputTensor:   outputTensor,
+		tokenizer:  tokenizer,
+		logger:     logger,
+		workers:    workers,
+		numWorkers: numWorkers,
+		embPool: sync.Pool{
+			New: func() any {
+				buf := make([]float32, dimensions)
+				return &buf
+			},
+		},
 	}, nil
 }
 
 // Embed generates an embedding for a single text.
 func (p *OnnxProvider) Embed(_ context.Context, text string) ([]float32, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.embedLocked(text)
+	w := <-p.workers
+	defer func() { p.workers <- w }()
+	return p.embedWithWorker(w, text)
 }
 
-// EmbedBatch generates embeddings for multiple texts.
+// EmbedBatch generates embeddings for multiple texts concurrently using the
+// worker pool. Each worker runs inference independently, bounded by the pool size.
 func (p *OnnxProvider) EmbedBatch(_ context.Context, texts []string) ([][]float32, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	if len(texts) == 0 {
+		return nil, nil
+	}
+	if len(texts) == 1 {
+		w := <-p.workers
+		defer func() { p.workers <- w }()
+		emb, err := p.embedWithWorker(w, texts[0])
+		if err != nil {
+			return nil, err
+		}
+		return [][]float32{emb}, nil
+	}
 
 	results := make([][]float32, len(texts))
+	errs := make([]error, len(texts))
+
+	var wg sync.WaitGroup
+	wg.Add(len(texts))
+
 	for i, text := range texts {
-		emb, err := p.embedLocked(text)
+		go func(idx int, t string) {
+			defer wg.Done()
+			w := <-p.workers // borrow worker (blocks if all busy)
+			emb, err := p.embedWithWorker(w, t)
+			p.workers <- w // return worker
+			results[idx] = emb
+			errs[idx] = err
+		}(i, text)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
 		if err != nil {
 			return nil, fmt.Errorf("embedding text %d: %w", i, err)
 		}
-		results[i] = emb
 	}
 	return results, nil
 }
 
-// embedLocked runs inference for one text. Caller must hold p.mu.
-func (p *OnnxProvider) embedLocked(text string) ([]float32, error) {
+// embedWithWorker runs inference for one text using the given worker session.
+func (p *OnnxProvider) embedWithWorker(w *workerSession, text string) ([]float32, error) {
 	tokens := p.tokenizer.Tokenize(text)
 
-	// Copy token data into the pre-allocated tensor buffers.
-	copy(p.inputIDsTensor.GetData(), tokens.InputIDs)
-	copy(p.maskTensor.GetData(), tokens.AttentionMask)
-	copy(p.typeTensor.GetData(), tokens.TokenTypeIDs)
+	// Copy token data into the worker's pre-allocated tensor buffers.
+	copy(w.inputIDsTensor.GetData(), tokens.InputIDs)
+	copy(w.maskTensor.GetData(), tokens.AttentionMask)
+	copy(w.typeTensor.GetData(), tokens.TokenTypeIDs)
 
-	if err := p.session.Run(); err != nil {
+	if err := w.session.Run(); err != nil {
 		return nil, fmt.Errorf("running inference: %w", err)
 	}
 
-	raw := p.outputTensor.GetData()
+	raw := w.outputTensor.GetData()
 	seqLen := int(maxTokenLen)
 	embedding := meanPool(raw, tokens.AttentionMask, seqLen, dimensions)
 	return embedding, nil
@@ -186,24 +279,12 @@ func (p *OnnxProvider) Dimensions() int {
 	return dimensions
 }
 
-// Destroy cleans up the ONNX session, tensors, and runtime environment.
+// Destroy cleans up all worker sessions, tensors, and the runtime environment.
 func (p *OnnxProvider) Destroy() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.session != nil {
-		p.session.Destroy()
-	}
-	if p.inputIDsTensor != nil {
-		p.inputIDsTensor.Destroy()
-	}
-	if p.maskTensor != nil {
-		p.maskTensor.Destroy()
-	}
-	if p.typeTensor != nil {
-		p.typeTensor.Destroy()
-	}
-	if p.outputTensor != nil {
-		p.outputTensor.Destroy()
+	// Drain all workers from the pool and destroy them.
+	for i := 0; i < p.numWorkers; i++ {
+		w := <-p.workers
+		w.destroy()
 	}
 	ort.DestroyEnvironment()
 }
