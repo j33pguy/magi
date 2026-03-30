@@ -1,5 +1,14 @@
 # magi Roadmap
 
+## Recently Shipped
+
+| Feature | PR | Notes |
+|---------|-----|-------|
+| Git-backed memory versioning | #62 | VersionedStore middleware, history/diff API |
+| Async write pipeline + caching layer | #63 | 202 Accepted in <10ms, query/memory/embedding caches |
+| Go concurrency improvements | -- | Benchmarks, performance tuning (on main) |
+| Pluggable SQL backends | #67 | SQLite, Turso, PostgreSQL, MySQL, SQL Server |
+
 ## v0.1 — Current (shipped)
 - MCP stdio server (agent integration)
 - HTTP API (OpenClaw/external services)
@@ -8,6 +17,11 @@
 - Tools: remember, recall, forget, list_memories, update_memory
 - Resources: recent, decisions, preferences
 - Markdown import (cmd/import)
+- Git-backed memory versioning (PR #62)
+- Async write pipeline with worker pool (PR #63)
+- Caching layer: query, memory, embedding caches (PR #63)
+- Pluggable SQL backends: SQLite, Turso, PostgreSQL, MySQL, SQL Server (PR #67)
+- Go concurrency improvements and benchmarks
 
 ---
 
@@ -205,8 +219,9 @@ More storage, more writes → dramatically better recall precision. Verbatim quo
 
 | Variable | Default | Description |
 |---|---|---|
-| `TURSO_URL` | required | Turso DB URL |
-| `TURSO_AUTH_TOKEN` | required | Turso auth token |
+| `MEMORY_BACKEND` | `turso` | Database backend: `sqlite`, `turso`, `postgres`, `mysql`, `sqlserver` |
+| `TURSO_URL` | required | Turso DB URL (when using turso backend) |
+| `TURSO_AUTH_TOKEN` | required | Turso auth token (when using turso backend) |
 | `MAGI_REPLICA_PATH` | `~/.magi.db` | Local replica path |
 | `MAGI_SYNC_INTERVAL` | `60` | Background sync interval (seconds) |
 | `MAGI_SYNC_MAX_AGE` | `300` | Stale threshold (seconds) |
@@ -215,3 +230,7 @@ More storage, more writes → dramatically better recall precision. Verbatim quo
 | `MAGI_API_TOKEN` | unset = no auth | Bearer token for HTTP API |
 | `MAGI_MACHINE_ID` | hostname | Machine identity tag |
 | `MAGI_AUTO_PROJECT` | `true` | Auto-detect project from git |
+| `MAGI_GIT_ENABLED` | `false` | Enable git-backed memory versioning |
+| `MAGI_GIT_PATH` | `~/.magi/memories` | Path to git repo for memory versioning |
+| `MAGI_GIT_COMMIT_MODE` | `immediate` | Git commit mode: `immediate` or `batch` |
+| `MAGI_ASYNC_WRITES` | `false` | Enable async write pipeline (returns 202) |

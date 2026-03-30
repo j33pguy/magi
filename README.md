@@ -67,17 +67,19 @@ Route work however you want — [OpenClaw](https://github.com/openclaw/openclaw)
 
 ## Why MAGI?
 
+- **Git-Versioned Memory** — Every mutation is a git commit. Full history, diffs, rollback. The DB is a derived index; git is the source of truth. *No other AI memory system has this.*
 - **Semantic Search** — Hybrid vector + BM25 with local ONNX embeddings
 - **Knowledge Graph** — Auto-linked memories with D3.js visualization
 - **Pattern Detection** — Surfaces behavioral insights across all agents
+- **Async Write Pipeline** — 202 Accepted in <10ms. Worker pool + batch INSERT for high throughput.
 - **Multi-Protocol** — MCP · gRPC · REST · Web UI
-- **Self-Hosted** — Your data, your hardware. Zero cloud dependencies.
+- **Multi-Backend** — SQLite · Turso · PostgreSQL (pgvector) · MySQL · SQL Server. Your data, your hardware.
 - **Agent-Agnostic** — Works with any agent that speaks HTTP, gRPC, or MCP
 
 ## Quick Start
 
 ```bash
-# Docker
+# Docker (default SQLite — or set MEMORY_BACKEND=postgres|mysql|sqlserver|turso)
 docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/j33pguy/magi:latest
 
 # Binary
@@ -104,25 +106,77 @@ curl -X POST http://localhost:8302/recall \
 
 | Feature | Description |
 |---------|-------------|
+| Git-Backed Versioning | Every mutation is a git commit — full history, diffs, rollback |
+| Async Write Pipeline | 202 Accepted in <10ms, worker pool, batch INSERT |
+| Caching Layer | Query cache (60s TTL), LRU memory cache, embedding cache |
 | 20 MCP tools | Full agent integration via stdio |
 | REST + gRPC APIs | Any language, any platform |
 | Web Dashboard | Browse, search, graph, analyze |
 | Knowledge Graph | Auto-linked with typed relationships |
 | Pattern Analyzer | Detects preferences, habits, decision styles |
 | 10 Memory Types | Decisions, lessons, incidents, preferences, and more |
-| Pluggable Storage | SQLite · Turso · PostgreSQL · Supabase (planned) |
+| Pluggable Storage | SQLite · Turso · PostgreSQL (pgvector) · MySQL · SQL Server |
 
 ## vs. Alternatives
 
 | | MAGI | mem0 | Zep | ChromaDB |
 |-|------|------|-----|----------|
+| Git versioning | ✅ | ❌ | ❌ | ❌ |
 | Knowledge graph | ✅ | ❌ | ❌ | ❌ |
 | Pattern detection | ✅ | ❌ | ❌ | ❌ |
+| Async pipeline | ✅ | ❌ | ❌ | ❌ |
 | Typed memories | ✅ | ❌ | Partial | ❌ |
 | Orchestrator-agnostic | ✅ | ❌ | ❌ | ❌ |
 | Self-hosted | ✅ | Cloud-first | ✅ | ✅ |
 | Multi-protocol | MCP+gRPC+REST | REST | REST | REST |
+| Storage backends | 5 (SQLite, Turso, PG, MySQL, MSSQL) | Managed | PG only | Embedded |
 | Web UI | ✅ | ❌ | ❌ | ❌ |
+
+## Performance
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Write latency | ~3,000ms (sync) | <10ms (202 Accepted, async pipeline) |
+| Search | Sequential vector → FTS | Parallel via errgroup |
+| Query cache | None | SHA256-keyed, 60s TTL |
+| Memory cache | None | LRU, 1,000 hot items |
+| Embedding cache | None | LRU, skips ONNX on identical content |
+| SQLite concurrency | Default | WAL mode + connection pooling |
+
+Enable with: `MAGI_ASYNC_WRITES=true` and `MAGI_CACHE_ENABLED=true`
+
+## Architecture
+
+```mermaid
+graph LR
+    subgraph Protocols
+        MCP[MCP stdio]
+        gRPC[gRPC :8300]
+        REST[REST :8302]
+        UI[Web UI :8080]
+    end
+
+    subgraph Core["MAGI Core"]
+        Pipeline[Async Pipeline]
+        Cache[Cache Layer]
+        Search[Hybrid Search]
+        Graph[Knowledge Graph]
+    end
+
+    subgraph Storage
+        SQLite[(SQLite)]
+        Turso[(Turso)]
+        PG[(PostgreSQL + pgvector)]
+        MySQL[(MySQL)]
+        MSSQL[(SQL Server)]
+    end
+
+    Git[(Git Repository<br/>Source of Truth)]
+
+    MCP & gRPC & REST & UI --> Core
+    Core --> Storage
+    Core --> Git
+```
 
 ## Docs
 
