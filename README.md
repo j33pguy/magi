@@ -67,23 +67,24 @@ Route work however you want — [OpenClaw](https://github.com/openclaw/openclaw)
 
 ## Why MAGI?
 
-- **Git-Versioned Memory** — Every mutation is a git commit. Full history, diffs, rollback. The DB is a derived index; git is the source of truth. *No other AI memory system has this.*
+- **Git-Versioned Memory** — Every mutation is a git commit. Full history, diffs, and rollback for every memory. The database is a derived index; the git repo is the source of truth. No other AI memory system has this.
 - **Semantic Search** — Hybrid vector + BM25 with local ONNX embeddings
 - **Knowledge Graph** — Auto-linked memories with D3.js visualization
 - **Pattern Detection** — Surfaces behavioral insights across all agents
-- **Async Write Pipeline** — 202 Accepted in <10ms. Worker pool + batch INSERT for high throughput.
+- **Async Write Pipeline** — Returns 202 Accepted in <10ms. Worker pool with batch INSERT for throughput.
 - **Multi-Protocol** — MCP · gRPC · REST · Web UI
-- **Multi-Backend** — SQLite · Turso · PostgreSQL (pgvector) · MySQL · SQL Server. Your data, your hardware.
+- **Multi-Backend** — SQLite · Turso · PostgreSQL (pgvector) · MySQL/MariaDB · SQL Server/Azure SQL
+- **Self-Hosted** — Your data, your hardware. Zero cloud dependencies.
 - **Agent-Agnostic** — Works with any agent that speaks HTTP, gRPC, or MCP
 
 ## Quick Start
 
 ```bash
-# Docker (default SQLite — or set MEMORY_BACKEND=postgres|mysql|sqlserver|turso)
+# Docker (MEMORY_BACKEND: sqlite | turso | postgres | mysql | sqlserver)
 docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/j33pguy/magi:latest
 
 # Binary
-MEMORY_BACKEND=sqlite ./magi --http-only
+MEMORY_BACKEND=postgres ./magi --http-only
 
 # From source
 git clone https://github.com/j33pguy/magi.git && cd magi && make build
@@ -106,16 +107,16 @@ curl -X POST http://localhost:8302/recall \
 
 | Feature | Description |
 |---------|-------------|
-| Git-Backed Versioning | Every mutation is a git commit — full history, diffs, rollback |
-| Async Write Pipeline | 202 Accepted in <10ms, worker pool, batch INSERT |
-| Caching Layer | Query cache (60s TTL), LRU memory cache, embedding cache |
+| Git-Backed Memory Versioning | Every mutation = git commit. Full history, diffs, rollback. DB is a derived index. |
+| Async Write Pipeline | 202 Accepted in <10ms. Worker pool with batch INSERT for high throughput. |
+| Caching Layer | Query cache (SHA256 key, 60s TTL), LRU memory cache (1000 items), embedding cache. |
 | 20 MCP tools | Full agent integration via stdio |
 | REST + gRPC APIs | Any language, any platform |
 | Web Dashboard | Browse, search, graph, analyze |
 | Knowledge Graph | Auto-linked with typed relationships |
 | Pattern Analyzer | Detects preferences, habits, decision styles |
 | 10 Memory Types | Decisions, lessons, incidents, preferences, and more |
-| Pluggable Storage | SQLite · Turso · PostgreSQL (pgvector) · MySQL · SQL Server |
+| Pluggable Storage | SQLite · Turso · PostgreSQL (pgvector) · MySQL/MariaDB · SQL Server/Azure SQL |
 
 ## vs. Alternatives
 
@@ -129,53 +130,58 @@ curl -X POST http://localhost:8302/recall \
 | Orchestrator-agnostic | ✅ | ❌ | ❌ | ❌ |
 | Self-hosted | ✅ | Cloud-first | ✅ | ✅ |
 | Multi-protocol | MCP+gRPC+REST | REST | REST | REST |
-| Storage backends | 5 (SQLite, Turso, PG, MySQL, MSSQL) | Managed | PG only | Embedded |
+| Storage backends | SQLite, Turso, PostgreSQL, MySQL, SQL Server | Qdrant/Pinecone | Postgres | Chroma |
 | Web UI | ✅ | ❌ | ❌ | ❌ |
 
 ## Performance
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Write latency | ~3,000ms (sync) | <10ms (202 Accepted, async pipeline) |
-| Search | Sequential vector → FTS | Parallel via errgroup |
+| Write latency | ~3,000ms (sync) | <10ms (async pipeline, 202 Accepted) |
+| Search | Sequential vector + FTS | Parallel vector + FTS via errgroup |
 | Query cache | None | SHA256-keyed, 60s TTL |
-| Memory cache | None | LRU, 1,000 hot items |
-| Embedding cache | None | LRU, skips ONNX on identical content |
-| SQLite concurrency | Default | WAL mode + connection pooling |
-
-Enable with: `MAGI_ASYNC_WRITES=true` and `MAGI_CACHE_ENABLED=true`
+| Hot memory cache | None | LRU, 1000 items |
+| Embedding cache | Recompute every time | Skip ONNX on identical content |
+| SQLite mode | Default | WAL mode + connection pooling |
 
 ## Architecture
 
 ```mermaid
-graph LR
-    subgraph Protocols
-        MCP[MCP stdio]
-        gRPC[gRPC :8300]
-        REST[REST :8302]
-        UI[Web UI :8080]
+graph TB
+    subgraph Protocols["Protocols"]
+        MCP["MCP (stdio)"]
+        GRPC["gRPC"]
+        REST["REST API"]
+        WEB["Web UI"]
     end
 
     subgraph Core["MAGI Core"]
-        Pipeline[Async Pipeline]
-        Cache[Cache Layer]
-        Search[Hybrid Search]
-        Graph[Knowledge Graph]
+        ASYNC["Async Write Pipeline"]
+        CACHE["Caching Layer"]
+        SEARCH["Hybrid Search (Vector + BM25)"]
+        GRAPH["Knowledge Graph"]
     end
 
-    subgraph Storage
-        SQLite[(SQLite)]
-        Turso[(Turso)]
-        PG[(PostgreSQL + pgvector)]
-        MySQL[(MySQL)]
-        MSSQL[(SQL Server)]
+    subgraph Storage["Storage Backends"]
+        SQLITE["SQLite (WAL)"]
+        TURSO["Turso"]
+        PG["PostgreSQL (pgvector)"]
+        MYSQL["MySQL / MariaDB"]
+        MSSQL["SQL Server / Azure SQL"]
     end
 
-    Git[(Git Repository<br/>Source of Truth)]
+    subgraph VCS["Version Control"]
+        GIT["Git Repository (source of truth)"]
+    end
 
-    MCP & gRPC & REST & UI --> Core
+    Protocols --> Core
     Core --> Storage
-    Core --> Git
+    Core --> GIT
+
+    style Protocols fill:#0f1117,stroke:#f59e0b,stroke-width:2px,color:#e2e8f0
+    style Core fill:#0f1117,stroke:#6366f1,stroke-width:2px,color:#e2e8f0
+    style Storage fill:#0f1117,stroke:#10b981,stroke-width:2px,color:#e2e8f0
+    style VCS fill:#0f1117,stroke:#a855f7,stroke-width:2px,color:#e2e8f0
 ```
 
 ## Docs
