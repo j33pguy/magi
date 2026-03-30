@@ -12,6 +12,7 @@ import (
 
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/j33pguy/magi/internal/vcs"
 	pb "github.com/j33pguy/magi/proto/memory/v1"
 	"github.com/j33pguy/magi/internal/search"
 	"github.com/j33pguy/magi/internal/tools"
@@ -20,13 +21,14 @@ import (
 // Server implements the MemoryService gRPC service.
 type Server struct {
 	pb.UnimplementedMemoryServiceServer
-	db       *db.Client
+	db       db.Store
 	embedder embeddings.Provider
 	logger   *slog.Logger
+	gitRepo  *vcs.Repo // optional — nil if git versioning is disabled
 }
 
 // NewServer creates a new gRPC MemoryService server.
-func NewServer(dbClient *db.Client, embedder embeddings.Provider, logger *slog.Logger) *Server {
+func NewServer(dbClient db.Store, embedder embeddings.Provider, logger *slog.Logger) *Server {
 	return &Server{
 		db:       dbClient,
 		embedder: embedder,

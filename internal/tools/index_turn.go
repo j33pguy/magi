@@ -15,7 +15,7 @@ import (
 
 // IndexTurn stores a single conversation turn as a memory.
 type IndexTurn struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 
@@ -42,7 +42,7 @@ func contentHash(content string) string {
 }
 
 // indexTurn is the shared logic for indexing a single turn.
-func indexTurn(ctx context.Context, dbClient *db.Client, embedder embeddings.Provider, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func indexTurn(ctx context.Context, dbClient db.Store, embedder embeddings.Provider, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	role, err := request.RequireString("role")
 	if err != nil {
 		return mcp.NewToolResultError("role is required"), nil

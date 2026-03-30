@@ -11,7 +11,7 @@ import (
 
 // List browses/filters memories without semantic search.
 type List struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Tool returns the MCP tool definition for list_memories.

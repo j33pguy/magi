@@ -10,7 +10,7 @@ import (
 
 // Forget soft-deletes (archives) or permanently deletes a memory.
 type Forget struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Tool returns the MCP tool definition for forget.

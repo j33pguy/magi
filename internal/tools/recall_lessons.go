@@ -13,7 +13,7 @@ import (
 
 // RecallLessons searches only lesson-type memories (hard-won knowledge, gotchas).
 type RecallLessons struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 

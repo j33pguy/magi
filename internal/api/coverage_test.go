@@ -750,7 +750,7 @@ func newBrokenDBServer(t *testing.T) *Server {
 	})
 	_ = s.db.SetTags(m.ID, []string{"conversation", "channel:discord"})
 	// Close the underlying sql.DB to force errors
-	s.db.DB.Close()
+	s.db.(*db.Client).DB.Close()
 	return s
 }
 
@@ -773,7 +773,7 @@ func TestHandleDeleteMemoryArchiveError(t *testing.T) {
 	m := seedMemory(t, s, "will fail archive", "proj", "memory")
 
 	// Close DB after seed
-	s.db.DB.Close()
+	s.db.(*db.Client).DB.Close()
 
 	req := httptest.NewRequest("DELETE", "/memories/"+m.ID, nil)
 	req.SetPathValue("id", m.ID)

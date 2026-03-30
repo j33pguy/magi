@@ -10,7 +10,7 @@ import (
 
 // RecentConversations provides recent conversation summaries across all channels.
 type RecentConversations struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Resource returns the MCP resource definition for recent conversations.

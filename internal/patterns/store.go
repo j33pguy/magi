@@ -15,7 +15,7 @@ import (
 // pattern_type tag and >0.9 similarity already exists.
 //
 // Returns IDs of newly stored patterns and count of skipped duplicates.
-func StorePatterns(ctx context.Context, dbClient *db.Client, embedder embeddings.Provider, patterns []Pattern) (stored []string, skipped int, err error) {
+func StorePatterns(ctx context.Context, dbClient db.Store, embedder embeddings.Provider, patterns []Pattern) (stored []string, skipped int, err error) {
 	for _, p := range patterns {
 		// Generate embedding for the pattern description
 		embedding, err := embedder.Embed(ctx, p.Description)

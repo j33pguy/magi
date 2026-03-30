@@ -12,19 +12,21 @@ import (
 
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/j33pguy/magi/internal/vcs"
 )
 
 // Server is the HTTP API server for magi.
 type Server struct {
 	httpServer *http.Server
-	db         *db.Client
+	db         db.Store
 	embedder   embeddings.Provider
 	logger     *slog.Logger
 	token      string
+	gitRepo    *vcs.Repo // optional — nil if git versioning is disabled
 }
 
 // NewServer creates a new HTTP API server.
-func NewServer(dbClient *db.Client, embedder embeddings.Provider, logger *slog.Logger) *Server {
+func NewServer(dbClient db.Store, embedder embeddings.Provider, logger *slog.Logger) *Server {
 	s := &Server{
 		db:       dbClient,
 		embedder: embedder,
@@ -48,6 +50,8 @@ func NewServer(dbClient *db.Client, embedder embeddings.Provider, logger *slog.L
 	mux.HandleFunc("GET /conversations", s.requireAuth(s.handleListConversations))
 	mux.HandleFunc("POST /conversations/search", s.requireAuth(s.handleSearchConversations))
 	mux.HandleFunc("GET /conversations/{id}", s.requireAuth(s.handleGetConversation))
+	mux.HandleFunc("GET /memories/{id}/history", s.requireAuth(s.handleMemoryHistory))
+	mux.HandleFunc("GET /memories/{id}/diff", s.requireAuth(s.handleMemoryDiff))
 
 	s.httpServer = &http.Server{
 		Addr:              net.JoinHostPort("", port),

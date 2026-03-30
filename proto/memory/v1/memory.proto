@@ -227,6 +227,34 @@ message GetRelatedResponse {
   repeated MemoryLink links = 2;
 }
 
+// GetMemoryHistory
+message GetMemoryHistoryRequest {
+  string id = 1;
+}
+
+message HistoryEntry {
+  string hash = 1;
+  string message = 2;
+  string date = 3;
+}
+
+message GetMemoryHistoryResponse {
+  repeated HistoryEntry entries = 1;
+}
+
+// GetMemoryDiff
+message GetMemoryDiffRequest {
+  string id = 1;
+  string from_commit = 2;
+  string to_commit = 3;
+}
+
+message GetMemoryDiffResponse {
+  string from_content = 1;
+  string to_content = 2;
+  string diff = 3;
+}
+
 // SearchConversations
 message SearchConversationsRequest {
   string query = 1;

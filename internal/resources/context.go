@@ -12,7 +12,7 @@ import (
 
 // Context provides recent and important memories for session auto-injection.
 type Context struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Resource returns the MCP resource definition for context.

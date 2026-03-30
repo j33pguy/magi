@@ -12,7 +12,7 @@ import (
 
 // RecentConversations lists recent conversation summaries with optional filtering.
 type RecentConversations struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Tool returns the MCP tool definition for recent_conversations.

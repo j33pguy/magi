@@ -19,7 +19,7 @@ var marshalJSON = func(v any, prefix, indent string) ([]byte, error) {
 
 // Recent provides the 10 most recent memories for a project.
 type Recent struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Template returns the MCP resource template for recent memories.
