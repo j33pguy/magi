@@ -16,7 +16,7 @@ import (
 
 // MarkdownImporter imports markdown memory files into the database.
 type MarkdownImporter struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 	Splitter *chunking.Splitter
 	Logger   *slog.Logger
