@@ -12,6 +12,7 @@ import (
 
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/j33pguy/magi/internal/pipeline"
 	"github.com/j33pguy/magi/internal/vcs"
 )
 
@@ -22,7 +23,8 @@ type Server struct {
 	embedder   embeddings.Provider
 	logger     *slog.Logger
 	token      string
-	gitRepo    *vcs.Repo // optional — nil if git versioning is disabled
+	gitRepo    *vcs.Repo          // optional — nil if git versioning is disabled
+	pipeline   *pipeline.Writer   // optional — nil if async writes disabled
 }
 
 // NewServer creates a new HTTP API server.
@@ -52,6 +54,8 @@ func NewServer(dbClient db.Store, embedder embeddings.Provider, logger *slog.Log
 	mux.HandleFunc("GET /conversations/{id}", s.requireAuth(s.handleGetConversation))
 	mux.HandleFunc("GET /memories/{id}/history", s.requireAuth(s.handleMemoryHistory))
 	mux.HandleFunc("GET /memories/{id}/diff", s.requireAuth(s.handleMemoryDiff))
+	mux.HandleFunc("GET /memories/{id}/status", s.requireAuth(s.handleMemoryStatus))
+	mux.HandleFunc("GET /pipeline/stats", s.requireAuth(s.handlePipelineStats))
 
 	s.httpServer = &http.Server{
 		Addr:              net.JoinHostPort("", port),
