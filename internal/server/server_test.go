@@ -25,7 +25,7 @@ func TestServerStructFields(t *testing.T) {
 	var _ *grpc.Server = s.grpcServer
 	var _ *http.Server = s.gwServer
 	var _ *http.Server = s.webServer
-	var _ *db.Client = s.dbClient
+	var _ db.Store = s.dbClient
 	var _ *embeddings.OnnxProvider = s.embedder
 	var _ *slog.Logger = s.logger
 }
