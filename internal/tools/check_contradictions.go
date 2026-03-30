@@ -13,7 +13,7 @@ import (
 
 // CheckContradictions exposes contradiction detection as a standalone MCP tool.
 type CheckContradictions struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 

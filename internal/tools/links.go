@@ -12,7 +12,7 @@ import (
 
 // LinkMemories creates a directed link between two memories.
 type LinkMemories struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Tool returns the MCP tool definition for link_memories.
@@ -62,7 +62,7 @@ func (l *LinkMemories) Handle(ctx context.Context, request mcp.CallToolRequest) 
 
 // GetRelated retrieves memories related to a given memory via graph traversal.
 type GetRelated struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Tool returns the MCP tool definition for get_related.
@@ -153,7 +153,7 @@ func (g *GetRelated) Handle(ctx context.Context, request mcp.CallToolRequest) (*
 
 // UnlinkMemories removes a link between memories.
 type UnlinkMemories struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Tool returns the MCP tool definition for unlink_memories.

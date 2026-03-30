@@ -13,7 +13,7 @@ import (
 
 // RecallIncidents searches only incident-type memories (things that broke + how they were fixed).
 type RecallIncidents struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 

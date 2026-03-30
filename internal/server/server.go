@@ -19,10 +19,11 @@ import (
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
 	memgrpc "github.com/j33pguy/magi/internal/grpc"
-	pb "github.com/j33pguy/magi/proto/memory/v1"
 	"github.com/j33pguy/magi/internal/resources"
 	"github.com/j33pguy/magi/internal/tools"
+	"github.com/j33pguy/magi/internal/vcs"
 	"github.com/j33pguy/magi/internal/web"
+	pb "github.com/j33pguy/magi/proto/memory/v1"
 )
 
 // Server is the magi MCP server.
@@ -33,8 +34,10 @@ type Server struct {
 	gwServer   *http.Server
 	webServer  *http.Server
 	dbClient   *db.Client
+	store      db.Store // either dbClient directly, or a VersionedStore wrapper
 	embedder   *embeddings.OnnxProvider
 	logger     *slog.Logger
+	gitRepo    *vcs.Repo // nil if git versioning is disabled
 }
 
 // New creates and configures a new magi MCP server.
@@ -61,8 +64,32 @@ func New(logger *slog.Logger) (*Server, error) {
 
 	s := &Server{
 		dbClient: dbClient,
+		store:    dbClient, // default: use raw client
 		embedder: embedder,
 		logger:   logger,
+	}
+
+	// Git versioning (optional)
+	gitCfg := vcs.ConfigFromEnv()
+	if gitCfg.Enabled {
+		gitRepo, err := vcs.Init(gitCfg)
+		if err != nil {
+			logger.Error("git versioning init failed, continuing without git", "error", err)
+		} else {
+			s.gitRepo = gitRepo
+			logger.Info("Git versioning enabled", "path", gitCfg.Path, "mode", gitCfg.CommitMode)
+
+			// Rebuild DB from git if DB is empty but git has memories
+			if vcs.DBIsEmpty(dbClient) && gitRepo.HasMemories() {
+				logger.Info("DB is empty but git repo has memories, rebuilding...")
+				if err := vcs.RebuildDB(dbClient, gitRepo, embedder, logger.WithGroup("rebuild")); err != nil {
+					logger.Error("git rebuild failed", "error", err)
+				}
+			}
+
+			// Wrap with versioned store — intercepts mutations to also write to git
+			s.store = vcs.NewVersionedStore(dbClient, gitRepo, logger.WithGroup("vcs"))
+		}
 	}
 
 	s.mcp = mcpserver.NewMCPServer(
@@ -81,83 +108,91 @@ func New(logger *slog.Logger) (*Server, error) {
 	s.grpcServer = grpc.NewServer(
 		grpc.UnaryInterceptor(memgrpc.AuthInterceptor(token)),
 	)
-	grpcSvc := memgrpc.NewServer(s.dbClient, s.embedder, logger.WithGroup("grpc"))
+	grpcSvc := memgrpc.NewServer(s.store, s.embedder, logger.WithGroup("grpc"))
+	if s.gitRepo != nil {
+		grpcSvc.SetGitRepo(s.gitRepo)
+	}
 	pb.RegisterMemoryServiceServer(s.grpcServer, grpcSvc)
 
 	// Keep existing HTTP API (will be deprecated once grpc-gateway is proven)
-	s.httpAPI = api.NewServer(s.dbClient, s.embedder, logger.WithGroup("http"))
+	s.httpAPI = api.NewServer(s.store, s.embedder, logger.WithGroup("http"))
+	if s.gitRepo != nil {
+		s.httpAPI.SetGitRepo(s.gitRepo)
+	}
 
 	return s, nil
 }
 
 func (s *Server) registerTools() {
-	remember := &tools.Remember{DB: s.dbClient, Embedder: s.embedder}
+	remember := &tools.Remember{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(remember.Tool(), remember.Handle)
 
-	recall := &tools.Recall{DB: s.dbClient, Embedder: s.embedder}
+	recall := &tools.Recall{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(recall.Tool(), recall.Handle)
 
-	recallIncidents := &tools.RecallIncidents{DB: s.dbClient, Embedder: s.embedder}
+	recallIncidents := &tools.RecallIncidents{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(recallIncidents.Tool(), recallIncidents.Handle)
 
-	recallLessons := &tools.RecallLessons{DB: s.dbClient, Embedder: s.embedder}
+	recallLessons := &tools.RecallLessons{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(recallLessons.Tool(), recallLessons.Handle)
 
-	forget := &tools.Forget{DB: s.dbClient}
+	forget := &tools.Forget{DB: s.store}
 	s.mcp.AddTool(forget.Tool(), forget.Handle)
 
-	list := &tools.List{DB: s.dbClient}
+	list := &tools.List{DB: s.store}
 	s.mcp.AddTool(list.Tool(), list.Handle)
 
-	update := &tools.Update{DB: s.dbClient, Embedder: s.embedder}
+	update := &tools.Update{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(update.Tool(), update.Handle)
 
-	storeConv := &tools.StoreConversation{DB: s.dbClient, Embedder: s.embedder}
+	storeConv := &tools.StoreConversation{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(storeConv.Tool(), storeConv.Handle)
 
-	recallConv := &tools.RecallConversations{DB: s.dbClient, Embedder: s.embedder}
+	recallConv := &tools.RecallConversations{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(recallConv.Tool(), recallConv.Handle)
 
-	recentConv := &tools.RecentConversations{DB: s.dbClient}
+	recentConv := &tools.RecentConversations{DB: s.store}
 	s.mcp.AddTool(recentConv.Tool(), recentConv.Handle)
 
-	indexTurn := &tools.IndexTurn{DB: s.dbClient, Embedder: s.embedder}
+	indexTurn := &tools.IndexTurn{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(indexTurn.Tool(), indexTurn.Handle)
 
-	indexSession := &tools.IndexSession{DB: s.dbClient, Embedder: s.embedder}
+	indexSession := &tools.IndexSession{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(indexSession.Tool(), indexSession.Handle)
 
-	checkContra := &tools.CheckContradictions{DB: s.dbClient, Embedder: s.embedder}
+	checkContra := &tools.CheckContradictions{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(checkContra.Tool(), checkContra.Handle)
-linkMemories := &tools.LinkMemories{DB: s.dbClient}
+
+	linkMemories := &tools.LinkMemories{DB: s.store}
 	s.mcp.AddTool(linkMemories.Tool(), linkMemories.Handle)
 
-	getRelated := &tools.GetRelated{DB: s.dbClient}
+	getRelated := &tools.GetRelated{DB: s.store}
 	s.mcp.AddTool(getRelated.Tool(), getRelated.Handle)
 
-	unlinkMemories := &tools.UnlinkMemories{DB: s.dbClient}
+	unlinkMemories := &tools.UnlinkMemories{DB: s.store}
 	s.mcp.AddTool(unlinkMemories.Tool(), unlinkMemories.Handle)
 
-	ingestConv := &tools.IngestConversation{DB: s.dbClient, Embedder: s.embedder}
+	ingestConv := &tools.IngestConversation{DB: s.store, Embedder: s.embedder}
 	s.mcp.AddTool(ingestConv.Tool(), ingestConv.Handle)
 }
 
 func (s *Server) registerResources() {
-	recent := &resources.Recent{DB: s.dbClient}
+	recent := &resources.Recent{DB: s.store}
 	s.mcp.AddResourceTemplate(recent.Template(), recent.Handle)
 
-	decisions := &resources.Decisions{DB: s.dbClient}
+	decisions := &resources.Decisions{DB: s.store}
 	s.mcp.AddResourceTemplate(decisions.Template(), decisions.Handle)
 
-	prefs := &resources.Preferences{DB: s.dbClient}
+	prefs := &resources.Preferences{DB: s.store}
 	s.mcp.AddResource(prefs.Resource(), prefs.Handle)
 
-	ctx := &resources.Context{DB: s.dbClient}
+	ctx := &resources.Context{DB: s.store}
 	s.mcp.AddResource(ctx.Resource(), ctx.Handle)
 
-	recentConv := &resources.RecentConversations{DB: s.dbClient}
+	recentConv := &resources.RecentConversations{DB: s.store}
 	s.mcp.AddResource(recentConv.Resource(), recentConv.Handle)
-pats := &resources.Patterns{DB: s.dbClient}
+
+	pats := &resources.Patterns{DB: s.store}
 	s.mcp.AddResource(pats.Resource(), pats.Handle)
 }
 
@@ -272,6 +307,9 @@ func (s *Server) Run() error {
 
 // Close shuts down the server, cleaning up database connections and ONNX runtime.
 func (s *Server) Close() {
+	if s.gitRepo != nil {
+		s.gitRepo.Close()
+	}
 	if s.embedder != nil {
 		s.embedder.Destroy()
 	}

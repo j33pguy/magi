@@ -11,7 +11,7 @@ import (
 
 // Decisions provides architecture decision memories for a project.
 type Decisions struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Template returns the MCP resource template for decision memories.

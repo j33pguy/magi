@@ -13,7 +13,7 @@ import (
 
 // Recall performs hybrid search (BM25 + vector + RRF) over stored memories.
 type Recall struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 

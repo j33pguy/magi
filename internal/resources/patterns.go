@@ -11,7 +11,7 @@ import (
 
 // Patterns provides all detected behavioral patterns.
 type Patterns struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Resource returns the MCP resource definition for patterns.

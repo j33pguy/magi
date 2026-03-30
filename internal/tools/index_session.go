@@ -14,7 +14,7 @@ import (
 
 // IndexSession bulk-indexes a completed conversation session.
 type IndexSession struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 

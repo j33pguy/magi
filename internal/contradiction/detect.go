@@ -32,7 +32,7 @@ type Detector struct {
 // Check runs contradiction detection. It embeds newContent, searches for highly similar
 // memories in the same area/sub_area, then applies heuristic filters to identify likely
 // contradictions vs just related memories.
-func (d *Detector) Check(ctx context.Context, dbClient *db.Client, embedder embeddings.Provider, newContent, area, subArea string) ([]Candidate, error) {
+func (d *Detector) Check(ctx context.Context, dbClient db.Store, embedder embeddings.Provider, newContent, area, subArea string) ([]Candidate, error) {
 	threshold := d.Threshold
 	if threshold <= 0 {
 		threshold = 0.85

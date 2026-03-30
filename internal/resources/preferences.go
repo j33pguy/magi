@@ -10,7 +10,7 @@ import (
 
 // Preferences provides all user preference memories.
 type Preferences struct {
-	DB *db.Client
+	DB db.Store
 }
 
 // Resource returns the MCP resource definition for preferences.

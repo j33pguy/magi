@@ -17,7 +17,7 @@ import (
 
 // Remember stores a new memory with auto-generated embedding.
 type Remember struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 

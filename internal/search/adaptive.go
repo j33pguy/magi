@@ -25,7 +25,7 @@ type EmbedFunc func(ctx context.Context, text string) ([]float32, error)
 // the query is rewritten deterministically and retried once.
 // Set minRelevance to 0 to disable grading (all results pass).
 // Set recencyDecay > 0 to apply exponential recency weighting (recommended: 0.01).
-func Adaptive(ctx context.Context, client *db.Client, embed EmbedFunc, query string, filter *db.MemoryFilter, topK int, minRelevance float64, recencyDecay float64) (*Response, error) {
+func Adaptive(ctx context.Context, client db.Store, embed EmbedFunc, query string, filter *db.MemoryFilter, topK int, minRelevance float64, recencyDecay float64) (*Response, error) {
 	embedding, err := embed(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("generating embedding: %w", err)
@@ -90,7 +90,7 @@ func gradeResults(results []*db.HybridResult, minRelevance float64) []*db.Hybrid
 }
 
 // resolveParents replaces chunk content with parent document content.
-func resolveParents(client *db.Client, results []*db.HybridResult) {
+func resolveParents(client db.Store, results []*db.HybridResult) {
 	for _, result := range results {
 		if result.Memory.ParentID != "" {
 			parent, err := client.GetMemory(result.Memory.ParentID)
