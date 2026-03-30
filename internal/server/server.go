@@ -19,6 +19,8 @@ import (
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
 	memgrpc "github.com/j33pguy/magi/internal/grpc"
+	"github.com/j33pguy/magi/internal/node"
+	localnode "github.com/j33pguy/magi/internal/node/local"
 	"github.com/j33pguy/magi/internal/resources"
 	"github.com/j33pguy/magi/internal/tools"
 	"github.com/j33pguy/magi/internal/vcs"
@@ -28,16 +30,17 @@ import (
 
 // Server is the magi MCP server.
 type Server struct {
-	mcp        *mcpserver.MCPServer
-	httpAPI    *api.Server
-	grpcServer *grpc.Server
-	gwServer   *http.Server
-	webServer  *http.Server
-	dbClient   db.Store
-	store      db.Store // either dbClient directly, or a VersionedStore wrapper
-	embedder   *embeddings.OnnxProvider
-	logger     *slog.Logger
-	gitRepo    *vcs.Repo // nil if git versioning is disabled
+	mcp         *mcpserver.MCPServer
+	httpAPI     *api.Server
+	grpcServer  *grpc.Server
+	gwServer    *http.Server
+	webServer   *http.Server
+	dbClient    db.Store
+	store       db.Store // either dbClient directly, or a VersionedStore wrapper
+	embedder    *embeddings.OnnxProvider
+	logger      *slog.Logger
+	gitRepo     *vcs.Repo               // nil if git versioning is disabled
+	coordinator *localnode.Coordinator   // nil if coordinator is disabled
 }
 
 // New creates and configures a new magi MCP server.
@@ -95,6 +98,19 @@ func New(logger *slog.Logger) (*Server, error) {
 				logger.Warn("git versioning not supported for this backend, using raw store")
 			}
 		}
+	}
+
+	// Node mesh coordinator (Phase 1: embedded mode)
+	nodeCfg := node.ConfigFromEnv()
+	if nodeCfg.CoordinatorEnabled {
+		coord := localnode.NewCoordinator(nodeCfg, s.store, logger.WithGroup("node"))
+		if err := coord.Start(context.Background()); err != nil {
+			s.Close()
+			return nil, fmt.Errorf("starting node coordinator: %w", err)
+		}
+		s.coordinator = coord
+		// Wrap store so all tools/gRPC/API route through the node pools.
+		s.store = localnode.NewCoordinatedStore(coord, s.store)
 	}
 
 	s.mcp = mcpserver.NewMCPServer(
@@ -318,6 +334,9 @@ func (s *Server) Run() error {
 
 // Close shuts down the server, cleaning up database connections and ONNX runtime.
 func (s *Server) Close() {
+	if s.coordinator != nil {
+		s.coordinator.Stop()
+	}
 	if s.gitRepo != nil {
 		s.gitRepo.Close()
 	}

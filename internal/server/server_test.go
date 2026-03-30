@@ -12,6 +12,7 @@ import (
 	"github.com/j33pguy/magi/internal/api"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	localnode "github.com/j33pguy/magi/internal/node/local"
 )
 
 // TestServerStructFields is a compile-time check that all expected fields
@@ -28,6 +29,7 @@ func TestServerStructFields(t *testing.T) {
 	var _ db.Store = s.dbClient
 	var _ *embeddings.OnnxProvider = s.embedder
 	var _ *slog.Logger = s.logger
+	var _ *localnode.Coordinator = s.coordinator
 }
 
 func TestShutdownWeb_NilWebServer(t *testing.T) {
