@@ -1,10 +1,9 @@
 <p align="center">
-  <img src="assets/magi-logo.png" width="120" alt="MAGI">
+  <img src="assets/dont-panic-header.svg" width="500" alt="Don't Panic">
 </p>
 <h1 align="center">MAGI</h1>
 <p align="center"><strong>Multi-Agent Graph Intelligence</strong></p>
 <p align="center">Universal memory for AI agents. Self-hosted. Multi-protocol. Agent-agnostic.</p>
-<p align="center"><em>Don't Panic.</em></p>
 
 <p align="center">
   <a href="https://github.com/j33pguy/magi/wiki">Wiki</a> ·
