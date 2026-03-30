@@ -40,19 +40,24 @@ func (c *Client) GetTags(memoryID string) ([]string, error) {
 }
 
 // SetTags replaces all tags for a memory.
-// Uses a single batched multi-value INSERT instead of N individual statements
-// to minimize round-trips and reduce exposure to Turso Hrana stream expiry.
+// Wraps DELETE + INSERT in a transaction so both use the same Turso Hrana
+// stream, preventing expiry between the two operations.
 func (c *Client) SetTags(memoryID string, tags []string) error {
-	if _, err := c.DB.Exec("DELETE FROM memory_tags WHERE memory_id = ?", memoryID); err != nil {
+	tx, err := c.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if _, err := tx.Exec("DELETE FROM memory_tags WHERE memory_id = ?", memoryID); err != nil {
 		return fmt.Errorf("clearing tags: %w", err)
 	}
 
 	if len(tags) == 0 {
-		return nil
+		return tx.Commit()
 	}
 
 	// Batch all tags into a single INSERT with multiple value tuples.
-	// This is one round-trip instead of N, avoiding stream expiry between statements.
 	placeholders := make([]string, len(tags))
 	args := make([]any, 0, len(tags)*2)
 	for i, tag := range tags {
@@ -61,9 +66,9 @@ func (c *Client) SetTags(memoryID string, tags []string) error {
 	}
 
 	query := fmt.Sprintf("INSERT INTO memory_tags (memory_id, tag) VALUES %s", strings.Join(placeholders, ", "))
-	if _, err := c.DB.Exec(query, args...); err != nil {
+	if _, err := tx.Exec(query, args...); err != nil {
 		return fmt.Errorf("inserting tags: %w", err)
 	}
 
-	return nil
+	return tx.Commit()
 }
