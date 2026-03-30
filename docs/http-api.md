@@ -355,6 +355,144 @@ curl -X POST http://localhost:8302/api/analyze-patterns \
 
 ---
 
+### Memory Version History
+
+```
+GET /memories/:id/history
+```
+
+Returns the git commit history for a specific memory. Requires `MAGI_GIT_ENABLED=true`.
+
+```bash
+curl http://localhost:8302/memories/a1b2c3d4e5f6/history \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response (200):**
+```json
+[
+  {
+    "hash": "e4f5a6b7c8d9...",
+    "message": "update memory a1b2c3d4e5f6",
+    "date": "2026-03-28T14:30:00Z"
+  },
+  {
+    "hash": "b1c2d3e4f5a6...",
+    "message": "create memory a1b2c3d4e5f6",
+    "date": "2026-03-27T10:15:00Z"
+  }
+]
+```
+
+Returns 404 if the memory has no git history. Returns 501 if git versioning is not enabled.
+
+---
+
+### Memory Version Diff
+
+```
+GET /memories/:id/diff?from=<commit>&to=<commit>
+```
+
+Returns a unified diff between two versions of a memory. Requires `MAGI_GIT_ENABLED=true`.
+
+```bash
+curl "http://localhost:8302/memories/a1b2c3d4e5f6/diff?from=b1c2d3e4f5a6&to=e4f5a6b7c8d9" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Query Parameters:**
+
+| Param | Required | Description |
+|-------|----------|-------------|
+| `from` | yes | Source commit hash |
+| `to` | yes | Target commit hash |
+
+**Response (200):**
+```json
+{
+  "from": "b1c2d3e4f5a6...",
+  "to": "e4f5a6b7c8d9...",
+  "content": "--- a/memories/a1b2c3d4e5f6.json\n+++ b/memories/a1b2c3d4e5f6.json\n@@ -2,3 +2,3 @@\n-  \"content\": \"old content\"\n+  \"content\": \"updated content\""
+}
+```
+
+Returns 501 if git versioning is not enabled.
+
+---
+
+### Write Status
+
+```
+GET /memories/:id/status
+```
+
+Returns the current write pipeline status for a memory. Requires `MAGI_ASYNC_WRITES=true`.
+
+```bash
+curl http://localhost:8302/memories/a1b2c3d4e5f6/status \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response (200):**
+```json
+{
+  "state": "complete",
+  "error": null,
+  "started_at": "2026-03-28T14:30:00Z",
+  "elapsed_ms": 42
+}
+```
+
+| State | Description |
+|-------|-------------|
+| `pending` | Queued, not yet picked up by a worker |
+| `processing` | Currently being processed (embed, classify, dedup, etc.) |
+| `complete` | Successfully written to database |
+| `failed` | Processing failed (see `error` field) |
+
+Status entries are cleaned up after 5 minutes. Returns 404 if no status is tracked for the given ID. Returns 501 if async writes are not enabled.
+
+---
+
+### Pipeline Stats
+
+```
+GET /pipeline/stats
+```
+
+Returns aggregate statistics for the async write pipeline. Requires `MAGI_ASYNC_WRITES=true`.
+
+```bash
+curl http://localhost:8302/pipeline/stats \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response (200):**
+```json
+{
+  "queue_depth": 3,
+  "batch_pending": 12,
+  "workers": 4,
+  "submitted": 1580,
+  "completed": 1565,
+  "failed": 2
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `queue_depth` | Items waiting in the channel buffer |
+| `batch_pending` | Items completed but not yet flushed to database |
+| `workers` | Number of active worker goroutines |
+| `submitted` | Total items submitted since startup |
+| `completed` | Total items successfully written |
+| `failed` | Total items that failed processing |
+
+Returns 501 if async writes are not enabled.
+
+---
+
 ## gRPC Gateway (`:8301`)
 
 The grpc-gateway automatically maps gRPC RPCs to HTTP/JSON endpoints:
