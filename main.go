@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -16,6 +17,12 @@ import (
 )
 
 func main() {
+	// mcp-config: output MCP JSON config and exit
+	if len(os.Args) > 1 && os.Args[1] == "mcp-config" {
+		printMCPConfig()
+		return
+	}
+
 	// --http-only: run HTTP/gRPC servers only (no stdio MCP). Used for systemd deployments.
 	httpOnly := len(os.Args) > 1 && os.Args[1] == "--http-only"
 
@@ -108,6 +115,38 @@ func main() {
 	// Run MCP server on stdio (blocks until stdin closes)
 	if err := s.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// printMCPConfig outputs a valid MCP JSON config block for Claude/Codex integration.
+func printMCPConfig() {
+	type mcpServerEntry struct {
+		Command string            `json:"command"`
+		Args    []string          `json:"args,omitempty"`
+		Env     map[string]string `json:"env,omitempty"`
+	}
+	cfg := map[string]any{
+		"mcpServers": map[string]mcpServerEntry{
+			"magi": {
+				Command: "magi",
+				Args:    []string{},
+				Env: map[string]string{
+					"MAGI_DB_URL":           "${MAGI_DB_URL}",
+					"MAGI_AUTH_TOKEN":       "${MAGI_AUTH_TOKEN}",
+					"MAGI_API_TOKEN":        "${MAGI_API_TOKEN}",
+					"MAGI_GRPC_PORT":        "8300",
+					"MAGI_HTTP_PORT":        "8301",
+					"MAGI_LEGACY_HTTP_PORT": "8302",
+					"MAGI_UI_PORT":          "8080",
+				},
+			},
+		},
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
