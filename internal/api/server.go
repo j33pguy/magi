@@ -12,6 +12,7 @@ import (
 
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/j33pguy/magi/internal/metrics"
 	"github.com/j33pguy/magi/internal/pipeline"
 	"github.com/j33pguy/magi/internal/vcs"
 )
@@ -43,6 +44,9 @@ func NewServer(dbClient db.Store, embedder embeddings.Provider, logger *slog.Log
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
+	mux.HandleFunc("GET /readyz", s.handleReadyz)
+	mux.HandleFunc("GET /livez", s.handleLivez)
+	metrics.RegisterRoutes(mux)
 	mux.HandleFunc("POST /recall", s.requireAuth(s.handleRecall))
 	mux.HandleFunc("POST /remember", s.requireAuth(s.handleRemember))
 	mux.HandleFunc("GET /memories", s.requireAuth(s.handleListMemories))
