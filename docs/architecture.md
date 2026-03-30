@@ -173,7 +173,7 @@ Content → BERT WordPiece tokenizer → all-MiniLM-L6-v2 (ONNX) → 384-dim flo
 | Area | Sub-areas |
 |------|-----------|
 | work | power-platform, fabric, power-bi, sharepoint, td-synnex, azure |
-| homelab | iac, proxmox, dns, networking, vault, authentik, monitoring, lancache |
+| homelab | iac, proxmox, dns, networking, vault, sso, monitoring, caching |
 | project | magi, distify, labctl, vault-unsealer |
 | home | lego, streaming, gaming |
 | family | kids, spouse |

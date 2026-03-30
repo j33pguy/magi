@@ -206,7 +206,7 @@ curl -X POST http://localhost:8302/conversations \
     "session_key": "abc123",
     "turn_count": 12,
     "topics": ["deployment", "cross-channel sync"],
-    "decisions": ["deploy to magi-host via systemd"]
+    "decisions": ["deploy to prod-server via systemd"]
   }'
 ```
 
