@@ -125,6 +125,7 @@ curl -X POST http://localhost:8302/recall \
 | Git versioning | ✅ | ❌ | ❌ | ❌ |
 | Knowledge graph | ✅ | ❌ | ❌ | ❌ |
 | Pattern detection | ✅ | ❌ | ❌ | ❌ |
+| Async pipeline | ✅ | ❌ | ❌ | ❌ |
 | Typed memories | ✅ | ❌ | Partial | ❌ |
 | Orchestrator-agnostic | ✅ | ❌ | ❌ | ❌ |
 | Self-hosted | ✅ | Cloud-first | ✅ | ✅ |
