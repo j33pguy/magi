@@ -59,6 +59,8 @@ magi is a single Go binary that runs four server interfaces concurrently, all ba
 
 ### Write Path (remember)
 
+When `MAGI_ASYNC_WRITES=true`, writes go through the async pipeline (see below) and return 202 Accepted in under 10ms. The synchronous path is:
+
 ```
 1. Content received via MCP/gRPC/HTTP
 2. Secret detection — reject if potential secrets found
@@ -67,13 +69,14 @@ magi is a single Go binary that runs four server interfaces concurrently, all ba
 5. Deduplication check — cosine similarity against existing memories
    - >0.95 similarity: return existing memory ID (exact dedup)
    - >0.85 similarity: link as soft group (parent_id)
-6. Save to Turso via embedded replica
+6. Save to database via configured backend
 7. Set tags (taxonomy + user-provided)
 8. Contradiction detection — search same area/sub_area, apply heuristics
    - Numeric change detection (e.g., "port 8080" vs "port 9090")
    - Boolean flip detection (e.g., "enabled" vs "disabled")
    - Replacement language detection (e.g., "now uses", "switched to")
-9. Return memory ID + any contradiction warnings
+9. If git versioning enabled, commit memory snapshot to git repo
+10. Return memory ID + any contradiction warnings
 ```
 
 ### Read Path (recall)
@@ -92,6 +95,30 @@ magi is a single Go binary that runs four server interfaces concurrently, all ba
 9. Return ranked results with scores
 ```
 
+### Async Write Pipeline
+
+Located in `internal/pipeline/`. When `MAGI_ASYNC_WRITES=true`, writes are dispatched to a worker pool instead of running synchronously.
+
+```
+1. Content submitted via MCP/gRPC/HTTP → returns 202 Accepted immediately (<10ms)
+2. StatusTracker records state: pending → processing
+3. Worker picks item from buffered channel
+4. Per-worker pipeline:
+   a. ID generation
+   b. Embedding (ONNX)
+   c. Classification (55 regex rules)
+   d. Deduplication check
+   e. Soft-group linking
+   f. Tag assignment
+   g. Contradiction check
+5. BatchInserter collects completed writes
+6. Flush to database on time (100ms) or size (50 items), whichever comes first
+7. StatusTracker updates state: complete or failed (5-min TTL cleanup)
+```
+
+- API: `GET /memories/:id/status` returns write state (pending, processing, complete, failed)
+- API: `GET /pipeline/stats` returns queue depth, batch pending, worker count, totals
+
 ### Sync Path
 
 ```
@@ -101,6 +128,45 @@ Local embedded replica ◀──── periodic sync (default 60s) ────�
 - Writes: to local replica, synced to cloud
 - Multiple magi instances stay in sync via Turso
 ```
+
+## Git-Backed Memory Versioning
+
+Located in `internal/vcs/`. The VersionedStore middleware wraps `db.Client`, intercepting all mutations to maintain a git-backed history of memory changes.
+
+- Writes to a git repo at `MAGI_GIT_PATH` (default `~/.magi/memories`)
+- File layout: `memories/{id}.json` (embeddings excluded), `links/{fromId}.json`
+- Commit modes: **immediate** (one commit per mutation) or **batch** (timer-based flush)
+- Best-effort: git failures are logged as warnings; database operations always succeed
+- Auto-rebuild: if the database is empty but an existing git repo is found, full rebuild runs on startup
+- API: `GET /memories/:id/history` returns commit log, `GET /memories/:id/diff` returns unified diff between commits
+- Enabled via `MAGI_GIT_ENABLED=true`
+
+## Caching Layer
+
+Located in `internal/cache/`. Three independent caches reduce latency for repeated operations:
+
+| Cache | Key | Default Size | Default TTL |
+|-------|-----|-------------|-------------|
+| QueryCache | SHA256(query + filter + topK) | unbounded | 60s |
+| MemoryCache | memory ID (LRU) | 1000 items | -- |
+| EmbeddingCache | SHA256(content) (LRU) | 5000 items | -- |
+
+- Conservative invalidation: the query cache is cleared on any write operation
+- Memory and embedding caches use LRU eviction
+
+## Pluggable SQL Backends
+
+A factory pattern in `internal/db/factory.go` selects the database backend at startup. All backends implement the `db.Store` interface.
+
+| Backend | Selection | Vector Search | Full-Text Search | Notes |
+|---------|-----------|---------------|------------------|-------|
+| SQLite | `MEMORY_BACKEND=sqlite` | In-process cosine | FTS5 | Local, WAL mode, default |
+| Turso | `MEMORY_BACKEND=turso` | libSQL native | FTS5 | Cloud libSQL + embedded replica |
+| PostgreSQL | `MEMORY_BACKEND=postgres` | pgvector | tsvector | Native vector and FTS |
+| MySQL | `MEMORY_BACKEND=mysql` | App-side reranking | App-side | Vector reranking in Go |
+| SQL Server | `MEMORY_BACKEND=sqlserver` | App-side reranking | App-side | Vector reranking in Go |
+
+Selected via the `MEMORY_BACKEND` environment variable. Each backend handles its own migrations.
 
 ## Database Schema
 
@@ -213,6 +279,11 @@ magi/
 ├── main.go                  # Entry point, CLI flags, server startup
 ├── server/                  # MCP server setup, tool/resource registration
 ├── db/                      # Turso client, schema migrations, CRUD, tags, links
+├── internal/
+│   ├── db/                  # Pluggable SQL backends (factory, store interface)
+│   ├── vcs/                 # Git-backed memory versioning (VersionedStore)
+│   ├── pipeline/            # Async write pipeline (workers, batching, status)
+│   └── cache/               # Caching layer (query, memory, embedding caches)
 ├── tools/                   # MCP tool handlers (17 tools)
 ├── resources/               # MCP resource handlers (6 resources)
 ├── api/                     # Legacy HTTP API handlers
