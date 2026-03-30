@@ -11,7 +11,7 @@ import (
 
 // Update modifies an existing memory's content or metadata, re-embedding if content changed.
 type Update struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 

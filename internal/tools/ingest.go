@@ -15,7 +15,7 @@ import (
 
 // IngestConversation imports a conversation export into memory.
 type IngestConversation struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 

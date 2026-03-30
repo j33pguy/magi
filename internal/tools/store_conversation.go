@@ -13,7 +13,7 @@ import (
 
 // StoreConversation stores a conversation summary with auto-embedding and tagging.
 type StoreConversation struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 

@@ -13,7 +13,7 @@ import (
 
 // RecallConversations searches conversation memories using hybrid retrieval.
 type RecallConversations struct {
-	DB       *db.Client
+	DB       db.Store
 	Embedder embeddings.Provider
 }
 
