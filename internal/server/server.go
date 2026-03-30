@@ -33,7 +33,7 @@ type Server struct {
 	grpcServer *grpc.Server
 	gwServer   *http.Server
 	webServer  *http.Server
-	dbClient   *db.Client
+	dbClient   db.Store
 	store      db.Store // either dbClient directly, or a VersionedStore wrapper
 	embedder   *embeddings.OnnxProvider
 	logger     *slog.Logger
@@ -87,8 +87,13 @@ func New(logger *slog.Logger) (*Server, error) {
 				}
 			}
 
-			// Wrap with versioned store — intercepts mutations to also write to git
-			s.store = vcs.NewVersionedStore(dbClient, gitRepo, logger.WithGroup("vcs"))
+			// Wrap with versioned store — intercepts mutations to also write to git.
+			// Requires concrete *Client (turso/sqlite only); SQL Server skips VCS wrapping.
+			if concreteClient, ok := dbClient.(*db.Client); ok {
+				s.store = vcs.NewVersionedStore(concreteClient, gitRepo, logger.WithGroup("vcs"))
+			} else {
+				logger.Warn("git versioning not supported for this backend, using raw store")
+			}
 		}
 	}
 
@@ -257,7 +262,13 @@ func (s *Server) ServeWeb() error {
 	}
 
 	mux := http.NewServeMux()
-	web.RegisterRoutes(mux, s.dbClient, s.embedder, s.logger.WithGroup("web"))
+	// Web UI requires concrete *db.Client for raw stats queries.
+	// SQL Server backend skips the web UI registration.
+	if concreteClient, ok := s.dbClient.(*db.Client); ok {
+		web.RegisterRoutes(mux, concreteClient, s.embedder, s.logger.WithGroup("web"))
+	} else {
+		s.logger.Warn("web UI not available for this storage backend")
+	}
 
 	s.webServer = &http.Server{
 		Addr:              net.JoinHostPort("", port),
