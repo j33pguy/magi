@@ -7,16 +7,17 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/j33pguy/magi/internal/classify"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // IndexTurn stores a single conversation turn as a memory.
 type IndexTurn struct {
-	DB       db.Store
-	Embedder embeddings.Provider
+	DB             db.Store
+	Embedder       embeddings.Provider
+	DefaultProject string
 }
 
 // Tool returns the MCP tool definition for index_turn.
@@ -32,7 +33,7 @@ func (t *IndexTurn) Tool() mcp.Tool {
 
 // Handle processes an index_turn tool call.
 func (t *IndexTurn) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return indexTurn(ctx, t.DB, t.Embedder, request)
+	return indexTurn(ctx, t.DB, t.Embedder, t.DefaultProject, request)
 }
 
 // contentHash returns the first 16 hex chars of sha256(trimmed content).
@@ -42,7 +43,7 @@ func contentHash(content string) string {
 }
 
 // indexTurn is the shared logic for indexing a single turn.
-func indexTurn(ctx context.Context, dbClient db.Store, embedder embeddings.Provider, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func indexTurn(ctx context.Context, dbClient db.Store, embedder embeddings.Provider, defaultProject string, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	role, err := request.RequireString("role")
 	if err != nil {
 		return mcp.NewToolResultError("role is required"), nil
@@ -54,6 +55,9 @@ func indexTurn(ctx context.Context, dbClient db.Store, embedder embeddings.Provi
 	}
 
 	project := request.GetString("project", "")
+	if project == "" && defaultProject != "" {
+		project = defaultProject
+	}
 	sessionID := request.GetString("session_id", "")
 
 	// Content hash dedup

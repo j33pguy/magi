@@ -12,12 +12,12 @@ import (
 
 // Memory represents a stored memory record.
 type Memory struct {
-	ID         string    `json:"id"`
-	Content    string    `json:"content"`
-	Summary    string    `json:"summary"`
-	Embedding  []float32 `json:"embedding,omitempty"`
-	Project    string    `json:"project"`
-	Type       string    `json:"type"`
+	ID        string    `json:"id"`
+	Content   string    `json:"content"`
+	Summary   string    `json:"summary"`
+	Embedding []float32 `json:"embedding,omitempty"`
+	Project   string    `json:"project"`
+	Type      string    `json:"type"`
 	// Visibility controls access: "private" (owner only, never via HTTP API),
 	// "internal" (default, all connected agents), "public" (any consumer)
 	Visibility string `json:"visibility"`
@@ -30,11 +30,11 @@ type Memory struct {
 	// Area is the top-level domain: work, infrastructure, development, personal, project, meta
 	Area string `json:"area,omitempty"`
 	// SubArea is a free-form sub-domain (power-platform, networking, magi, etc.)
-	SubArea   string   `json:"subArea,omitempty"`
-	CreatedAt  string  `json:"createdAt"`
-	UpdatedAt  string  `json:"updatedAt"`
-	ArchivedAt string  `json:"archivedAt,omitempty"`
-	TokenCount int     `json:"tokenCount"`
+	SubArea    string   `json:"subArea,omitempty"`
+	CreatedAt  string   `json:"createdAt"`
+	UpdatedAt  string   `json:"updatedAt"`
+	ArchivedAt string   `json:"archivedAt,omitempty"`
+	TokenCount int      `json:"tokenCount"`
 	Tags       []string `json:"tags,omitempty"`
 }
 
@@ -47,10 +47,10 @@ type MemoryFilter struct {
 	// want to query their own context AND shared crew memory in one call.
 	// Example: []string{"agent:alice", "crew:shared"}
 	Projects []string
-	Type       string
-	Tags       []string
-	Limit      int
-	Offset     int
+	Type     string
+	Tags     []string
+	Limit    int
+	Offset   int
 	// Visibility filters by access level. If empty, defaults to excluding "private"
 	// for HTTP API callers. Set to "all" to include private (MCP/internal use only).
 	Visibility string
@@ -70,11 +70,11 @@ type MemoryFilter struct {
 type HybridResult struct {
 	Memory        *Memory `json:"memory"`
 	RRFScore      float64 `json:"rrfScore"`                // higher = more relevant
-	VecRank       int     `json:"vecRank"`                  // 0 = not in vector results
-	BM25Rank      int     `json:"bm25Rank"`                 // 0 = not in BM25 results
-	Distance      float64 `json:"distance"`                 // cosine distance (lower = closer)
-	Score         float64 `json:"score"`                    // relevance score: 1.0 - distance (higher = more relevant)
-	RecencyWeight float64 `json:"recencyWeight,omitempty"`  // exp(-decay * days_old), 0 if recency weighting disabled
+	VecRank       int     `json:"vecRank"`                 // 0 = not in vector results
+	BM25Rank      int     `json:"bm25Rank"`                // 0 = not in BM25 results
+	Distance      float64 `json:"distance"`                // cosine distance (lower = closer)
+	Score         float64 `json:"score"`                   // relevance score: 1.0 - distance (higher = more relevant)
+	RecencyWeight float64 `json:"recencyWeight,omitempty"` // exp(-decay * days_old), 0 if recency weighting disabled
 	WeightedScore float64 `json:"weightedScore,omitempty"` // score * recencyWeight, 0 if disabled
 }
 
@@ -250,6 +250,49 @@ func (c *Client) ListMemories(filter *MemoryFilter) ([]*Memory, error) {
 	defer rows.Close()
 
 	return scanMemories(rows)
+}
+
+// CountMemories returns the total number of memories matching the filter.
+func (c *Client) CountMemories(filter *MemoryFilter) (int, error) {
+	if filter == nil {
+		filter = &MemoryFilter{}
+	}
+	var conditions []string
+	var args []any
+
+	conditions = append(conditions, "m.archived_at IS NULL")
+
+	appendProjectCondition(filter, &conditions, &args)
+	appendTaxonomyConditions(filter, &conditions, &args)
+	appendTimeConditions(filter, &conditions, &args)
+	if filter.Type != "" {
+		conditions = append(conditions, "m.type = ?")
+		args = append(args, filter.Type)
+	}
+	if len(filter.Tags) > 0 {
+		placeholders := make([]string, len(filter.Tags))
+		for i, tag := range filter.Tags {
+			placeholders[i] = "?"
+			args = append(args, tag)
+		}
+		conditions = append(conditions, fmt.Sprintf(
+			"m.id IN (SELECT memory_id FROM memory_tags WHERE tag IN (%s))",
+			strings.Join(placeholders, ","),
+		))
+	}
+	appendVisibilityCondition(filter, &conditions, &args)
+
+	query := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM memories m
+		WHERE %s
+	`, strings.Join(conditions, " AND "))
+
+	var count int
+	if err := c.DB.QueryRow(query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("counting memories: %w", err)
+	}
+	return count, nil
 }
 
 // SearchMemories performs a vector similarity search against the embedding index.
