@@ -1,0 +1,31 @@
+services:
+  magi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    user: "0"
+    environment:
+      MEMORY_BACKEND: sqlite
+      SQLITE_PATH: /data/memory.db
+      MAGI_MODEL_DIR: /data/models
+      MAGI_GRPC_PORT: "8300"
+      MAGI_HTTP_PORT: "8301"
+      MAGI_LEGACY_HTTP_PORT: "8302"
+      MAGI_UI_PORT: "8080"
+    ports:
+      - "8080:8080"
+      - "8300:8300"
+      - "8301:8301"
+      - "8302:8302"
+    volumes:
+      - magi-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8302/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  magi-data:
