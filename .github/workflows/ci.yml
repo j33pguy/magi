@@ -58,7 +58,7 @@ jobs:
             -d "{\"role_id\":\"${VAULT_ROLE_ID}\",\"secret_id\":\"${VAULT_SECRET_ID}\"}" \
             | jq -r '.auth.client_token')
           curl -sk -H "X-Vault-Token: ${VAULT_TOKEN}" \
-            ${VAULT_ADDR}/v1/secret/data/ssh | jq -r '.data.data.ansible_private_key' \
+            ${VAULT_ADDR}/v1/homelab/data/ssh | jq -r '.data.data.ansible_private_key' \
             > /tmp/deploy_key
           chmod 600 /tmp/deploy_key
 
