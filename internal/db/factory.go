@@ -10,7 +10,7 @@ import (
 
 // Config holds storage backend configuration.
 type Config struct {
-	Backend string // "turso" (default) | "sqlite" | "sqlserver"
+	Backend string // "turso" (default) | "sqlite" | "postgres" | "mysql" | "sqlserver"
 
 	// Turso
 	TursoURL       string
@@ -20,6 +20,12 @@ type Config struct {
 
 	// SQLite
 	SQLitePath string
+
+	// PostgreSQL
+	PostgresURL string // POSTGRES_URL
+
+	// MySQL / MariaDB
+	MySQLDSN string // MYSQL_DSN
 
 	// SQL Server
 	SQLServerURL string
@@ -46,6 +52,12 @@ func ConfigFromEnv() *Config {
 		sqlitePath = filepath.Join(home, ".magi", "memory-local.db")
 	}
 
+	// PostgreSQL connection string: POSTGRES_URL
+	postgresURL := os.Getenv("POSTGRES_URL")
+
+	// MySQL connection string (DSN): MYSQL_DSN
+	mysqlDSN := os.Getenv("MYSQL_DSN")
+
 	// SQL Server DSN: SQLSERVER_URL takes precedence; if absent, build from parts.
 	sqlServerURL := os.Getenv("SQLSERVER_URL")
 	if sqlServerURL == "" {
@@ -70,6 +82,8 @@ func ConfigFromEnv() *Config {
 		ReplicaPath:    replicaPath,
 		SyncInterval:   syncInterval,
 		SQLitePath:     sqlitePath,
+		PostgresURL:    postgresURL,
+		MySQLDSN:       mysqlDSN,
 		SQLServerURL:   sqlServerURL,
 	}
 }
@@ -92,6 +106,10 @@ func NewStore(cfg *Config, logger *slog.Logger) (Store, error) {
 			return nil, err
 		}
 		return c.TursoClient, nil
+	case "postgres", "postgresql":
+		return NewPostgresClient(cfg.PostgresURL, logger)
+	case "mysql", "mariadb":
+		return NewMySQLClient(cfg.MySQLDSN, logger)
 	case "sqlserver", "mssql":
 		return NewSQLServerClient(cfg.SQLServerURL, logger)
 	default:
