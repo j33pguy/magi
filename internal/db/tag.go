@@ -41,12 +41,13 @@ func (c *Client) GetTags(memoryID string) ([]string, error) {
 }
 
 // SetTags replaces all tags for a memory.
-// The DELETE+INSERT run in a transaction so they share one Hrana stream.
-// If a stream-expired error occurs, the operation is retried once.
+// Avoids BEGIN/COMMIT transactions because Turso embedded-replica Hrana streams
+// fail on BeginTx ("connection has reached an invalid state, started with Txn").
+// Instead: DELETE then batched INSERT as separate statements with retry on stream expiry.
 func (c *Client) SetTags(memoryID string, tags []string) error {
 	var err error
 	for attempt := 0; attempt < 2; attempt++ {
-		err = c.setTagsTx(memoryID, tags)
+		err = c.setTagsNoTx(memoryID, tags)
 		if err == nil || !isStreamExpired(err) {
 			return err
 		}
@@ -55,19 +56,17 @@ func (c *Client) SetTags(memoryID string, tags []string) error {
 	return err
 }
 
-func (c *Client) setTagsTx(memoryID string, tags []string) error {
-	tx, err := c.DB.BeginTx(context.Background(), nil)
-	if err != nil {
-		return fmt.Errorf("beginning tag transaction: %w", err)
-	}
-	defer tx.Rollback() //nolint:errcheck
+func (c *Client) setTagsNoTx(memoryID string, tags []string) error {
+	// Force a fresh Hrana stream by pinging first — the embedded replica connector
+	// lets streams expire server-side while keeping stale connections in the pool.
+	_ = c.DB.Ping()
 
-	if _, err := tx.Exec("DELETE FROM memory_tags WHERE memory_id = ?", memoryID); err != nil {
+	if _, err := c.DB.ExecContext(context.Background(), "DELETE FROM memory_tags WHERE memory_id = ?", memoryID); err != nil {
 		return fmt.Errorf("clearing tags: %w", err)
 	}
 
 	if len(tags) == 0 {
-		return tx.Commit()
+		return nil
 	}
 
 	placeholders := make([]string, len(tags))
@@ -78,9 +77,9 @@ func (c *Client) setTagsTx(memoryID string, tags []string) error {
 	}
 
 	query := fmt.Sprintf("INSERT INTO memory_tags (memory_id, tag) VALUES %s", strings.Join(placeholders, ", "))
-	if _, err := tx.Exec(query, args...); err != nil {
+	if _, err := c.DB.ExecContext(context.Background(), query, args...); err != nil {
 		return fmt.Errorf("inserting tags: %w", err)
 	}
 
-	return tx.Commit()
+	return nil
 }
