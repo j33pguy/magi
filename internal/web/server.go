@@ -32,7 +32,11 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	if token == "" {
 		logger.Warn("MAGI_API_TOKEN not set — web UI running in read-only mode")
 	}
-	auth := authMiddleware(token)
+	trustProxyAuth := parseTrustedProxyAuth()
+	if trustProxyAuth {
+		logger.Info("Trusting proxy authentication headers for web UI")
+	}
+	auth := authMiddleware(token, trustProxyAuth)
 	handle := func(pattern string, handler http.Handler) {
 		mux.Handle(pattern, auth(handler))
 	}
@@ -74,12 +78,18 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	handleFunc("POST /api/analyze-patterns", h.apiAnalyzePatterns)
 }
 
-func authMiddleware(token string) func(http.Handler) http.Handler {
+func authMiddleware(token string, trustProxyAuth bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if token == "" {
 			return next
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if trustProxyAuth && !strings.HasPrefix(r.URL.Path, "/api/") {
+				if strings.TrimSpace(r.Header.Get("X-Authentik-Username")) != "" {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
 			auth := r.Header.Get("Authorization")
 			if !strings.HasPrefix(auth, "Bearer ") {
 				writeUnauthorized(w, r)
@@ -93,6 +103,11 @@ func authMiddleware(token string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func parseTrustedProxyAuth() bool {
+	val := strings.TrimSpace(strings.ToLower(os.Getenv("MAGI_TRUSTED_PROXY_AUTH")))
+	return val == "true" || val == "1"
 }
 
 func writeUnauthorized(w http.ResponseWriter, r *http.Request) {
