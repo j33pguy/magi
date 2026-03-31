@@ -5,13 +5,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"regexp"
-	"strings"
 
 	"github.com/j33pguy/magi/internal/classify"
 	"github.com/j33pguy/magi/internal/contradiction"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/j33pguy/magi/internal/remember"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -70,109 +71,42 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 	speaker := request.GetString("speaker", "assistant")
 	area := request.GetString("area", "")
 	subArea := request.GetString("sub_area", "")
-
-	// Auto-classify if not explicitly set
-	if area == "" || subArea == "" {
-		c := classify.Infer(content)
-		if area == "" {
-			area = c.Area
-		}
-		if subArea == "" {
-			subArea = c.SubArea
-		}
-	}
-
-	// Check for potential secrets
-	if warning := detectSecrets(content); warning != "" {
-		return mcp.NewToolResultError(fmt.Sprintf("Content may contain secrets: %s. Remove sensitive data before storing.", warning)), nil
-	}
-
-	// Generate embedding
-	embedding, err := r.Embedder.Embed(ctx, content)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("generating embedding: %v", err)), nil
-	}
-
-	// Deduplication: check for near-duplicate before inserting
 	dedupThreshold := request.GetFloat("dedup_threshold", 0.95)
-	if dedupThreshold < 0 || dedupThreshold > 1 {
-		dedupThreshold = 0.95
+	input := remember.Input{
+		Content: content,
+		Summary: summary,
+		Project: project,
+		Type:    memType,
+		Source:  "mcp",
+		Speaker: speaker,
+		Area:    area,
+		SubArea: subArea,
+		Tags:    tags,
 	}
-	// Convert similarity threshold to cosine distance (distance = 1 - similarity)
-	maxDistance := 1.0 - dedupThreshold
-	// groupDistance is the distance below which we link as parent (similarity 0.85-threshold)
-	groupDistance := 0.15 // 1.0 - 0.85
-
-	match, err := r.DB.FindSimilar(embedding, groupDistance)
+	result, err := remember.Remember(ctx, r.DB, r.Embedder, input, remember.Options{
+		DedupThreshold:         &dedupThreshold,
+		ContradictionThreshold: 0.85,
+		TagMode:                remember.TagModeFail,
+		Logger:                 slog.Default(),
+	})
 	if err != nil {
-		slog.Warn("dedup check failed, proceeding with insert", "error", err)
-	} else if match != nil && match.Distance <= maxDistance {
-		// Near-duplicate: return existing memory instead of inserting
-		slog.Info("deduplicated memory", "existing_id", match.Memory.ID, "distance", match.Distance)
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if result.Deduplicated {
 		return mcp.NewToolResultText(fmt.Sprintf(
 			"Deduplicated: existing memory %s is %.1f%% similar (project=%s, type=%s). No new memory created.",
-			match.Memory.ID, (1.0-match.Distance)*100, match.Memory.Project, match.Memory.Type,
+			result.Match.Memory.ID, (1.0-result.Match.Distance)*100, result.Match.Memory.Project, result.Match.Memory.Type,
 		)), nil
 	}
 
-	// Estimate token count (rough: ~4 chars per token)
-	tokenCount := len(content) / 4
-
-	memory := &db.Memory{
-		Content:    content,
-		Summary:    summary,
-		Embedding:  embedding,
-		Project:    project,
-		Type:       memType,
-		Source:     "mcp",
-		Speaker:    speaker,
-		Area:       area,
-		SubArea:    subArea,
-		TokenCount: tokenCount,
+	msg := fmt.Sprintf("Stored memory %s (project=%s, type=%s, tokens=%d)", result.Saved.ID, project, result.Saved.Type, result.Saved.TokenCount)
+	if result.Saved.ParentID != "" && result.Match != nil {
+		msg += fmt.Sprintf(" [linked to similar memory %s, %.1f%% similar]", result.Saved.ParentID, (1.0-result.Match.Distance)*100)
 	}
 
-	// Soft-group: link to similar existing memory as parent
-	if match != nil {
-		memory.ParentID = match.Memory.ID
-		slog.Info("linking memory to similar parent", "parent_id", match.Memory.ID, "distance", match.Distance)
-	}
-
-	saved, err := r.DB.SaveMemory(memory)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("saving memory: %v", err)), nil
-	}
-
-	// Append structured taxonomy tags
-	if speaker != "" {
-		tags = append(tags, "speaker:"+speaker)
-	}
-	if area != "" {
-		tags = append(tags, "area:"+area)
-	}
-	if subArea != "" {
-		tags = append(tags, "sub_area:"+subArea)
-	}
-
-	// Set tags
-	if len(tags) > 0 {
-		if err := r.DB.SetTags(saved.ID, tags); err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("setting tags: %v", err)), nil
-		}
-	}
-
-	msg := fmt.Sprintf("Stored memory %s (project=%s, type=%s, tokens=%d)", saved.ID, project, memType, tokenCount)
-	if memory.ParentID != "" {
-		msg += fmt.Sprintf(" [linked to similar memory %s, %.1f%% similar]", memory.ParentID, (1.0-match.Distance)*100)
-	}
-
-	// Contradiction detection (best-effort, never blocks writes)
-	detector := &contradiction.Detector{Threshold: 0.85}
-	candidates, cErr := detector.Check(ctx, r.DB, r.Embedder, content, area, subArea)
-	if cErr != nil {
-		slog.Warn("contradiction detection failed", "error", cErr)
-	} else if len(candidates) > 0 {
-		msg += fmt.Sprintf("\n\n⚠ %d potential contradiction(s) detected:", len(candidates))
-		for _, c := range candidates {
+	if len(result.Contradictions) > 0 {
+		msg += fmt.Sprintf("\n\n⚠ %d potential contradiction(s) detected:", len(result.Contradictions))
+		for _, c := range result.Contradictions {
 			msg += fmt.Sprintf("\n  - Memory %s (%.0f%% similar, score=%.2f): %s [%s]",
 				c.ExistingID, c.Similarity*100, c.Score, c.ExistingSummary, c.Reason)
 		}
@@ -180,26 +114,4 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 	}
 
 	return mcp.NewToolResultText(msg), nil
-}
-
-var secretPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)(api[_-]?key|api[_-]?secret|access[_-]?token|auth[_-]?token|secret[_-]?key)\s*[:=]\s*\S+`),
-	regexp.MustCompile(`(?i)(password|passwd|pwd)\s*[:=]\s*\S+`),
-	regexp.MustCompile(`(?i)bearer\s+[a-zA-Z0-9\-._~+/]+=*`),
-	regexp.MustCompile(`ghp_[a-zA-Z0-9]{36}`),
-	regexp.MustCompile(`sk-[a-zA-Z0-9]{32,}`),
-	regexp.MustCompile(`-----BEGIN (RSA |EC )?PRIVATE KEY-----`),
-}
-
-func detectSecrets(content string) string {
-	var found []string
-	for _, pat := range secretPatterns {
-		if pat.MatchString(content) {
-			found = append(found, pat.String())
-		}
-	}
-	if len(found) > 0 {
-		return strings.Join(found, "; ")
-	}
-	return ""
 }

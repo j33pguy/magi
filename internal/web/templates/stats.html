@@ -2,21 +2,68 @@
 {{define "content"}}
 <div class="stats-grid">
     <div class="card stat-card">
-        <div class="stat-value">{{.TotalMemories}}</div>
+        <div class="stat-value gradient-text">{{.TotalMemories}}</div>
         <div class="stat-label">Total memories</div>
     </div>
     <div class="card stat-card">
-        <div class="stat-value">{{.ThisWeek}}</div>
+        <div class="stat-value gradient-text">{{.ThisWeek}}</div>
         <div class="stat-label">This week</div>
     </div>
     <div class="card stat-card">
-        <div class="stat-value" style="font-size: 20px;">{{if .TopArea}}{{.TopArea}}{{else}}-{{end}}</div>
+        <div class="stat-value gradient-text" style="font-size: 20px;">{{if .TopArea}}{{.TopArea}}{{else}}-{{end}}</div>
         <div class="stat-label">Most active area</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-value gradient-text" style="font-size: 20px;">
+            {{if .TopTags}}{{(index .TopTags 0).Name}}{{else}}-{{end}}
+        </div>
+        <div class="stat-label">Top tag</div>
+    </div>
+</div>
+
+<div class="card no-hover" style="margin-bottom: 16px;">
+    <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Activity · Last 7 days</div>
+    <div id="activity-chart" class="activity-chart">
+        <div class="activity-column">
+            <div class="activity-bar"><div class="activity-bar-fill"></div></div>
+            <div class="activity-count">0</div>
+            <div class="activity-label">---</div>
+        </div>
+        <div class="activity-column">
+            <div class="activity-bar"><div class="activity-bar-fill"></div></div>
+            <div class="activity-count">0</div>
+            <div class="activity-label">---</div>
+        </div>
+        <div class="activity-column">
+            <div class="activity-bar"><div class="activity-bar-fill"></div></div>
+            <div class="activity-count">0</div>
+            <div class="activity-label">---</div>
+        </div>
+        <div class="activity-column">
+            <div class="activity-bar"><div class="activity-bar-fill"></div></div>
+            <div class="activity-count">0</div>
+            <div class="activity-label">---</div>
+        </div>
+        <div class="activity-column">
+            <div class="activity-bar"><div class="activity-bar-fill"></div></div>
+            <div class="activity-count">0</div>
+            <div class="activity-label">---</div>
+        </div>
+        <div class="activity-column">
+            <div class="activity-bar"><div class="activity-bar-fill"></div></div>
+            <div class="activity-count">0</div>
+            <div class="activity-label">---</div>
+        </div>
+        <div class="activity-column">
+            <div class="activity-bar"><div class="activity-bar-fill"></div></div>
+            <div class="activity-count">0</div>
+            <div class="activity-label">---</div>
+        </div>
     </div>
 </div>
 
 {{if .SpeakerCounts}}
-<div class="card" style="margin-bottom: 16px;">
+<div class="card no-hover" style="margin-bottom: 16px;">
     <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">By speaker</div>
     <div class="bar-chart">
     {{range .SpeakerCounts}}
@@ -32,7 +79,7 @@
 {{end}}
 
 {{if .AreaCounts}}
-<div class="card" style="margin-bottom: 16px;">
+<div class="card no-hover" style="margin-bottom: 16px;">
     <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">By area</div>
     <div class="bar-chart">
     {{range .AreaCounts}}
@@ -48,7 +95,7 @@
 {{end}}
 
 {{if .TopTags}}
-<div class="card">
+<div class="card no-hover">
     <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">Top tags</div>
     <div class="tags-cloud">
     {{range .TopTags}}

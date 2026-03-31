@@ -12,6 +12,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/remember"
 )
 
 // mockEmbedder implements embeddings.Provider for tests.
@@ -672,7 +673,7 @@ func TestDetectSecrets(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := detectSecrets(tt.content)
+		result := remember.DetectSecrets(tt.content)
 		if tt.hasWarn && result == "" {
 			t.Errorf("expected warning for %q, got none", tt.content)
 		}

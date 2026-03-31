@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -23,6 +24,7 @@ import (
 	"github.com/j33pguy/magi/internal/node"
 	localnode "github.com/j33pguy/magi/internal/node/local"
 	"github.com/j33pguy/magi/internal/project"
+	"github.com/j33pguy/magi/internal/pipeline"
 	"github.com/j33pguy/magi/internal/resources"
 	"github.com/j33pguy/magi/internal/syncstate"
 	"github.com/j33pguy/magi/internal/tools"
@@ -46,6 +48,9 @@ type Server struct {
 	coordinator *localnode.Coordinator // nil if coordinator is disabled
 	project     string
 	syncTracker *syncstate.Tracker
+	pipeline    *pipeline.Writer
+	gitRepo     *vcs.Repo               // nil if git versioning is disabled
+	coordinator *localnode.Coordinator   // nil if coordinator is disabled
 }
 
 // New creates and configures a new magi MCP server.
@@ -131,7 +136,7 @@ func New(logger *slog.Logger) (*Server, error) {
 
 	s.mcp = mcpserver.NewMCPServer(
 		"magi",
-		"0.1.0",
+		"0.3.0",
 		mcpserver.WithToolCapabilities(false),
 		mcpserver.WithResourceCapabilities(false, false),
 		mcpserver.WithRecovery(),
@@ -155,6 +160,12 @@ func New(logger *slog.Logger) (*Server, error) {
 	s.httpAPI = api.NewServer(s.store, s.embedder, logger.WithGroup("http"))
 	if s.gitRepo != nil {
 		s.httpAPI.SetGitRepo(s.gitRepo)
+	}
+
+	pipelineCfg := pipeline.ConfigFromEnv()
+	if pipelineCfg.Enabled {
+		s.pipeline = pipeline.NewWriter(s.store, s.embedder, pipelineCfg, logger.WithGroup("pipeline"))
+		s.httpAPI.SetPipeline(s.pipeline)
 	}
 
 	return s, nil
@@ -342,6 +353,17 @@ func (s *Server) ServeGateway() error {
 
 // ServeWeb starts the web UI server. Blocks until the server stops.
 func (s *Server) ServeWeb() error {
+	uiEnabled := true
+	if v := os.Getenv("MAGI_UI_ENABLED"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			uiEnabled = parsed
+		}
+	}
+	if !uiEnabled {
+		s.logger.Info("Web UI disabled via MAGI_UI_ENABLED")
+		return nil
+	}
+
 	port := os.Getenv("MAGI_UI_PORT")
 	if port == "" {
 		port = "8080"
@@ -404,6 +426,9 @@ func (s *Server) Run() error {
 
 // Close shuts down the server, cleaning up database connections and ONNX runtime.
 func (s *Server) Close() {
+	if s.pipeline != nil {
+		s.pipeline.Close()
+	}
 	if s.coordinator != nil {
 		s.coordinator.Stop()
 	}

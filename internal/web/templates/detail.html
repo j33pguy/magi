@@ -1,60 +1,82 @@
 {{define "title"}}memory {{.Memory.ID}}{{end}}
 {{define "content"}}
-<div style="margin-bottom: 16px;">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
     <a href="/" class="btn btn-ghost btn-sm">&larr; Back to list</a>
-</div>
-<div class="card" style="margin-bottom: 16px;">
-    <div class="memory-content">{{.Memory.Content}}</div>
-</div>
-<div class="card">
-    <div class="detail-meta">
-        <span class="detail-key">ID</span>
-        <span class="detail-val" style="font-family: var(--font-mono); font-size: 12px;">{{.Memory.ID}}</span>
-
-        <span class="detail-key">Type</span>
-        <span class="detail-val"><span class="badge badge-accent">{{.Memory.Type}}</span></span>
-
-        <span class="detail-key">Speaker</span>
-        <span class="detail-val">{{if .Memory.Speaker}}<span class="badge {{speakerBadge .Memory.Speaker}}">{{.Memory.Speaker}}</span>{{else}}<span style="color:var(--text-muted)">-</span>{{end}}</span>
-
-        <span class="detail-key">Area</span>
-        <span class="detail-val">{{if .Memory.Area}}<span class="badge {{areaBadge .Memory.Area}}">{{.Memory.Area}}</span>{{else}}<span style="color:var(--text-muted)">-</span>{{end}}</span>
-
-        <span class="detail-key">Sub-area</span>
-        <span class="detail-val">{{if .Memory.SubArea}}{{.Memory.SubArea}}{{else}}<span style="color:var(--text-muted)">-</span>{{end}}</span>
-
-        <span class="detail-key">Project</span>
-        <span class="detail-val">{{if .Memory.Project}}{{.Memory.Project}}{{else}}<span style="color:var(--text-muted)">-</span>{{end}}</span>
-
-        <span class="detail-key">Summary</span>
-        <span class="detail-val">{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}<span style="color:var(--text-muted)">-</span>{{end}}</span>
-
-        <span class="detail-key">Tags</span>
-        <span class="detail-val">
-            {{if .Memory.Tags}}{{range .Memory.Tags}}<span class="badge badge-gray" style="margin-right:4px;">{{.}}</span>{{end}}{{else}}<span style="color:var(--text-muted)">-</span>{{end}}
-        </span>
-
-        <span class="detail-key">Visibility</span>
-        <span class="detail-val">{{.Memory.Visibility}}</span>
-
-        <span class="detail-key">Token count</span>
-        <span class="detail-val" style="font-variant-numeric: tabular-nums;">{{.Memory.TokenCount}}</span>
-
-        <span class="detail-key">Created</span>
-        <span class="detail-val">{{.Memory.CreatedAt}}</span>
-
-        <span class="detail-key">Updated</span>
-        <span class="detail-val">{{.Memory.UpdatedAt}}</span>
-    </div>
-    <div style="display: flex; gap: 8px; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;">
+    <div class="memory-actions">
+        <a href="/new?clone={{.Memory.ID}}" class="btn btn-sm btn-ghost">Edit</a>
         <button class="btn btn-sm btn-danger"
             hx-delete="/api/memories/{{.Memory.ID}}" hx-confirm="Delete this memory permanently?"
             hx-target="body" hx-push-url="/">Delete</button>
     </div>
 </div>
-<div class="card" style="margin-top: 16px;">
+<div class="card no-hover" style="margin-bottom: 16px;">
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">Memory content</div>
+    <div class="memory-content">{{.Memory.Content}}</div>
+</div>
+<div class="card no-hover" style="margin-bottom: 16px;">
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Metadata</div>
+    <div class="detail-meta">
+        <div class="detail-block">
+            <div class="detail-key">ID</div>
+            <div class="detail-val" style="font-family: var(--font-mono); font-size: 12px;">{{.Memory.ID}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Type</div>
+            <div class="detail-val">{{if .Memory.Type}}<span class="badge badge-type-{{.Memory.Type}}">{{.Memory.Type}}</span>{{else}}-{{end}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Speaker</div>
+            <div class="detail-val">{{if .Memory.Speaker}}<span class="badge {{speakerBadge .Memory.Speaker}}">{{.Memory.Speaker}}</span>{{else}}-{{end}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Area</div>
+            <div class="detail-val">{{if .Memory.Area}}<span class="badge {{areaBadge .Memory.Area}}">{{.Memory.Area}}</span>{{else}}-{{end}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Sub-area</div>
+            <div class="detail-val">{{if .Memory.SubArea}}{{.Memory.SubArea}}{{else}}-{{end}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Project</div>
+            <div class="detail-val">{{if .Memory.Project}}{{.Memory.Project}}{{else}}-{{end}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Summary</div>
+            <div class="detail-val">{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}-{{end}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Tags</div>
+            <div class="detail-val">
+                {{if .Memory.Tags}}{{range .Memory.Tags}}<span class="badge badge-gray" style="margin-right:4px;">{{.}}</span>{{end}}{{else}}-{{end}}
+            </div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Visibility</div>
+            <div class="detail-val">{{.Memory.Visibility}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Token count</div>
+            <div class="detail-val" style="font-variant-numeric: tabular-nums;">{{.Memory.TokenCount}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Created</div>
+            <div class="detail-val">{{.Memory.CreatedAt}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Updated</div>
+            <div class="detail-val">{{.Memory.UpdatedAt}}</div>
+        </div>
+        <div class="detail-block">
+            <div class="detail-key">Parent memory</div>
+            <div class="detail-val">
+                {{if .Memory.ParentID}}<a href="/memory/{{.Memory.ParentID}}">{{.Memory.ParentID}}</a>{{else}}-{{end}}
+            </div>
+        </div>
+    </div>
+</div>
+<div class="card no-hover" style="margin-top: 16px;" id="related-memories">
     <h3 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-muted);">Related Memories</h3>
-    <div id="related-memories"
+    <div
          hx-get="/api/memories/{{.Memory.ID}}/related"
          hx-trigger="load"
          hx-swap="innerHTML">
@@ -66,25 +88,27 @@
 {{define "related_memories"}}
 {{if .}}
 {{range .}}
-<div style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border);">
-    <div style="flex: 1; min-width: 0;">
-        <a href="/memory/{{.Memory.ID}}" style="color: var(--text); text-decoration: none; font-size: 13px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-            {{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 80}}{{end}}
-        </a>
-        <div style="display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap;">
-            {{range .Links}}
-            <span class="badge" style="font-size: 11px; background:
-                {{- if eq .Relation "caused_by"}} #ef4444{{end -}}
-                {{- if eq .Relation "led_to"}} #f59e0b{{end -}}
-                {{- if eq .Relation "related_to"}} #3b82f6{{end -}}
-                {{- if eq .Relation "supersedes"}} #a855f7{{end -}}
-                {{- if eq .Relation "part_of"}} #10b981{{end -}}
-                {{- if eq .Relation "contradicts"}} #ec4899{{end -}}
-            ; color: #fff;">{{.Relation}}</span>
-            {{end}}
+<div class="card no-hover" style="margin-bottom: 10px;">
+    <div style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;">
+        <div style="flex: 1; min-width: 0;">
+            <a href="/memory/{{.Memory.ID}}" style="color: var(--text); text-decoration: none; font-size: 13px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                {{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 100}}{{end}}
+            </a>
+            <div style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+                {{range .Links}}
+                <span class="badge" style="font-size: 10px; background:
+                    {{- if eq .Relation "caused_by"}} #ef4444{{end -}}
+                    {{- if eq .Relation "led_to"}} #f59e0b{{end -}}
+                    {{- if eq .Relation "related_to"}} #3b82f6{{end -}}
+                    {{- if eq .Relation "supersedes"}} #a855f7{{end -}}
+                    {{- if eq .Relation "part_of"}} #10b981{{end -}}
+                    {{- if eq .Relation "contradicts"}} #ec4899{{end -}}
+                ; color: #fff;">{{.Relation}}</span>
+                {{end}}
+            </div>
         </div>
+        <span style="color: var(--text-muted); font-size: 11px; white-space: nowrap;">{{formatDate .Memory.CreatedAt}}</span>
     </div>
-    <span style="color: var(--text-muted); font-size: 11px; white-space: nowrap;">{{formatDate .Memory.CreatedAt}}</span>
 </div>
 {{end}}
 {{else}}

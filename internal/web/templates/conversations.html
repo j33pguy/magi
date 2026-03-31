@@ -5,9 +5,9 @@
     .conv-search-input {
         width: 100%;
         padding: 12px 16px;
-        border-radius: 8px;
+        border-radius: 10px;
         border: 1px solid var(--border);
-        background: var(--surface);
+        background: #0d0d14;
         color: var(--text);
         font-family: var(--font-ui);
         font-size: 14px;
@@ -16,25 +16,25 @@
     .conv-search-input:focus { border-color: var(--accent); }
     .conv-search-input::placeholder { color: var(--text-muted); }
     .conv-filters { display: flex; gap: 8px; margin-top: 8px; }
-    .day-group { margin-bottom: 24px; }
+    .day-group { margin-bottom: 20px; }
     .day-label {
         font-size: 12px;
         font-weight: 600;
         color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid var(--border);
-        margin-bottom: 8px;
+        margin-bottom: 10px;
     }
     .conv-entry {
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--border);
+        padding: 14px 16px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
         cursor: pointer;
         transition: background 0.1s;
+        margin-bottom: 10px;
     }
-    .conv-entry:hover { background: rgba(255,255,255,0.02); }
-    .conv-entry:last-child { border-bottom: none; }
+    .conv-entry:hover { background: rgba(255,255,255,0.03); border-color: rgba(139,92,246,0.4); }
     .conv-header {
         display: flex;
         align-items: center;
@@ -61,9 +61,9 @@
         display: none;
         margin-top: 12px;
         padding: 12px;
-        background: var(--bg);
+        background: #0d0d14;
         border: 1px solid var(--border);
-        border-radius: 6px;
+        border-radius: 10px;
         font-size: 12px;
         font-family: var(--font-mono);
         line-height: 1.6;
@@ -101,7 +101,7 @@
     </div>
 </div>
 
-<div class="card" style="padding: 0; overflow: hidden;">
+<div class="card no-hover" style="padding: 16px;">
     <div id="conv-timeline">
         {{template "conv_rows" .}}
     </div>
@@ -149,7 +149,8 @@ document.addEventListener('click', function(e) {
     <div class="conv-header">
         <span class="badge {{channelBadge .Memory.Source}}">{{if .Memory.Source}}{{.Memory.Source}}{{else}}unknown{{end}}</span>
         <span class="conv-time">{{formatDate .Memory.CreatedAt}}</span>
-        <span class="score-badge">{{printf "%.0f" .ScorePercent}}%</span>
+        <span class="score-label">{{printf "%.0f" .ScorePercent}}%</span>
+        <div class="score-bar"><span class="score-fill" style="width: {{.ScorePercent}}%;"></span></div>
     </div>
     <div class="conv-summary">{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 120}}{{end}}</div>
     {{if .Memory.Tags}}

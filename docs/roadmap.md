@@ -2,6 +2,16 @@
 
 ## Recently Shipped
 
+### v0.3.0 — Security & Consistency
+
+| Fix | PR | Notes |
+|-----|-----|-------|
+| Web UI auth + visibility enforcement | — | Web UI now requires Bearer auth and respects visibility |
+| Unified remember enrichment | — | Consistent classify/secret detection/dedup/contradiction across MCP, gRPC, REST |
+| Async write pipeline functional | — | `MAGI_ASYNC_WRITES=true` now works end-to-end |
+| gRPC graph parity | — | `LinkMemories` and `GetRelated` implemented |
+| PostgreSQL/MySQL factory wiring | — | Backends now wired into the store factory |
+
 ### v0.2.0
 
 | Feature | PR | Notes |
@@ -42,7 +52,7 @@
 
 ---
 
-## v0.2.1 — Distributed Node Mesh Phase 2 (next)
+## v0.3.1 — Distributed Node Mesh Phase 2 (next)
 
 ### The pattern
 Move from in-process goroutine pools to gRPC-based inter-node communication. Multiple MAGI instances form a mesh for horizontal scaling.
@@ -66,7 +76,7 @@ Move from in-process goroutine pools to gRPC-based inter-node communication. Mul
 
 ---
 
-## v0.2.2 — Distributed Node Mesh Phase 3
+## v0.3.2 — Distributed Node Mesh Phase 3
 
 ### The pattern
 Replicated reads with write-ahead log replication. Strong consistency for writes, eventual consistency for reads.
@@ -85,7 +95,7 @@ Replicated reads with write-ahead log replication. Strong consistency for writes
 
 ---
 
-## v0.2.3 — Distributed Node Mesh Phase 4
+## v0.3.3 — Distributed Node Mesh Phase 4
 
 ### The pattern
 Full multi-region deployment with cross-datacenter replication.
@@ -104,7 +114,7 @@ Full multi-region deployment with cross-datacenter replication.
 
 ---
 
-## v0.3 — Project-Scoped Memory
+## v0.4 — Project-Scoped Memory
 
 ### The pattern
 Download a repo → binary detects it → syncs project memories → work begins with full context.
@@ -160,7 +170,7 @@ Before starting any task:
 
 ---
 
-## v0.3.1 — Project Context in Turso (no CLAUDE.md in repos)
+## v0.4.1 — Project Context in Turso (no CLAUDE.md in repos)
 
 ### The pattern
 Instead of committing `CLAUDE.md` to every project, store project instructions in Turso
@@ -189,7 +199,7 @@ The agent injects these at the top of context automatically.
 
 ---
 
-## v0.4 — Cross-Machine Identity
+## v0.5 — Cross-Machine Identity
 
 ### The pattern
 Multiple machines (server-01, laptop, future machines) all write to the same Turso DB.

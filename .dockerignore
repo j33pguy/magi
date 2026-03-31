@@ -1,0 +1,13 @@
+.git
+.gitignore
+bin/
+dist/
+**/*.out
+**/*.log
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.tmp
+node_modules/
+.vscode/
+.idea/
