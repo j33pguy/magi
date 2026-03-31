@@ -109,7 +109,7 @@ Route work however you want — [OpenClaw](https://github.com/openclaw/openclaw)
 
 ```bash
 # Docker (MEMORY_BACKEND: sqlite (default) | turso | postgres | mysql | sqlserver)
-docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/j33pguy/magi:latest
+docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/example-org/magi:latest
 
 # Binary
 MEMORY_BACKEND=postgres ./magi --http-only

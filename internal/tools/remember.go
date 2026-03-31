@@ -14,8 +14,9 @@ import (
 
 // Remember stores a new memory with auto-generated embedding.
 type Remember struct {
-	DB       db.Store
-	Embedder embeddings.Provider
+	DB             db.Store
+	Embedder       embeddings.Provider
+	DefaultProject string
 }
 
 // Tool returns the MCP tool definition for remember.
@@ -23,7 +24,7 @@ func (r *Remember) Tool() mcp.Tool {
 	return mcp.NewTool("remember",
 		mcp.WithDescription("Store a memory with automatic semantic embedding. Use this to save information that should be recalled in future conversations."),
 		mcp.WithString("content", mcp.Required(), mcp.Description("The content to remember")),
-		mcp.WithString("project", mcp.Required(), mcp.Description("Project name (e.g. 'iac', 'famtask', 'global')")),
+		mcp.WithString("project", mcp.Description("Project name (auto-detected if omitted)")),
 		mcp.WithString("type",
 			mcp.Description("Memory type"),
 			mcp.Enum("memory", "incident", "lesson", "decision", "project_context", "conversation", "audit", "runbook", "preference", "context", "security", "state"),
@@ -52,8 +53,11 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 		return mcp.NewToolResultError("content is required"), nil
 	}
 
-	project, err := request.RequireString("project")
-	if err != nil {
+	project := request.GetString("project", "")
+	if project == "" {
+		project = r.DefaultProject
+	}
+	if project == "" {
 		return mcp.NewToolResultError("project is required"), nil
 	}
 

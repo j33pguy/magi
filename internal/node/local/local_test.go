@@ -77,6 +77,12 @@ func (m *mockStore) ListMemories(_ *db.MemoryFilter) ([]*db.Memory, error) {
 	return result, nil
 }
 
+func (m *mockStore) CountMemories(_ *db.MemoryFilter) (int, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.memories), nil
+}
+
 func (m *mockStore) SearchMemories(_ []float32, _ *db.MemoryFilter, _ int) ([]*db.VectorResult, error) {
 	return nil, nil
 }
@@ -94,15 +100,15 @@ func (m *mockStore) FindSimilar(_ []float32, _ float64) (*db.VectorResult, error
 	return nil, nil
 }
 func (m *mockStore) ExistsWithContentHash(_ string) (string, error) { return "", nil }
-func (m *mockStore) GetTags(_ string) ([]string, error)            { return nil, nil }
-func (m *mockStore) SetTags(_ string, _ []string) error            { return nil }
+func (m *mockStore) GetTags(_ string) ([]string, error)             { return nil, nil }
+func (m *mockStore) SetTags(_ string, _ []string) error             { return nil }
 func (m *mockStore) CreateLink(_ context.Context, _, _, _ string, _ float64, _ bool) (*db.MemoryLink, error) {
 	return nil, nil
 }
 func (m *mockStore) GetLinks(_ context.Context, _ string, _ string) ([]*db.MemoryLink, error) {
 	return nil, nil
 }
-func (m *mockStore) DeleteLink(_ context.Context, _ string) error                { return nil }
+func (m *mockStore) DeleteLink(_ context.Context, _ string) error { return nil }
 func (m *mockStore) TraverseGraph(_ context.Context, _ string, _ int) ([]string, error) {
 	return nil, nil
 }

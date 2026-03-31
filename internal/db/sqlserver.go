@@ -225,6 +225,49 @@ func (c *SQLServerClient) ListMemories(filter *MemoryFilter) ([]*Memory, error) 
 	return c.scanMemories(rows)
 }
 
+// CountMemories returns the total number of memories matching the filter.
+func (c *SQLServerClient) CountMemories(filter *MemoryFilter) (int, error) {
+	if filter == nil {
+		filter = &MemoryFilter{}
+	}
+	var conditions []string
+	var args []any
+
+	conditions = append(conditions, "m.archived_at IS NULL")
+
+	sqlserverAppendProjectCondition(filter, &conditions, &args)
+	sqlserverAppendTaxonomyConditions(filter, &conditions, &args)
+	sqlserverAppendTimeConditions(filter, &conditions, &args)
+	if filter.Type != "" {
+		args = append(args, filter.Type)
+		conditions = append(conditions, fmt.Sprintf("m.type = @p%d", len(args)))
+	}
+	if len(filter.Tags) > 0 {
+		placeholders := make([]string, len(filter.Tags))
+		for i, tag := range filter.Tags {
+			args = append(args, tag)
+			placeholders[i] = fmt.Sprintf("@p%d", len(args))
+		}
+		conditions = append(conditions, fmt.Sprintf(
+			"m.id IN (SELECT memory_id FROM memory_tags WHERE tag IN (%s))",
+			strings.Join(placeholders, ","),
+		))
+	}
+	sqlserverAppendVisibilityCondition(filter, &conditions, &args)
+
+	query := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM memories m
+		WHERE %s
+	`, strings.Join(conditions, " AND "))
+
+	var count int
+	if err := c.db.QueryRow(query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("counting memories: %w", err)
+	}
+	return count, nil
+}
+
 // SearchMemories performs vector similarity search using Go-side cosine reranking.
 // Loads candidate memories with embeddings, computes cosine similarity in Go,
 // and returns top-K results.

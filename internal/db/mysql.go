@@ -243,6 +243,49 @@ func (c *MySQLClient) ListMemories(filter *MemoryFilter) ([]*Memory, error) {
 	return c.scanMemories(rows)
 }
 
+// CountMemories returns the total number of memories matching the filter.
+func (c *MySQLClient) CountMemories(filter *MemoryFilter) (int, error) {
+	if filter == nil {
+		filter = &MemoryFilter{}
+	}
+	var conditions []string
+	var args []any
+
+	conditions = append(conditions, "m.archived_at IS NULL")
+
+	appendProjectCondition(filter, &conditions, &args)
+	appendTaxonomyConditions(filter, &conditions, &args)
+	appendTimeConditions(filter, &conditions, &args)
+	if filter.Type != "" {
+		conditions = append(conditions, "m.type = ?")
+		args = append(args, filter.Type)
+	}
+	if len(filter.Tags) > 0 {
+		placeholders := make([]string, len(filter.Tags))
+		for i, tag := range filter.Tags {
+			placeholders[i] = "?"
+			args = append(args, tag)
+		}
+		conditions = append(conditions, fmt.Sprintf(
+			"m.id IN (SELECT memory_id FROM memory_tags WHERE tag IN (%s))",
+			strings.Join(placeholders, ","),
+		))
+	}
+	appendVisibilityCondition(filter, &conditions, &args)
+
+	query := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM memories m
+		WHERE %s
+	`, strings.Join(conditions, " AND "))
+
+	var count int
+	if err := c.DB.QueryRow(query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("counting memories: %w", err)
+	}
+	return count, nil
+}
+
 // --- Search ---
 
 // SearchMemories performs vector similarity search by loading all embeddings

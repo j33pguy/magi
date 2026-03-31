@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -22,8 +23,10 @@ import (
 	memgrpc "github.com/j33pguy/magi/internal/grpc"
 	"github.com/j33pguy/magi/internal/node"
 	localnode "github.com/j33pguy/magi/internal/node/local"
+	"github.com/j33pguy/magi/internal/project"
 	"github.com/j33pguy/magi/internal/pipeline"
 	"github.com/j33pguy/magi/internal/resources"
+	"github.com/j33pguy/magi/internal/syncstate"
 	"github.com/j33pguy/magi/internal/tools"
 	"github.com/j33pguy/magi/internal/vcs"
 	"github.com/j33pguy/magi/internal/web"
@@ -44,6 +47,8 @@ type Server struct {
 	pipeline    *pipeline.Writer
 	gitRepo     *vcs.Repo               // nil if git versioning is disabled
 	coordinator *localnode.Coordinator   // nil if coordinator is disabled
+	project     string
+	syncTracker *syncstate.Tracker
 }
 
 // New creates and configures a new magi MCP server.
@@ -69,10 +74,21 @@ func New(logger *slog.Logger) (*Server, error) {
 	}
 
 	s := &Server{
-		dbClient: dbClient,
-		store:    dbClient, // default: use raw client
-		embedder: embedder,
-		logger:   logger,
+		dbClient:    dbClient,
+		store:       dbClient, // default: use raw client
+		embedder:    embedder,
+		logger:      logger,
+		syncTracker: syncstate.NewTracker(),
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		logger.Warn("failed to resolve working directory for project detection", "error", err)
+		cwd = "."
+	}
+	s.project = project.DetectProject(cwd)
+	if s.project != "" {
+		logger.Info("Detected project", "project", s.project)
 	}
 
 	// Git versioning (optional)
@@ -154,56 +170,59 @@ func New(logger *slog.Logger) (*Server, error) {
 }
 
 func (s *Server) registerTools() {
-	remember := &tools.Remember{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(remember.Tool(), remember.Handle)
+	remember := &tools.Remember{DB: s.store, Embedder: s.embedder, DefaultProject: s.project}
+	s.addTool(remember.Tool(), remember.Handle)
 
-	recall := &tools.Recall{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(recall.Tool(), recall.Handle)
+	recall := &tools.Recall{DB: s.store, Embedder: s.embedder, DefaultProject: s.project}
+	s.addTool(recall.Tool(), recall.Handle)
 
-	recallIncidents := &tools.RecallIncidents{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(recallIncidents.Tool(), recallIncidents.Handle)
+	recallIncidents := &tools.RecallIncidents{DB: s.store, Embedder: s.embedder, DefaultProject: s.project}
+	s.addTool(recallIncidents.Tool(), recallIncidents.Handle)
 
-	recallLessons := &tools.RecallLessons{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(recallLessons.Tool(), recallLessons.Handle)
+	recallLessons := &tools.RecallLessons{DB: s.store, Embedder: s.embedder, DefaultProject: s.project}
+	s.addTool(recallLessons.Tool(), recallLessons.Handle)
 
 	forget := &tools.Forget{DB: s.store}
-	s.mcp.AddTool(forget.Tool(), forget.Handle)
+	s.addTool(forget.Tool(), forget.Handle)
 
-	list := &tools.List{DB: s.store}
-	s.mcp.AddTool(list.Tool(), list.Handle)
+	list := &tools.List{DB: s.store, DefaultProject: s.project}
+	s.addTool(list.Tool(), list.Handle)
 
 	update := &tools.Update{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(update.Tool(), update.Handle)
+	s.addTool(update.Tool(), update.Handle)
 
 	storeConv := &tools.StoreConversation{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(storeConv.Tool(), storeConv.Handle)
+	s.addTool(storeConv.Tool(), storeConv.Handle)
 
 	recallConv := &tools.RecallConversations{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(recallConv.Tool(), recallConv.Handle)
+	s.addTool(recallConv.Tool(), recallConv.Handle)
 
 	recentConv := &tools.RecentConversations{DB: s.store}
-	s.mcp.AddTool(recentConv.Tool(), recentConv.Handle)
+	s.addTool(recentConv.Tool(), recentConv.Handle)
 
-	indexTurn := &tools.IndexTurn{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(indexTurn.Tool(), indexTurn.Handle)
+	indexTurn := &tools.IndexTurn{DB: s.store, Embedder: s.embedder, DefaultProject: s.project}
+	s.addTool(indexTurn.Tool(), indexTurn.Handle)
 
-	indexSession := &tools.IndexSession{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(indexSession.Tool(), indexSession.Handle)
+	indexSession := &tools.IndexSession{DB: s.store, Embedder: s.embedder, DefaultProject: s.project}
+	s.addTool(indexSession.Tool(), indexSession.Handle)
 
 	checkContra := &tools.CheckContradictions{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(checkContra.Tool(), checkContra.Handle)
+	s.addTool(checkContra.Tool(), checkContra.Handle)
 
 	linkMemories := &tools.LinkMemories{DB: s.store}
-	s.mcp.AddTool(linkMemories.Tool(), linkMemories.Handle)
+	s.addTool(linkMemories.Tool(), linkMemories.Handle)
 
 	getRelated := &tools.GetRelated{DB: s.store}
-	s.mcp.AddTool(getRelated.Tool(), getRelated.Handle)
+	s.addTool(getRelated.Tool(), getRelated.Handle)
 
 	unlinkMemories := &tools.UnlinkMemories{DB: s.store}
-	s.mcp.AddTool(unlinkMemories.Tool(), unlinkMemories.Handle)
+	s.addTool(unlinkMemories.Tool(), unlinkMemories.Handle)
 
-	ingestConv := &tools.IngestConversation{DB: s.store, Embedder: s.embedder}
-	s.mcp.AddTool(ingestConv.Tool(), ingestConv.Handle)
+	ingestConv := &tools.IngestConversation{DB: s.store, Embedder: s.embedder, DefaultProject: s.project}
+	s.addTool(ingestConv.Tool(), ingestConv.Handle)
+
+	syncNow := &tools.SyncNow{DB: s.store, Project: s.project, Tracker: s.syncTracker}
+	s.addTool(syncNow.Tool(), syncNow.Handle)
 }
 
 func (s *Server) registerResources() {
@@ -216,7 +235,7 @@ func (s *Server) registerResources() {
 	prefs := &resources.Preferences{DB: s.store}
 	s.mcp.AddResource(prefs.Resource(), prefs.Handle)
 
-	ctx := &resources.Context{DB: s.store}
+	ctx := &resources.Context{DB: s.store, DefaultProject: s.project}
 	s.mcp.AddResource(ctx.Resource(), ctx.Handle)
 
 	recentConv := &resources.RecentConversations{DB: s.store}
@@ -224,6 +243,57 @@ func (s *Server) registerResources() {
 
 	pats := &resources.Patterns{DB: s.store}
 	s.mcp.AddResource(pats.Resource(), pats.Handle)
+
+	syncStatus := &resources.SyncStatus{DB: s.store, Project: s.project, Tracker: s.syncTracker}
+	s.mcp.AddResource(syncStatus.Resource(), syncStatus.Handle)
+}
+
+func (s *Server) addTool(tool mcp.Tool, handler func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)) {
+	s.mcp.AddTool(tool, s.withSyncGate(handler))
+}
+
+func (s *Server) withSyncGate(handler func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)) func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		if err := s.ensureFreshSync(); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("sync failed: %v", err)), nil
+		}
+		return handler(ctx, request)
+	}
+}
+
+func (s *Server) ensureFreshSync() error {
+	if s.syncTracker == nil {
+		return nil
+	}
+
+	syncer, ok := s.store.(interface{ Sync() error })
+	if !ok {
+		return nil
+	}
+
+	snap := s.syncTracker.Snapshot()
+	if snap.Syncing {
+		s.syncTracker.Wait()
+		snap = s.syncTracker.Snapshot()
+	}
+
+	maxAge := syncstate.MaxAge()
+	if !snap.LastSync.IsZero() && time.Since(snap.LastSync) <= maxAge {
+		return nil
+	}
+
+	if !s.syncTracker.Start() {
+		s.syncTracker.Wait()
+		return nil
+	}
+
+	s.logger.Info("syncing project memories", "project", s.project)
+	err := syncer.Sync()
+	s.syncTracker.Finish(err)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // ServeGRPC starts the gRPC server. Blocks until the server stops.
