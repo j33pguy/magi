@@ -30,10 +30,7 @@ var fillerPrefixes = []string{
 
 // abbreviations maps common shorthand to expanded forms for better recall.
 var abbreviations = map[string]string{
-	"udm":  "UDM UniFi Dream Machine",
-	"usg":  "USG UniFi Security Gateway",
 	"k8s":  "kubernetes",
-	"pve":  "hypervisor",
 	"tf":   "terraform",
 	"gh":   "github",
 	"gha":  "github actions",

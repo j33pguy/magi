@@ -120,7 +120,7 @@ func TestAnalyze_WorkTimingPattern_Weekends(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		memories = append(memories, &db.Memory{
 			ID:        fmt.Sprintf("sat-%d", i),
-			Content:   fmt.Sprintf("Proxmox VM setup task %d", i),
+			Content:   fmt.Sprintf("Server VM setup task %d", i),
 			Speaker:   "user",
 			Area:      "infrastructure",
 			CreatedAt: sat.Add(time.Duration(i) * time.Hour).Format(time.DateTime),

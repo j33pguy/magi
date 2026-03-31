@@ -659,7 +659,7 @@ func TestHandleRememberAllOptionalFields(t *testing.T) {
 		"speaker": "alice",
 		"area": "infrastructure",
 		"sub_area": "networking",
-		"tags": ["infra", "vlan", "lacp"]
+		"tags": ["infra", "networking", "config"]
 	}`
 	req := httptest.NewRequest("POST", "/remember", strings.NewReader(body))
 	w := httptest.NewRecorder()

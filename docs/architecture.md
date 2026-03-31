@@ -353,7 +353,7 @@ Content → BERT WordPiece tokenizer → all-MiniLM-L6-v2 (ONNX) → 384-dim flo
 |------|-----------|
 | work | power-platform, fabric, power-bi, sharepoint, td-synnex, azure |
 | infrastructure | iac, compute, dns, networking, security, ci-cd, monitoring, storage |
-| project | magi, distify, labctl, vault-unsealer |
+| project | magi, my-app, cli-tool, backup-service |
 | home | lego, streaming, gaming |
 | family | kids, spouse |
 | meta | _(reserved)_ |
@@ -366,7 +366,7 @@ Three heuristics score potential contradictions (0.0–1.0):
 
 | Heuristic | Score | Example |
 |-----------|-------|---------|
-| Numeric change | +0.7 | "VLAN 5" vs "VLAN 150" |
+| Numeric change | +0.7 | "port 8080" vs "port 9090" |
 | Boolean flip | +0.6 | "TLS enabled" vs "TLS disabled" |
 | Replacement language | +0.4 | "now uses Ansible" vs previous Terraform mention |
 

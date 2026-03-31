@@ -143,7 +143,7 @@ func scoreContradiction(newText, existingText string) (float64, string) {
 }
 
 // numericChangeScore detects when the same keyword appears near different numbers.
-// e.g., "VLAN 5" vs "VLAN 150" or "port 8300" vs "port 8301"
+// e.g., "port 8080" vs "port 9090" or "version 2.1" vs "version 3.0"
 func numericChangeScore(newText, existingText string) float64 {
 	// Extract keyword-number pairs from both texts
 	newPairs := extractKeywordNumbers(newText)
@@ -165,7 +165,7 @@ func numericChangeScore(newText, existingText string) float64 {
 	return 0
 }
 
-// keywordNumberRe matches patterns like "vlan 5", "port 8300", "version 2.1"
+// keywordNumberRe matches patterns like "port 8300", "version 2.1", "replica 3"
 var keywordNumberRe = regexp.MustCompile(`(\b[a-z][a-z_-]+)\s+(\d+(?:\.\d+)?)`)
 
 // extractKeywordNumbers returns a map of keyword → numbers found near it.
