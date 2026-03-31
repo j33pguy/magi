@@ -1,62 +1,66 @@
 {{define "title"}}memories{{end}}
 {{define "content"}}
-<div class="filters">
-    <select class="filter-select" name="speaker"
-        hx-get="/api/memories" hx-target="#memory-list" hx-include=".filter-select"
-        hx-vals='{"offset": "0"}'>
-        <option value="">All speakers</option>
-        <option value="user"{{if eq .Filter.Speaker "user"}} selected{{end}}>user</option>
-        <option value="assistant"{{if eq .Filter.Speaker "assistant"}} selected{{end}}>assistant</option>
-        <option value="agent"{{if eq .Filter.Speaker "agent"}} selected{{end}}>agent</option>
-        <option value="system"{{if eq .Filter.Speaker "system"}} selected{{end}}>system</option>
-    </select>
-    <select class="filter-select" name="area"
-        hx-get="/api/memories" hx-target="#memory-list" hx-include=".filter-select"
-        hx-vals='{"offset": "0"}'>
-        <option value="">All areas</option>
-        <option value="work"{{if eq .Filter.Area "work"}} selected{{end}}>work</option>
-        <option value="infrastructure"{{if eq .Filter.Area "infrastructure"}} selected{{end}}>infrastructure</option>
-        <option value="home"{{if eq .Filter.Area "home"}} selected{{end}}>home</option>
-        <option value="family"{{if eq .Filter.Area "family"}} selected{{end}}>family</option>
-        <option value="project"{{if eq .Filter.Area "project"}} selected{{end}}>project</option>
-        <option value="meta"{{if eq .Filter.Area "meta"}} selected{{end}}>meta</option>
-    </select>
-    <select class="filter-select" name="type"
-        hx-get="/api/memories" hx-target="#memory-list" hx-include=".filter-select"
-        hx-vals='{"offset": "0"}'>
-        <option value="">All types</option>
-        <option value="note"{{if eq .Filter.Type "note"}} selected{{end}}>note</option>
-        <option value="preference"{{if eq .Filter.Type "preference"}} selected{{end}}>preference</option>
-        <option value="decision"{{if eq .Filter.Type "decision"}} selected{{end}}>decision</option>
-        <option value="incident"{{if eq .Filter.Type "incident"}} selected{{end}}>incident</option>
-        <option value="lesson"{{if eq .Filter.Type "lesson"}} selected{{end}}>lesson</option>
-        <option value="conversation"{{if eq .Filter.Type "conversation"}} selected{{end}}>conversation</option>
-    </select>
-    <input class="filter-select" name="sub_area" placeholder="sub_area" value="{{.Filter.SubArea}}"
-        style="width: 120px; padding-right: 10px; background-image: none;"
-        hx-get="/api/memories" hx-target="#memory-list" hx-include=".filter-select"
-        hx-trigger="keyup changed delay:500ms"
-        hx-vals='{"offset": "0"}'>
-</div>
-<div class="card" style="padding: 0; overflow: hidden;">
-    <div id="memory-list">
-        {{template "memory_rows" .}}
+<div class="card no-hover" style="margin-bottom: 16px;">
+    <div class="filters">
+        <select class="filter-select" name="speaker"
+            hx-get="/api/memories" hx-target="#memory-list" hx-include=".filter-select"
+            hx-vals='{"offset": "0"}'>
+            <option value="">All speakers</option>
+            <option value="user"{{if eq .Filter.Speaker "user"}} selected{{end}}>user</option>
+            <option value="assistant"{{if eq .Filter.Speaker "assistant"}} selected{{end}}>assistant</option>
+            <option value="agent"{{if eq .Filter.Speaker "agent"}} selected{{end}}>agent</option>
+            <option value="system"{{if eq .Filter.Speaker "system"}} selected{{end}}>system</option>
+        </select>
+        <select class="filter-select" name="area"
+            hx-get="/api/memories" hx-target="#memory-list" hx-include=".filter-select"
+            hx-vals='{"offset": "0"}'>
+            <option value="">All areas</option>
+            <option value="work"{{if eq .Filter.Area "work"}} selected{{end}}>work</option>
+            <option value="infrastructure"{{if eq .Filter.Area "infrastructure"}} selected{{end}}>infrastructure</option>
+            <option value="home"{{if eq .Filter.Area "home"}} selected{{end}}>home</option>
+            <option value="family"{{if eq .Filter.Area "family"}} selected{{end}}>family</option>
+            <option value="project"{{if eq .Filter.Area "project"}} selected{{end}}>project</option>
+            <option value="meta"{{if eq .Filter.Area "meta"}} selected{{end}}>meta</option>
+        </select>
+        <select class="filter-select" name="type"
+            hx-get="/api/memories" hx-target="#memory-list" hx-include=".filter-select"
+            hx-vals='{"offset": "0"}'>
+            <option value="">All types</option>
+            <option value="note"{{if eq .Filter.Type "note"}} selected{{end}}>note</option>
+            <option value="preference"{{if eq .Filter.Type "preference"}} selected{{end}}>preference</option>
+            <option value="decision"{{if eq .Filter.Type "decision"}} selected{{end}}>decision</option>
+            <option value="incident"{{if eq .Filter.Type "incident"}} selected{{end}}>incident</option>
+            <option value="lesson"{{if eq .Filter.Type "lesson"}} selected{{end}}>lesson</option>
+            <option value="conversation"{{if eq .Filter.Type "conversation"}} selected{{end}}>conversation</option>
+        </select>
+        <input class="filter-select" name="sub_area" placeholder="sub_area" value="{{.Filter.SubArea}}"
+            style="width: 140px; padding-right: 10px; background-image: none;"
+            hx-get="/api/memories" hx-target="#memory-list" hx-include=".filter-select"
+            hx-trigger="keyup changed delay:500ms"
+            hx-vals='{"offset": "0"}'>
     </div>
+</div>
+<div id="memory-list" class="memory-grid">
+    {{template "memory_rows" .}}
 </div>
 {{end}}
 
 {{define "memory_rows"}}
 {{if .Memories}}
 {{range .Memories}}
-<div class="memory-row" id="row-{{.ID}}"
-    hx-get="/memory/{{.ID}}/partial" hx-target="#row-{{.ID}}" hx-swap="outerHTML">
-    <span class="memory-summary">{{if .Summary}}{{.Summary}}{{else}}{{truncate .Content 80}}{{end}}</span>
-    <div class="memory-meta">
-        {{if .Speaker}}<span class="badge {{speakerBadge .Speaker}}">{{.Speaker}}</span>{{end}}
-        {{if .Area}}<span class="badge {{areaBadge .Area}}">{{.Area}}</span>{{end}}
-        {{if .SubArea}}<span class="badge badge-gray">{{.SubArea}}</span>{{end}}
-        <span class="memory-date">{{formatDate .CreatedAt}}</span>
+<div class="memory-card" id="memory-{{.ID}}"
+    hx-get="/memory/{{.ID}}/partial" hx-target="#memory-drawer-body" hx-swap="innerHTML"
+    onclick="setDrawerLoading(); openDrawer();">
+    <div class="memory-card-header">
+        <div class="memory-card-meta">
+            {{if .Type}}<span class="badge badge-type-{{.Type}}">{{.Type}}</span>{{else}}<span class="badge badge-gray">unknown</span>{{end}}
+            {{if .Speaker}}<span class="badge {{speakerBadge .Speaker}} pill">{{.Speaker}}</span>{{end}}
+            {{if .Area}}<span class="badge {{areaBadge .Area}}">{{.Area}}</span>{{end}}
+            {{if .SubArea}}<span class="badge badge-gray">{{.SubArea}}</span>{{end}}
+        </div>
+        <span class="memory-time" data-relative-time="{{.CreatedAt}}">{{formatDate .CreatedAt}}</span>
     </div>
+    <div class="memory-preview">{{if .Summary}}{{.Summary}}{{else}}{{truncate .Content 140}}{{end}}</div>
 </div>
 {{end}}
 {{if .HasMore}}
@@ -74,26 +78,29 @@
 {{end}}
 
 {{define "memory_expanded"}}
-<div class="memory-expanded" id="row-{{.Memory.ID}}">
+<div>
     <div class="memory-content">{{.Memory.Content}}</div>
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div class="memory-meta">
-            {{if .Memory.Speaker}}<span class="badge {{speakerBadge .Memory.Speaker}}">{{.Memory.Speaker}}</span>{{end}}
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="memory-card-meta">
+            {{if .Memory.Type}}<span class="badge badge-type-{{.Memory.Type}}">{{.Memory.Type}}</span>{{else}}<span class="badge badge-gray">unknown</span>{{end}}
+            {{if .Memory.Speaker}}<span class="badge {{speakerBadge .Memory.Speaker}} pill">{{.Memory.Speaker}}</span>{{end}}
             {{if .Memory.Area}}<span class="badge {{areaBadge .Memory.Area}}">{{.Memory.Area}}</span>{{end}}
             {{if .Memory.SubArea}}<span class="badge badge-gray">{{.Memory.SubArea}}</span>{{end}}
-            {{if .Memory.Type}}<span class="badge badge-accent">{{.Memory.Type}}</span>{{end}}
-            {{range .Memory.Tags}}<span class="badge badge-gray">{{.}}</span>{{end}}
-            <span class="memory-date">{{formatDate .Memory.CreatedAt}}</span>
         </div>
-        <div class="memory-actions">
-            <a href="/memory/{{.Memory.ID}}" class="btn btn-sm btn-ghost">View</a>
-            <button class="btn btn-sm btn-ghost"
-                hx-get="/api/memories?offset=0" hx-target="#memory-list" hx-include=".filter-select"
-                onclick="event.stopPropagation()">Collapse</button>
+        {{if .Memory.Tags}}
+        <div class="memory-tags">
+            {{range .Memory.Tags}}<span class="badge badge-gray">{{.}}</span>{{end}}
+        </div>
+        {{end}}
+        <div class="memory-time">Created {{formatDate .Memory.CreatedAt}} · Updated {{formatDate .Memory.UpdatedAt}}</div>
+        <div class="drawer-actions">
+            <a href="/memory/{{.Memory.ID}}" class="btn btn-sm btn-ghost">Open full view</a>
+            <a href="/new?clone={{.Memory.ID}}" class="btn btn-sm btn-ghost">Edit</a>
+            <a href="/memory/{{.Memory.ID}}#related-memories" class="btn btn-sm btn-ghost">Related memories</a>
             <button class="btn btn-sm btn-danger btn-ghost"
-                hx-delete="/api/memories/{{.Memory.ID}}" hx-target="#row-{{.Memory.ID}}" hx-swap="outerHTML"
+                hx-delete="/api/memories/{{.Memory.ID}}" hx-target="#memory-{{.Memory.ID}}" hx-swap="outerHTML"
                 hx-confirm="Delete this memory permanently?"
-                onclick="event.stopPropagation()">Delete</button>
+                onclick="closeDrawer()">Delete</button>
         </div>
     </div>
 </div>

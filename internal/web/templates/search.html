@@ -12,16 +12,25 @@
 
 {{define "search_results"}}
 {{if .Results}}
-<div class="card" style="padding: 0; overflow: hidden;">
+<div class="memory-grid">
 {{range .Results}}
-<div class="memory-row" id="srow-{{.Memory.ID}}"
-    hx-get="/memory/{{.Memory.ID}}/partial" hx-target="#srow-{{.Memory.ID}}" hx-swap="outerHTML">
-    <span class="memory-summary">{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 80}}{{end}}</span>
-    <div class="memory-meta">
-        <span class="score-badge">{{printf "%.0f" .ScorePercent}}%</span>
-        {{if .Memory.Speaker}}<span class="badge {{speakerBadge .Memory.Speaker}}">{{.Memory.Speaker}}</span>{{end}}
+<div class="memory-card" id="srow-{{.Memory.ID}}"
+    hx-get="/memory/{{.Memory.ID}}/partial" hx-target="#memory-drawer-body" hx-swap="innerHTML"
+    onclick="setDrawerLoading(); openDrawer();">
+    <div class="memory-card-header">
+        <div class="memory-card-meta">
+            <span class="score-label">{{printf "%.0f" .ScorePercent}}%</span>
+            <div class="score-bar"><span class="score-fill" style="width: {{.ScorePercent}}%;"></span></div>
+        </div>
+        <span class="memory-time" data-relative-time="{{.Memory.CreatedAt}}">{{formatDate .Memory.CreatedAt}}</span>
+    </div>
+    <div class="memory-preview">{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 140}}{{end}}</div>
+    <div class="search-snippet" data-snippet="{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 200}}{{end}}">
+        {{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 200}}{{end}}
+    </div>
+    <div class="memory-tags">
+        {{if .Memory.Speaker}}<span class="badge {{speakerBadge .Memory.Speaker}} pill">{{.Memory.Speaker}}</span>{{end}}
         {{if .Memory.Area}}<span class="badge {{areaBadge .Memory.Area}}">{{.Memory.Area}}</span>{{end}}
-        <span class="memory-date">{{formatDate .Memory.CreatedAt}}</span>
     </div>
 </div>
 {{end}}
