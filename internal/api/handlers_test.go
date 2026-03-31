@@ -98,8 +98,8 @@ func TestHandleHealth(t *testing.T) {
 	if resp["ok"] != true {
 		t.Errorf("ok = %v, want true", resp["ok"])
 	}
-	if resp["version"] != "0.1.0" {
-		t.Errorf("version = %v, want 0.1.0", resp["version"])
+	if resp["version"] != "0.3.0" {
+		t.Errorf("version = %v, want 0.3.0", resp["version"])
 	}
 	if resp["db_status"] != "ok" {
 		t.Errorf("db_status = %v, want ok", resp["db_status"])
@@ -215,8 +215,12 @@ func TestHandleRememberWithTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTags: %v", err)
 	}
-	if len(tags) != 2 {
-		t.Errorf("got %d tags, want 2", len(tags))
+	tagSet := make(map[string]bool)
+	for _, tag := range tags {
+		tagSet[tag] = true
+	}
+	if !tagSet["alpha"] || !tagSet["beta"] {
+		t.Errorf("missing expected tags: %v", tags)
 	}
 }
 

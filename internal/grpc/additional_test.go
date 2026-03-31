@@ -2,6 +2,8 @@ package grpc
 
 import (
 	"context"
+	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -25,22 +27,18 @@ type mockEmbedder struct {
 	failNext bool
 }
 
-func (m *mockEmbedder) Embed(_ context.Context, _ string) ([]float32, error) {
+func (m *mockEmbedder) Embed(_ context.Context, text string) ([]float32, error) {
 	if m.failNext {
 		m.failNext = false
 		return nil, errFakeEmbed
 	}
-	emb := make([]float32, 384)
-	emb[0] = 0.1
-	return emb, nil
+	return mockVector(text), nil
 }
 
 func (m *mockEmbedder) EmbedBatch(_ context.Context, texts []string) ([][]float32, error) {
 	out := make([][]float32, len(texts))
 	for i := range texts {
-		emb := make([]float32, 384)
-		emb[0] = 0.1
-		out[i] = emb
+		out[i] = mockVector(texts[i])
 	}
 	return out, nil
 }
@@ -48,6 +46,18 @@ func (m *mockEmbedder) EmbedBatch(_ context.Context, texts []string) ([][]float3
 func (m *mockEmbedder) Dimensions() int { return 384 }
 
 var errFakeEmbed = status.Error(codes.Internal, "fake embed failure")
+
+func mockVector(text string) []float32 {
+	emb := make([]float32, 384)
+	hasher := fnv.New32a()
+	_, _ = hasher.Write([]byte(text))
+	sum := hasher.Sum32()
+	for i := 0; i < 8; i++ {
+		nibble := int32((sum >> (4 * i)) & 0xF)
+		emb[i] = float32(nibble-8) / 8.0
+	}
+	return emb
+}
 
 // ---------------------------------------------------------------------------
 // Test helper: create Server with real SQLite + mock embedder
@@ -87,8 +97,8 @@ func TestHealth_Success(t *testing.T) {
 	if !resp.Ok {
 		t.Error("expected ok=true")
 	}
-	if resp.Version != "0.1.0" {
-		t.Errorf("version = %q, want 0.1.0", resp.Version)
+	if resp.Version != "0.3.0" {
+		t.Errorf("version = %q, want 0.3.0", resp.Version)
 	}
 }
 
@@ -366,7 +376,7 @@ func TestList_Success(t *testing.T) {
 	// Seed memories
 	for i := 0; i < 3; i++ {
 		_, err := srv.Remember(ctx, &pb.RememberRequest{
-			Content: "list test memory",
+			Content: fmt.Sprintf("list test memory %d", i),
 			Project: "list-proj",
 			Type:    "fact",
 		})
@@ -412,7 +422,7 @@ func TestList_WithOffset(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		_, err := srv.Remember(ctx, &pb.RememberRequest{
-			Content: "offset test",
+			Content: fmt.Sprintf("offset test %d", i),
 			Project: "offset-proj",
 		})
 		if err != nil {
