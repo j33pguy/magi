@@ -6,7 +6,7 @@
 // After random preconditioning, angles have a tightly bounded, concentrated distribution
 // that eliminates the need for explicit normalization.
 //
-// For claude-memory (arag) embeddings:
+// For MAGI embeddings:
 // - Input: 384-dim float32 vectors from all-MiniLM-L6-v2 (1,536 bytes each)
 // - Output: 1 float32 radius + 383 quantized angles (variable bit-width)
 // - At 4-bit angles: 1 float32 (4 bytes) + 383 * 0.5 bytes = ~196 bytes (7.8x compression)
