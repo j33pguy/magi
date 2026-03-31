@@ -12,11 +12,11 @@
 
 {{if .Groups}}
 {{range .Groups}}
-<div class="card" style="margin-bottom: 16px;">
+<div class="card no-hover" style="margin-bottom: 16px;">
     <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">{{.Label}}</div>
     <div style="display: flex; flex-direction: column; gap: 10px;">
     {{range .Patterns}}
-        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 10px; background: var(--bg); border-radius: 6px;">
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 12px; background: #0d0d14; border: 1px solid var(--border); border-radius: 10px;">
             <div style="flex: 1;">
                 <div style="font-size: 13px; line-height: 1.5;">{{.Content}}</div>
                 <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap;">

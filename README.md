@@ -26,6 +26,19 @@
 
 ---
 
+## What's New in v0.3.0
+
+- **Web UI Auth** — Web UI now enforces Bearer auth via `MAGI_API_TOKEN` and respects memory visibility
+- **UI Toggle** — `MAGI_UI_ENABLED` enables or disables the web UI server
+- **Async Writes Now Live** — The async write pipeline is fully functional with `MAGI_ASYNC_WRITES=true`
+- **gRPC Graph Parity** — `LinkMemories` and `GetRelated` RPCs are now implemented
+- **PostgreSQL + MySQL Factory Wiring** — Backend factory now includes PostgreSQL and MySQL
+- **Unified Remember Enrichment** — classify, secret detection, dedup, and contradiction checks now run consistently across MCP, gRPC, and REST
+- **New remember Service Layer** — `internal/remember` centralizes write enrichment logic
+- **stdio-Only MCP Mode** — `--mcp-only` runs MCP stdio without HTTP/gRPC servers for agent subprocess integrations
+
+---
+
 Your AI agents are brilliant — and completely amnesiac. Grok discovers a breaking API change. Claude doesn't know about it when reviewing your code. Codex builds a module. Your local LLM has no idea it exists.
 
 **MAGI gives all your agents a shared brain.**
@@ -96,7 +109,7 @@ Route work however you want — [OpenClaw](https://github.com/openclaw/openclaw)
 
 ```bash
 # Docker (MEMORY_BACKEND: sqlite | turso | postgres | mysql | sqlserver)
-docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/your-org/magi:latest
+docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/example-org/magi:latest
 
 # Binary
 MEMORY_BACKEND=postgres ./magi --http-only

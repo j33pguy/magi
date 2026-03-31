@@ -769,8 +769,12 @@ func TestHandleRememberAllFields(t *testing.T) {
 	}
 
 	tags, _ := s.db.GetTags(id)
-	if len(tags) != 2 {
-		t.Errorf("got %d tags, want 2", len(tags))
+	tagSet := make(map[string]bool)
+	for _, tag := range tags {
+		tagSet[tag] = true
+	}
+	if !tagSet["infra"] || !tagSet["networking"] {
+		t.Errorf("missing expected tags: %v", tags)
 	}
 }
 
@@ -967,11 +971,11 @@ func TestHandleCreateConversationAllFields(t *testing.T) {
 	// Verify tags include topics
 	tags, _ := s.db.GetTags(id)
 	expectedTags := map[string]bool{
-		"channel:discord":   true,
-		"conversation":      true,
+		"channel:discord":      true,
+		"conversation":         true,
 		"topic:infrastructure": true,
-		"topic:networking":  true,
-		"topic:compute":     true,
+		"topic:networking":     true,
+		"topic:compute":        true,
 	}
 	for _, tag := range tags {
 		delete(expectedTags, tag)
