@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>M.A.G.I — {{block "title" .}}Multi-Agent Graph Intelligence{{end}}</title>
+    <title>MAGI — {{block "title" .}}Multi-Agent Graph Intelligence{{end}}</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -317,9 +317,8 @@
             <a href="/stats" class="nav-link{{if eq .Nav "stats"}} active{{end}}">Stats</a>
             <a href="/graph" class="nav-link{{if eq .Nav "graph"}} active{{end}}">Graph</a>
             <a href="/conversations" class="nav-link{{if eq .Nav "conversations"}} active{{end}}">Conversations</a>
-<a href="/patterns" class="nav-link{{if eq .Nav "patterns"}} active{{end}}">Patterns</a>
-<a href="/ingest" class="nav-link{{if eq .Nav "ingest"}} active{{end}}">Import</a>
-            <span class="nav-link disabled">Graph</span>
+            <a href="/patterns" class="nav-link{{if eq .Nav "patterns"}} active{{end}}">Patterns</a>
+            <a href="/ingest" class="nav-link{{if eq .Nav "ingest"}} active{{end}}">Import</a>
         </div>
     </nav>
     <main class="container">
