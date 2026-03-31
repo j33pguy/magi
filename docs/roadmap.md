@@ -17,7 +17,6 @@
 | Feature | PR | Notes |
 |---------|-----|-------|
 | Distributed node mesh (Phase 1) | #74 | Writer/Reader/Index/Coordinator pools, session affinity, embedded mode |
-| Prometheus metrics | #73 | 9 metrics: write/search latency, queue depth, cache stats, etc. |
 | Health probes (/readyz, /livez) | #73 | Kubernetes-style readiness and liveness probes |
 | Expanded /health endpoint | #73 | DB status, uptime, memory count, git status |
 | Write tracking helpers | #73 | TrackTask, TrackDecision, TrackConversation |

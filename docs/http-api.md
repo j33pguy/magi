@@ -89,31 +89,7 @@ Use this as a Kubernetes `livenessProbe` — the process will be restarted if th
 
 ---
 
-### Prometheus Metrics
-
-```
-GET /metrics
-```
-
-No auth required. Returns all metrics in Prometheus exposition format for scraping.
-
-```bash
-curl http://localhost:8302/metrics
-```
-
-**Available Metrics:**
-
-| Metric | Type | Description |
-|--------|------|-------------|
-| `magi_write_latency_seconds` | Histogram | Latency of memory write operations |
-| `magi_search_latency_seconds` | Histogram | Latency of memory search operations |
-| `magi_embedding_duration_seconds` | Histogram | Duration of ONNX embedding generation |
-| `magi_queue_depth` | Gauge | Current async write pipeline depth |
-| `magi_memory_count` | Gauge | Total memories in database |
-| `magi_active_sessions` | Gauge | Active MCP sessions |
-| `magi_cache_hits_total` | Counter | Cache hits (label: `cache`) |
-| `magi_cache_misses_total` | Counter | Cache misses (label: `cache`) |
-| `magi_git_commits_total` | Counter | Git commits for memory versioning |
+Metrics endpoint (Prometheus-compatible format): `GET /metrics`
 
 ---
 
