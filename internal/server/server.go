@@ -21,6 +21,7 @@ import (
 	memgrpc "github.com/j33pguy/magi/internal/grpc"
 	"github.com/j33pguy/magi/internal/node"
 	localnode "github.com/j33pguy/magi/internal/node/local"
+	"github.com/j33pguy/magi/internal/pipeline"
 	"github.com/j33pguy/magi/internal/resources"
 	"github.com/j33pguy/magi/internal/tools"
 	"github.com/j33pguy/magi/internal/vcs"
@@ -39,6 +40,7 @@ type Server struct {
 	store       db.Store // either dbClient directly, or a VersionedStore wrapper
 	embedder    *embeddings.OnnxProvider
 	logger      *slog.Logger
+	pipeline    *pipeline.Writer
 	gitRepo     *vcs.Repo               // nil if git versioning is disabled
 	coordinator *localnode.Coordinator   // nil if coordinator is disabled
 }
@@ -139,6 +141,12 @@ func New(logger *slog.Logger) (*Server, error) {
 	s.httpAPI = api.NewServer(s.store, s.embedder, logger.WithGroup("http"))
 	if s.gitRepo != nil {
 		s.httpAPI.SetGitRepo(s.gitRepo)
+	}
+
+	pipelineCfg := pipeline.ConfigFromEnv()
+	if pipelineCfg.Enabled {
+		s.pipeline = pipeline.NewWriter(s.store, s.embedder, pipelineCfg, logger.WithGroup("pipeline"))
+		s.httpAPI.SetPipeline(s.pipeline)
 	}
 
 	return s, nil
@@ -334,6 +342,9 @@ func (s *Server) Run() error {
 
 // Close shuts down the server, cleaning up database connections and ONNX runtime.
 func (s *Server) Close() {
+	if s.pipeline != nil {
+		s.pipeline.Close()
+	}
 	if s.coordinator != nil {
 		s.coordinator.Stop()
 	}
