@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -40,12 +41,24 @@ func (c *Client) GetTags(memoryID string) ([]string, error) {
 }
 
 // SetTags replaces all tags for a memory.
-// Wraps DELETE + INSERT in a transaction so both use the same Turso Hrana
-// stream, preventing expiry between the two operations.
+// The DELETE+INSERT run in a transaction so they share one Hrana stream.
+// If a stream-expired error occurs, the operation is retried once.
 func (c *Client) SetTags(memoryID string, tags []string) error {
-	tx, err := c.DB.Begin()
+	var err error
+	for attempt := 0; attempt < 2; attempt++ {
+		err = c.setTagsTx(memoryID, tags)
+		if err == nil || !isStreamExpired(err) {
+			return err
+		}
+		c.logger.Warn("retrying SetTags after stream expiry", "memoryID", memoryID, "attempt", attempt)
+	}
+	return err
+}
+
+func (c *Client) setTagsTx(memoryID string, tags []string) error {
+	tx, err := c.DB.BeginTx(context.Background(), nil)
 	if err != nil {
-		return fmt.Errorf("beginning transaction: %w", err)
+		return fmt.Errorf("beginning tag transaction: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck
 
@@ -57,7 +70,6 @@ func (c *Client) SetTags(memoryID string, tags []string) error {
 		return tx.Commit()
 	}
 
-	// Batch all tags into a single INSERT with multiple value tuples.
 	placeholders := make([]string, len(tags))
 	args := make([]any, 0, len(tags)*2)
 	for i, tag := range tags {
