@@ -143,7 +143,7 @@ Store a cross-channel conversation summary with rich metadata.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `channel` | string | yes | Channel name (e.g. `mcp`, `discord`, `webchat`) |
+| `channel` | string | yes | Channel name (e.g. `mcp`, `webchat`, `mobile`) |
 | `summary` | string | yes | Conversation summary |
 | `session_key` | string | no | Unique session identifier |
 | `started_at` | string | no | Start time (RFC3339) |
