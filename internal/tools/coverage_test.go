@@ -84,7 +84,7 @@ func TestRememberContradictionDetection(t *testing.T) {
 	emb[200] = 1.0 // point in a completely different direction
 	emb[201] = 0.5
 	_, err := dbClient.SaveMemory(&db.Memory{
-		Content:    "VLAN 10 is used for management and is enabled",
+		Content:    "port 10 is used for management and is enabled",
 		Embedding:  emb,
 		Project:    "infra",
 		Type:       "memory",
@@ -97,7 +97,7 @@ func TestRememberContradictionDetection(t *testing.T) {
 
 	r := &Remember{DB: dbClient, Embedder: &orthogonalEmbedder{}}
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content": "VLAN 10 is used for management networking and is currently disabled on all switches",
+		"content": "port 10 is used for management networking and is currently disabled on all switches",
 		"project": "infra",
 		"type":    "memory",
 	}))
@@ -278,7 +278,7 @@ func TestIndexTurnWithSessionAndClassification(t *testing.T) {
 	// Content that classify.Infer might assign area/sub_area
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"role":       "user",
-		"content":    "I configured the compute-cluster cluster nodes for infrastructure networking with VLANs",
+		"content":    "I configured the compute-cluster cluster nodes for infrastructure networking with ports",
 		"project":    "infra",
 		"session_id": "sess-coverage",
 	}))
@@ -370,7 +370,7 @@ func TestIngestConversationWithProject(t *testing.T) {
 	dbClient := newTestDB(t)
 	tool := &IngestConversation{DB: dbClient, Embedder: &mockEmbedder{}}
 
-	conv := "User: I set up a compute-cluster cluster with VLANs for infrastructure networking isolation\nAssistant: Great, that's a solid approach for network segmentation."
+	conv := "User: I set up a compute-cluster cluster with ports for infrastructure networking isolation\nAssistant: Great, that's a solid approach for network segmentation."
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"content": conv,
@@ -903,11 +903,11 @@ func TestRememberAllOptionalParams(t *testing.T) {
 	r := &Remember{DB: dbClient, Embedder: &mockEmbedder{}}
 
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content":         "Full parameter test for remember tool with infrastructure VLAN configuration",
+		"content":         "Full parameter test for remember tool with infrastructure port configuration",
 		"project":         "infra",
 		"type":            "decision",
-		"summary":         "VLAN config decision",
-		"tags":            []string{"networking", "vlan"},
+		"summary":         "port config decision",
+		"tags":            []string{"networking", "config"},
 		"speaker":         "user",
 		"area":            "infrastructure",
 		"sub_area":        "networking",
@@ -1090,7 +1090,7 @@ func TestRememberParentLinkPath(t *testing.T) {
 	seedEmb[0] = 1.0
 
 	_, err := dbClient.SaveMemory(&db.Memory{
-		Content:    "VLAN 5 is used for guest network access",
+		Content:    "port 5 is used for guest network access",
 		Embedding:  seedEmb,
 		Project:    "infra",
 		Type:       "memory",
@@ -1115,7 +1115,7 @@ func TestRememberParentLinkPath(t *testing.T) {
 	r := &Remember{DB: dbClient, Embedder: fe}
 
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content": "VLAN 50 is used for IoT device isolation",
+		"content": "port 50 is used for IoT device isolation",
 		"project": "infra",
 		"type":    "memory",
 	}))
@@ -1175,7 +1175,7 @@ func TestRememberWithContradictionDetected(t *testing.T) {
 	seedEmb[0] = 1.0
 
 	_, err := dbClient.SaveMemory(&db.Memory{
-		Content:    "VLAN 5 is used for IoT devices and is enabled on all switches",
+		Content:    "port 5 is used for IoT devices and is enabled on all switches",
 		Embedding:  seedEmb,
 		Project:    "infra",
 		Type:       "memory",
@@ -1200,7 +1200,7 @@ func TestRememberWithContradictionDetected(t *testing.T) {
 	// Content has "disabled" vs seed's "enabled" => boolean flip => score > 0.5
 	// Set area/sub_area explicitly to match seed so contradiction detector finds it
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content":  "VLAN 5 is used for IoT devices and is disabled on all switches",
+		"content":  "port 5 is used for IoT devices and is disabled on all switches",
 		"project":  "infra",
 		"type":     "memory",
 		"area":     "infrastructure",
@@ -1234,8 +1234,8 @@ func TestStoreConversationParentLinkNotDedup(t *testing.T) {
 	seedEmb[0] = 1.0
 
 	_, err := dbClient.SaveMemory(&db.Memory{
-		Content:    "Conversation about VLAN setup for infrastructure",
-		Summary:    "VLAN setup discussion",
+		Content:    "Conversation about port setup for infrastructure",
+		Summary:    "port setup discussion",
 		Embedding:  seedEmb,
 		Type:       "conversation",
 		Visibility: "private",
@@ -1254,7 +1254,7 @@ func TestStoreConversationParentLinkNotDedup(t *testing.T) {
 	s := &StoreConversation{DB: dbClient, Embedder: &fixedEmbedder{emb: newEmb}}
 	result, err := s.Handle(context.Background(), makeRequest(map[string]any{
 		"channel": "mcp",
-		"summary": "Follow-up conversation about VLAN configuration",
+		"summary": "Follow-up conversation about port configuration",
 	}))
 	if err != nil {
 		t.Fatalf("Handle: %v", err)

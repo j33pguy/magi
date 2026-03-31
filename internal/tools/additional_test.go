@@ -242,8 +242,8 @@ func TestIndexSessionHandleWithSummarize(t *testing.T) {
 	tool := &IndexSession{DB: dbClient, Embedder: &mockEmbedder{}}
 
 	turns := []map[string]any{
-		{"role": "user", "content": "I need to set up a new VLAN for IoT devices"},
-		{"role": "assistant", "content": "I recommend creating VLAN 50 for IoT isolation"},
+		{"role": "user", "content": "I need to set up a new port for IoT devices"},
+		{"role": "assistant", "content": "I recommend creating port 50 for IoT isolation"},
 		{"role": "user", "content": "That sounds good, let me configure it on the switch"},
 	}
 
@@ -353,10 +353,10 @@ func TestCheckContradictionsWithThreshold(t *testing.T) {
 	tool := &CheckContradictions{DB: dbClient, Embedder: &mockEmbedder{}}
 
 	// Seed a memory
-	seedTestMemory(t, dbClient, "VLAN 5 is used for IoT devices", "infra", "memory")
+	seedTestMemory(t, dbClient, "port 5 is used for IoT devices", "infra", "memory")
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
-		"content":   "VLAN 50 is used for IoT devices",
+		"content":   "port 50 is used for IoT devices",
 		"threshold": 0.95,
 	}))
 	if err != nil {
@@ -1494,13 +1494,13 @@ func TestRecallIncidentsWithParentMemory(t *testing.T) {
 	dbClient := newTestDB(t)
 
 	// Create a parent incident
-	parent := seedTestMemory(t, dbClient, "Parent incident: full detailed report about network outage on VLAN 10", "infra", "incident")
+	parent := seedTestMemory(t, dbClient, "Parent incident: full detailed report about network outage on port 10", "infra", "incident")
 
 	// Create a child incident that references the parent
 	childEmb := make([]float32, 384)
 	childEmb[0] = 0.5
 	child, err := dbClient.SaveMemory(&db.Memory{
-		Content:    "Brief: network outage VLAN 10",
+		Content:    "Brief: network outage port 10",
 		Embedding:  childEmb,
 		Project:    "infra",
 		Type:       "incident",
@@ -1657,7 +1657,7 @@ func TestRememberWithParentLinking(t *testing.T) {
 	r := &Remember{DB: dbClient, Embedder: &mockEmbedder{}}
 	// Store a related memory that exercises FindSimilar parent linking
 	result, _ := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content": "Updated compute-cluster networking setup with new VLAN configuration",
+		"content": "Updated compute-cluster networking setup with new port configuration",
 		"project": "infra",
 	}))
 	if result.IsError {
@@ -2010,7 +2010,7 @@ func TestCheckContradictionsWithContradiction(t *testing.T) {
 	emb := make([]float32, 384)
 	emb[0] = 0.3
 	_, err := dbClient.SaveMemory(&db.Memory{
-		Content:    "VLAN 5 is used for IoT devices and is enabled",
+		Content:    "port 5 is used for IoT devices and is enabled",
 		Embedding:  emb,
 		Project:    "infra",
 		Type:       "memory",
@@ -2024,7 +2024,7 @@ func TestCheckContradictionsWithContradiction(t *testing.T) {
 	tool := &CheckContradictions{DB: dbClient, Embedder: &mockEmbedder{}}
 	// This content uses "disabled" which is a boolean flip from "enabled"
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
-		"content":   "VLAN 5 is used for IoT devices and is disabled",
+		"content":   "port 5 is used for IoT devices and is disabled",
 		"threshold": 0.1, // low threshold to increase chance of finding it
 	}))
 	if err != nil {

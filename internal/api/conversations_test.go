@@ -61,18 +61,18 @@ func TestFormatConversationContent(t *testing.T) {
 			req: &conversationRequest{
 				Channel:   "discord",
 				Summary:   "Made some decisions",
-				Decisions: []string{"Switched to LACP bond", "Use vault-unsealer"},
+				Decisions: []string{"Switch to load balancer", "Use backup-service"},
 			},
-			contains: []string{"Decisions:", "- Switched to LACP bond", "- Use vault-unsealer"},
+			contains: []string{"Decisions:", "- Switch to load balancer", "- Use backup-service"},
 		},
 		{
 			name: "with action items",
 			req: &conversationRequest{
 				Channel:     "webchat",
 				Summary:     "Follow-up needed",
-				ActionItems: []string{"Deploy vault-unsealer", "Update DNS records"},
+				ActionItems: []string{"Deploy backup-service", "Update DNS records"},
 			},
-			contains: []string{"Action Items:", "- Deploy vault-unsealer", "- Update DNS records"},
+			contains: []string{"Action Items:", "- Deploy backup-service", "- Update DNS records"},
 		},
 		{
 			name: "full conversation",
@@ -84,8 +84,8 @@ func TestFormatConversationContent(t *testing.T) {
 				TurnCount:   12,
 				Summary:     "Discussed infrastructure rack rebuild and network changes",
 				Topics:      []string{"infrastructure", "networking"},
-				Decisions:   []string{"Switched cdn-cache to LACP bond"},
-				ActionItems: []string{"Deploy vault-unsealer"},
+				Decisions:   []string{"Switched cdn-cache to load balancer"},
+				ActionItems: []string{"Deploy backup-service"},
 			},
 			contains: []string{
 				"Conversation on discord",
@@ -95,9 +95,9 @@ func TestFormatConversationContent(t *testing.T) {
 				"Topics: infrastructure, networking",
 				"Discussed infrastructure rack rebuild",
 				"Decisions:",
-				"- Switched cdn-cache to LACP bond",
+				"- Switched cdn-cache to load balancer",
 				"Action Items:",
-				"- Deploy vault-unsealer",
+				"- Deploy backup-service",
 			},
 		},
 	}

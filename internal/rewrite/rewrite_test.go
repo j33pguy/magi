@@ -24,13 +24,8 @@ func TestQuery(t *testing.T) {
 
 		// Abbreviation expansion
 		{"k8s deployment", "kubernetes deployment"},
-		{"pve cluster setup", "hypervisor cluster setup"},
-		{"UDM firewall rules", "UDM UniFi Dream Machine firewall rules"},
-
 		// Combined
 		{"how do I set up k8s?", "set up kubernetes"},
-		{"why does pve crash?", "hypervisor crash cause"},
-		{"tell me about udm firewall", "UDM UniFi Dream Machine firewall"},
 
 		// No change
 		{"exact search term", "exact search term"},

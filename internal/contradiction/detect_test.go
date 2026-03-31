@@ -13,9 +13,9 @@ func TestScoreContradiction_NumericChange(t *testing.T) {
 		wantReason  string
 	}{
 		{
-			name:       "VLAN number change",
-			newText:    "compute-node is on vlan 150",
-			existing:   "compute-node is on vlan 5",
+			name:       "port number change detected",
+			newText:    "the API server is on port 9090",
+			existing:   "the API server is on port 8080",
 			wantMin:    0.7,
 			wantReason: "numeric value differs",
 		},
@@ -35,8 +35,8 @@ func TestScoreContradiction_NumericChange(t *testing.T) {
 		},
 		{
 			name:     "same numbers no contradiction",
-			newText:  "compute-node is on vlan 5",
-			existing: "compute-node is on vlan 5",
+			newText:  "the API server is on port 8080",
+			existing: "the API server is on port 8080",
 			wantMin:  0,
 		},
 	}
@@ -124,8 +124,8 @@ func TestScoreContradiction_ReplacementLanguage(t *testing.T) {
 		},
 		{
 			name:     "was X now Y",
-			newText:  "was on vlan 5, now on vlan 150",
-			existing: "compute-node is on vlan 5",
+			newText:  "was on port 8080, now on port 9090",
+			existing: "the server is on port 8080",
 			wantMin:  0.4,
 		},
 		{
@@ -179,12 +179,12 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestExtractKeywordNumbers(t *testing.T) {
-	pairs := extractKeywordNumbers("compute-node is on vlan 150 and port 8300")
-	if nums, ok := pairs["vlan"]; !ok || len(nums) == 0 || nums[0] != "150" {
-		t.Errorf("expected vlan=150, got %v", pairs["vlan"])
+	pairs := extractKeywordNumbers("server is on port 9090 and version 3.2")
+	if nums, ok := pairs["port"]; !ok || len(nums) == 0 || nums[0] != "9090" {
+		t.Errorf("expected port=9090, got %v", pairs["port"])
 	}
-	if nums, ok := pairs["port"]; !ok || len(nums) == 0 || nums[0] != "8300" {
-		t.Errorf("expected port=8300, got %v", pairs["port"])
+	if nums, ok := pairs["version"]; !ok || len(nums) == 0 || nums[0] != "3.2" {
+		t.Errorf("expected version=3.2, got %v", pairs["version"])
 	}
 }
 

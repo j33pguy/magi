@@ -461,8 +461,8 @@ func TestList_WithSpeakerAreaFilters(t *testing.T) {
 	_, err := srv.Remember(ctx, &pb.RememberRequest{
 		Content: "filtered list item",
 		Speaker: "agent",
-		Area:    "homelab",
-		SubArea: "proxmox",
+		Area:    "infrastructure",
+		SubArea: "compute",
 	})
 	if err != nil {
 		t.Fatalf("Remember: %v", err)
@@ -470,8 +470,8 @@ func TestList_WithSpeakerAreaFilters(t *testing.T) {
 
 	resp, err := srv.List(ctx, &pb.ListRequest{
 		Speaker: "agent",
-		Area:    "homelab",
-		SubArea: "proxmox",
+		Area:    "infrastructure",
+		SubArea: "compute",
 	})
 	if err != nil {
 		t.Fatalf("List: %v", err)

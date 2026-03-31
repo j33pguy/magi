@@ -304,7 +304,7 @@ func TestNumericChangeScore_NoKeywords(t *testing.T) {
 }
 
 func TestNumericChangeScore_SameNumbers(t *testing.T) {
-	score := numericChangeScore("vlan 100 and port 443", "vlan 100 and port 443")
+	score := numericChangeScore("port 100 and replica 443", "port 100 and replica 443")
 	if score != 0 {
 		t.Errorf("expected 0 for identical numbers, got %v", score)
 	}
@@ -312,7 +312,7 @@ func TestNumericChangeScore_SameNumbers(t *testing.T) {
 
 func TestNumericChangeScore_DifferentKeywords(t *testing.T) {
 	// Keywords don't overlap, so no match
-	score := numericChangeScore("vlan 100", "port 443")
+	score := numericChangeScore("port 100", "replica 443")
 	if score != 0 {
 		t.Errorf("expected 0 for different keywords, got %v", score)
 	}
@@ -334,7 +334,7 @@ func TestNumericChangeScore_DecimalVersionChange(t *testing.T) {
 }
 
 func TestNumericChangeScore_OnlyOneTextHasNumbers(t *testing.T) {
-	score := numericChangeScore("vlan 100", "some text without numbers")
+	score := numericChangeScore("port 100", "some text without numbers")
 	if score != 0 {
 		t.Errorf("expected 0 when only one text has numbers, got %v", score)
 	}
