@@ -43,6 +43,10 @@ func (s *CoordinatedStore) ListMemories(filter *db.MemoryFilter) ([]*db.Memory, 
 	return s.coord.ListMemories(context.Background(), filter)
 }
 
+func (s *CoordinatedStore) CountMemories(filter *db.MemoryFilter) (int, error) {
+	return s.delegate.CountMemories(filter)
+}
+
 func (s *CoordinatedStore) SearchMemories(embedding []float32, filter *db.MemoryFilter, topK int) ([]*db.VectorResult, error) {
 	return s.coord.SearchMemories(context.Background(), embedding, filter, topK)
 }
@@ -101,4 +105,15 @@ func (s *CoordinatedStore) Migrate() error {
 
 func (s *CoordinatedStore) Close() error {
 	return s.delegate.Close()
+}
+
+// Sync forwards to the delegate store when supported.
+func (s *CoordinatedStore) Sync() error {
+	type syncer interface {
+		Sync() error
+	}
+	if delegate, ok := s.delegate.(syncer); ok {
+		return delegate.Sync()
+	}
+	return nil
 }

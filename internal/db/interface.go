@@ -12,6 +12,7 @@ type Store interface {
 	ArchiveMemory(id string) error
 	DeleteMemory(id string) error
 	ListMemories(filter *MemoryFilter) ([]*Memory, error)
+	CountMemories(filter *MemoryFilter) (int, error)
 
 	// Search
 	SearchMemories(embedding []float32, filter *MemoryFilter, topK int) ([]*VectorResult, error)

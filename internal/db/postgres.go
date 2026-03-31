@@ -385,6 +385,25 @@ func (c *PostgresClient) ListMemories(filter *MemoryFilter) ([]*Memory, error) {
 	return pgScanMemories(rows)
 }
 
+// CountMemories returns the total number of memories matching the filter.
+func (c *PostgresClient) CountMemories(filter *MemoryFilter) (int, error) {
+	b := &pgBuilder{}
+	b.addRaw("m.archived_at IS NULL")
+	applyPgFilter(filter, b)
+
+	query := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM memories m
+		WHERE %s
+	`, b.where())
+
+	var count int
+	if err := c.DB.QueryRow(query, b.args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("counting memories: %w", err)
+	}
+	return count, nil
+}
+
 // ---------------------------------------------------------------------------
 // Search
 // ---------------------------------------------------------------------------

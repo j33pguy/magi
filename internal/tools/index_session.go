@@ -6,16 +6,17 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/j33pguy/magi/internal/classify"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // IndexSession bulk-indexes a completed conversation session.
 type IndexSession struct {
-	DB       db.Store
-	Embedder embeddings.Provider
+	DB             db.Store
+	Embedder       embeddings.Provider
+	DefaultProject string
 }
 
 // Tool returns the MCP tool definition for index_session.
@@ -60,6 +61,9 @@ func (s *IndexSession) Handle(ctx context.Context, request mcp.CallToolRequest) 
 	}
 
 	project := request.GetString("project", "")
+	if project == "" && s.DefaultProject != "" {
+		project = s.DefaultProject
+	}
 	sessionID := request.GetString("session_id", "")
 	summarize := request.GetBool("summarize", false)
 

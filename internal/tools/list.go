@@ -11,7 +11,8 @@ import (
 
 // List browses/filters memories without semantic search.
 type List struct {
-	DB db.Store
+	DB             db.Store
+	DefaultProject string
 }
 
 // Tool returns the MCP tool definition for list_memories.
@@ -51,8 +52,13 @@ func (l *List) Handle(_ context.Context, request mcp.CallToolRequest) (*mcp.Call
 		return mcp.NewToolResultError(fmt.Sprintf("invalid 'before': %v", err)), nil
 	}
 
+	project := request.GetString("project", "")
+	if project == "" && l.DefaultProject != "" {
+		project = l.DefaultProject
+	}
+
 	filter := &db.MemoryFilter{
-		Project:    request.GetString("project", ""),
+		Project:    project,
 		Type:       request.GetString("type", ""),
 		Tags:       request.GetStringSlice("tags", nil),
 		Limit:      request.GetInt("limit", 20),
