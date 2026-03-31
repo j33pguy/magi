@@ -118,7 +118,7 @@ func New(logger *slog.Logger) (*Server, error) {
 
 	s.mcp = mcpserver.NewMCPServer(
 		"magi",
-		"0.1.0",
+		"0.3.0",
 		mcpserver.WithToolCapabilities(false),
 		mcpserver.WithResourceCapabilities(false, false),
 		mcpserver.WithRecovery(),

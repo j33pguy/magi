@@ -653,7 +653,7 @@ func (h *handler) getStats() (*statsData, error) {
 	}
 
 	// This week
-	weekAgo := time.Now().AddDate(0, 0, -7).UTC().Format(time.DateTime)
+	weekAgo := time.Now().AddDate(0, 0, -7).UTC().Format(time.RFC3339)
 	err = h.db.DB.QueryRow("SELECT COUNT(*) FROM memories WHERE archived_at IS NULL AND created_at >= ?", weekAgo).Scan(&stats.ThisWeek)
 	if err != nil {
 		return nil, fmt.Errorf("counting this week: %w", err)
