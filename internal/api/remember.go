@@ -64,7 +64,8 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.logger.Error("remember failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("%v", err)})
+		s.logger.Error("remember failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 	if result.Deduplicated {

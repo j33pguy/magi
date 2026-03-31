@@ -8,9 +8,17 @@ import (
 
 // requireAuth wraps a handler with bearer token authentication.
 // Uses constant-time comparison to prevent timing attacks.
+// When MAGI_API_TOKEN is not set, only read-only (GET) requests are allowed.
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.token == "" {
+			// No token configured: read-only mode — block writes
+			if r.Method != http.MethodGet {
+				writeJSON(w, http.StatusForbidden, map[string]string{
+					"error": "write operations require MAGI_API_TOKEN to be set",
+				})
+				return
+			}
 			next(w, r)
 			return
 		}

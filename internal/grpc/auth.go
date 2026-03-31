@@ -10,13 +10,25 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Read-only gRPC methods allowed without a token.
+var grpcReadOnlyMethods = map[string]bool{
+	"/memory.v1.MemoryService/Health":              true,
+	"/memory.v1.MemoryService/Recall":              true,
+	"/memory.v1.MemoryService/List":                true,
+	"/memory.v1.MemoryService/SearchConversations": true,
+	"/memory.v1.MemoryService/GetRelated":          true,
+}
+
 // AuthInterceptor returns a unary server interceptor that checks for a bearer
 // token in the "authorization" gRPC metadata. The Health RPC is exempt.
-// If token is empty, all requests are allowed (dev mode).
+// If token is empty, only read-only RPCs are allowed.
 func AuthInterceptor(token string) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if token == "" {
-			return handler(ctx, req)
+			if grpcReadOnlyMethods[info.FullMethod] {
+				return handler(ctx, req)
+			}
+			return nil, status.Error(codes.PermissionDenied, "write operations require MAGI_API_TOKEN to be set")
 		}
 
 		// Health check is always unauthenticated.

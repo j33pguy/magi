@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -34,7 +33,8 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	embedding, err := s.embedder.Embed(r.Context(), query)
 	if err != nil {
 		s.logger.Error("generating query embedding", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("generating embedding: %v", err)})
+		s.logger.Error("generating embedding", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
@@ -48,7 +48,8 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	results, err := s.db.HybridSearch(embedding, query, filter, topK)
 	if err != nil {
 		s.logger.Error("hybrid search", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("hybrid search: %v", err)})
+		s.logger.Error("hybrid search failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 

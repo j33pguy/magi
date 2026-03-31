@@ -69,7 +69,8 @@ func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
 	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.TopK, req.MinRelevance, req.RecencyDecay)
 	if err != nil {
 		s.logger.Error("adaptive search", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("search: %v", err)})
+		s.logger.Error("recall search failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 

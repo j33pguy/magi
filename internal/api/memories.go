@@ -52,7 +52,8 @@ func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
 	memories, err := s.db.ListMemories(filter)
 	if err != nil {
 		s.logger.Error("listing memories", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("listing memories: %v", err)})
+		s.logger.Error("listing memories", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
@@ -84,7 +85,8 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.db.ArchiveMemory(id); err != nil {
 		s.logger.Error("archiving memory", "error", err, "id", id)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("archiving memory: %v", err)})
+		s.logger.Error("archiving memory", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
