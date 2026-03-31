@@ -6,17 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-<<<<<<< release/v0.3.0
-	"github.com/j33pguy/magi/internal/classify"
-	"github.com/j33pguy/magi/internal/contradiction"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
-	"github.com/j33pguy/magi/internal/db"
-	"github.com/j33pguy/magi/internal/embeddings"
-=======
-	"github.com/j33pguy/magi/internal/db"
-	"github.com/j33pguy/magi/internal/embeddings"
->>>>>>> main
 	"github.com/j33pguy/magi/internal/remember"
 	"github.com/mark3labs/mcp-go/mcp"
 )

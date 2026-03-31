@@ -108,13 +108,8 @@ Route work however you want — [OpenClaw](https://github.com/openclaw/openclaw)
 ## Quick Start
 
 ```bash
-<<<<<<< release/v0.3.0
-# Docker (MEMORY_BACKEND: sqlite | turso | postgres | mysql | sqlserver)
-docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/example-org/magi:latest
-=======
 # Docker (MEMORY_BACKEND: sqlite (default) | turso | postgres | mysql | sqlserver)
-docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/j33pguy/magi:latest
->>>>>>> main
+docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/example-org/magi:latest
 
 # Binary
 MEMORY_BACKEND=postgres ./magi --http-only
@@ -271,13 +266,6 @@ graph TB
 
 This project is dedicated to **Mary Margaret** — a dear friend who believed that the things worth remembering are the things that connect us. MAGI carries her spirit: nothing important should ever be forgotten.
 
-<<<<<<< release/v0.3.0
-## License
-
-[Elastic License 2.0 (ELv2)](LICENSE) — free to use, modify, and self-host. Cannot be offered as a managed/hosted service without a commercial license from the author.
-
-=======
->>>>>>> main
 ## Docker Compose
 
 ```bash
