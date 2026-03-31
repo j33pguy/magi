@@ -234,10 +234,10 @@ func TestHandleListMemoriesWithSpeakerFilter(t *testing.T) {
 
 func TestHandleListMemoriesWithAreaFilter(t *testing.T) {
 	s := newTestServer(t)
-	seedMemoryFull(t, s, "homelab content", "proj", "memory", "user", "homelab", "proxmox", "api", nil)
+	seedMemoryFull(t, s, "infrastructure content", "proj", "memory", "user", "infrastructure", "compute-cluster", "api", nil)
 	seedMemoryFull(t, s, "work content", "proj", "memory", "user", "work", "office", "api", nil)
 
-	req := httptest.NewRequest("GET", "/memories?project=proj&area=homelab", nil)
+	req := httptest.NewRequest("GET", "/memories?project=proj&area=infrastructure", nil)
 	w := httptest.NewRecorder()
 	s.handleListMemories(w, req)
 
@@ -248,18 +248,18 @@ func TestHandleListMemoriesWithAreaFilter(t *testing.T) {
 	var memories []*db.Memory
 	json.NewDecoder(w.Body).Decode(&memories)
 	for _, m := range memories {
-		if m.Area != "homelab" {
-			t.Errorf("expected area=homelab, got %q", m.Area)
+		if m.Area != "infrastructure" {
+			t.Errorf("expected area=infrastructure, got %q", m.Area)
 		}
 	}
 }
 
 func TestHandleListMemoriesWithSubAreaFilter(t *testing.T) {
 	s := newTestServer(t)
-	seedMemoryFull(t, s, "proxmox stuff", "proj", "memory", "user", "homelab", "proxmox", "api", nil)
-	seedMemoryFull(t, s, "networking stuff", "proj", "memory", "user", "homelab", "networking", "api", nil)
+	seedMemoryFull(t, s, "compute-cluster stuff", "proj", "memory", "user", "infrastructure", "compute-cluster", "api", nil)
+	seedMemoryFull(t, s, "networking stuff", "proj", "memory", "user", "infrastructure", "networking", "api", nil)
 
-	req := httptest.NewRequest("GET", "/memories?project=proj&sub_area=proxmox", nil)
+	req := httptest.NewRequest("GET", "/memories?project=proj&sub_area=compute-cluster", nil)
 	w := httptest.NewRecorder()
 	s.handleListMemories(w, req)
 
@@ -270,8 +270,8 @@ func TestHandleListMemoriesWithSubAreaFilter(t *testing.T) {
 	var memories []*db.Memory
 	json.NewDecoder(w.Body).Decode(&memories)
 	for _, m := range memories {
-		if m.SubArea != "proxmox" {
-			t.Errorf("expected sub_area=proxmox, got %q", m.SubArea)
+		if m.SubArea != "compute-cluster" {
+			t.Errorf("expected sub_area=compute-cluster, got %q", m.SubArea)
 		}
 	}
 }
@@ -509,9 +509,9 @@ func TestHandleRecallInvalidBefore(t *testing.T) {
 
 func TestHandleRecallWithSpeakerAreaSubArea(t *testing.T) {
 	s := newTestServer(t)
-	seedMemoryFull(t, s, "homelab proxmox recall", "proj", "memory", "user", "homelab", "proxmox", "api", nil)
+	seedMemoryFull(t, s, "infrastructure compute-cluster recall", "proj", "memory", "user", "infrastructure", "compute-cluster", "api", nil)
 
-	body := `{"query": "proxmox", "speaker": "user", "area": "homelab", "sub_area": "proxmox", "top_k": 5}`
+	body := `{"query": "compute-cluster", "speaker": "user", "area": "infrastructure", "sub_area": "compute-cluster", "top_k": 5}`
 	req := httptest.NewRequest("POST", "/recall", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	s.handleRecall(w, req)
@@ -551,10 +551,10 @@ func TestHandleRecallWithRecencyDecay(t *testing.T) {
 
 func TestHandleRecallWithProjects(t *testing.T) {
 	s := newTestServer(t)
-	seedMemory(t, s, "multi project recall", "agent:dinesh", "memory")
+	seedMemory(t, s, "multi project recall", "agent:bob", "memory")
 	seedMemory(t, s, "shared project recall", "crew:shared", "memory")
 
-	body := `{"query": "multi project", "projects": ["agent:dinesh", "crew:shared"], "top_k": 5}`
+	body := `{"query": "multi project", "projects": ["agent:bob", "crew:shared"], "top_k": 5}`
 	req := httptest.NewRequest("POST", "/recall", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	s.handleRecall(w, req)
@@ -608,7 +608,7 @@ func TestHandleRememberWithSpeaker(t *testing.T) {
 func TestHandleRememberWithAreaAndSubArea(t *testing.T) {
 	s := newTestServer(t)
 
-	body := `{"content": "homelab proxmox config", "project": "proj", "area": "homelab", "sub_area": "proxmox"}`
+	body := `{"content": "infrastructure compute-cluster config", "project": "proj", "area": "infrastructure", "sub_area": "compute-cluster"}`
 	req := httptest.NewRequest("POST", "/remember", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	s.handleRemember(w, req)
@@ -622,11 +622,11 @@ func TestHandleRememberWithAreaAndSubArea(t *testing.T) {
 	id := resp["id"].(string)
 
 	got, _ := s.db.GetMemory(id)
-	if got.Area != "homelab" {
-		t.Errorf("area = %q, want %q", got.Area, "homelab")
+	if got.Area != "infrastructure" {
+		t.Errorf("area = %q, want %q", got.Area, "infrastructure")
 	}
-	if got.SubArea != "proxmox" {
-		t.Errorf("sub_area = %q, want %q", got.SubArea, "proxmox")
+	if got.SubArea != "compute-cluster" {
+		t.Errorf("sub_area = %q, want %q", got.SubArea, "compute-cluster")
 	}
 }
 
@@ -728,8 +728,8 @@ func TestHandleRememberAllFields(t *testing.T) {
 		"type": "insight",
 		"visibility": "public",
 		"source": "discord",
-		"speaker": "j33p",
-		"area": "homelab",
+		"speaker": "alice",
+		"area": "infrastructure",
 		"sub_area": "networking",
 		"tags": ["infra", "vlan"]
 	}`
@@ -758,11 +758,11 @@ func TestHandleRememberAllFields(t *testing.T) {
 	if got.Source != "discord" {
 		t.Errorf("source = %q, want %q", got.Source, "discord")
 	}
-	if got.Speaker != "j33p" {
-		t.Errorf("speaker = %q, want %q", got.Speaker, "j33p")
+	if got.Speaker != "alice" {
+		t.Errorf("speaker = %q, want %q", got.Speaker, "alice")
 	}
-	if got.Area != "homelab" {
-		t.Errorf("area = %q, want %q", got.Area, "homelab")
+	if got.Area != "infrastructure" {
+		t.Errorf("area = %q, want %q", got.Area, "infrastructure")
 	}
 	if got.SubArea != "networking" {
 		t.Errorf("sub_area = %q, want %q", got.SubArea, "networking")
@@ -929,8 +929,8 @@ func TestHandleCreateConversationAllFields(t *testing.T) {
 		"started_at": "2026-03-28T10:00:00Z",
 		"ended_at": "2026-03-28T10:45:00Z",
 		"turn_count": 15,
-		"summary": "Discussed full rebuild of the homelab rack",
-		"topics": ["homelab", "networking", "proxmox"],
+		"summary": "Discussed full rebuild of the infrastructure rack",
+		"topics": ["infrastructure", "networking", "compute"],
 		"decisions": ["Switch to LACP bond", "Use vault-unsealer"],
 		"action_items": ["Order new NIC", "Flash firmware"]
 	}`
@@ -960,7 +960,7 @@ func TestHandleCreateConversationAllFields(t *testing.T) {
 	if got.Source != "discord" {
 		t.Errorf("source = %q, want discord", got.Source)
 	}
-	if got.Summary != "Discussed full rebuild of the homelab rack" {
+	if got.Summary != "Discussed full rebuild of the infrastructure rack" {
 		t.Errorf("summary = %q", got.Summary)
 	}
 
@@ -969,9 +969,9 @@ func TestHandleCreateConversationAllFields(t *testing.T) {
 	expectedTags := map[string]bool{
 		"channel:discord":   true,
 		"conversation":      true,
-		"topic:homelab":     true,
+		"topic:infrastructure": true,
 		"topic:networking":  true,
-		"topic:proxmox":     true,
+		"topic:compute":     true,
 	}
 	for _, tag := range tags {
 		delete(expectedTags, tag)
@@ -1060,9 +1060,9 @@ func TestHandleSearchConversationsWithTopK(t *testing.T) {
 
 func TestHandleSearchConversationsWithMinRelevance(t *testing.T) {
 	s := newTestServer(t)
-	seedConversation(t, s, "homelab infrastructure discussion", "discord", nil)
+	seedConversation(t, s, "infrastructure systems discussion", "discord", nil)
 
-	body := `{"query": "homelab infrastructure", "min_relevance": 0.1}`
+	body := `{"query": "infrastructure systems", "min_relevance": 0.1}`
 	req := httptest.NewRequest("POST", "/conversations/search", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	s.handleSearchConversations(w, req)
@@ -1088,7 +1088,7 @@ func TestHandleSearchConversationsWithRecencyDecay(t *testing.T) {
 
 func TestHandleSearchConversationsAllParams(t *testing.T) {
 	s := newTestServer(t)
-	seedConversation(t, s, "full param search test", "discord", []string{"homelab"})
+	seedConversation(t, s, "full param search test", "discord", []string{"infrastructure"})
 
 	body := `{
 		"query": "full param search",

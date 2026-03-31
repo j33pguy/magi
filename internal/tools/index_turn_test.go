@@ -48,7 +48,7 @@ func TestContentHash(t *testing.T) {
 
 func TestContentHashDedup(t *testing.T) {
 	// Same content indexed twice should produce identical hash
-	content := "I configured the proxmox cluster with 3 nodes"
+	content := "I configured the compute cluster with 3 nodes"
 	h1 := contentHash(content)
 	h2 := contentHash(content)
 	if h1 != h2 {

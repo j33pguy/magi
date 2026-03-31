@@ -14,8 +14,8 @@ func TestScoreContradiction_NumericChange(t *testing.T) {
 	}{
 		{
 			name:       "VLAN number change",
-			newText:    "proxmox is on vlan 150",
-			existing:   "proxmox is on vlan 5",
+			newText:    "compute-node is on vlan 150",
+			existing:   "compute-node is on vlan 5",
 			wantMin:    0.7,
 			wantReason: "numeric value differs",
 		},
@@ -35,8 +35,8 @@ func TestScoreContradiction_NumericChange(t *testing.T) {
 		},
 		{
 			name:     "same numbers no contradiction",
-			newText:  "proxmox is on vlan 5",
-			existing: "proxmox is on vlan 5",
+			newText:  "compute-node is on vlan 5",
+			existing: "compute-node is on vlan 5",
 			wantMin:  0,
 		},
 	}
@@ -125,13 +125,13 @@ func TestScoreContradiction_ReplacementLanguage(t *testing.T) {
 		{
 			name:     "was X now Y",
 			newText:  "was on vlan 5, now on vlan 150",
-			existing: "proxmox is on vlan 5",
+			existing: "compute-node is on vlan 5",
 			wantMin:  0.4,
 		},
 		{
 			name:     "no replacement language",
-			newText:  "proxmox is running well",
-			existing: "proxmox has good uptime",
+			newText:  "compute-node is running well",
+			existing: "compute-node has good uptime",
 			wantMin:  0,
 		},
 	}
@@ -179,7 +179,7 @@ func TestTruncate(t *testing.T) {
 }
 
 func TestExtractKeywordNumbers(t *testing.T) {
-	pairs := extractKeywordNumbers("proxmox is on vlan 150 and port 8300")
+	pairs := extractKeywordNumbers("compute-node is on vlan 150 and port 8300")
 	if nums, ok := pairs["vlan"]; !ok || len(nums) == 0 || nums[0] != "150" {
 		t.Errorf("expected vlan=150, got %v", pairs["vlan"])
 	}

@@ -5,7 +5,7 @@
         hx-get="/api/memories" hx-target="#memory-list" hx-include=".filter-select"
         hx-vals='{"offset": "0"}'>
         <option value="">All speakers</option>
-        <option value="j33p"{{if eq .Filter.Speaker "j33p"}} selected{{end}}>j33p</option>
+        <option value="user"{{if eq .Filter.Speaker "user"}} selected{{end}}>user</option>
         <option value="assistant"{{if eq .Filter.Speaker "assistant"}} selected{{end}}>assistant</option>
         <option value="agent"{{if eq .Filter.Speaker "agent"}} selected{{end}}>agent</option>
         <option value="system"{{if eq .Filter.Speaker "system"}} selected{{end}}>system</option>
@@ -15,7 +15,7 @@
         hx-vals='{"offset": "0"}'>
         <option value="">All areas</option>
         <option value="work"{{if eq .Filter.Area "work"}} selected{{end}}>work</option>
-        <option value="homelab"{{if eq .Filter.Area "homelab"}} selected{{end}}>homelab</option>
+        <option value="infrastructure"{{if eq .Filter.Area "infrastructure"}} selected{{end}}>infrastructure</option>
         <option value="home"{{if eq .Filter.Area "home"}} selected{{end}}>home</option>
         <option value="family"{{if eq .Filter.Area "family"}} selected{{end}}>family</option>
         <option value="project"{{if eq .Filter.Area "project"}} selected{{end}}>project</option>

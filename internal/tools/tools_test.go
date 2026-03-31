@@ -470,12 +470,12 @@ func TestRememberSuccess(t *testing.T) {
 	r := &Remember{DB: dbClient, Embedder: &mockEmbedder{}}
 
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content": "new memory about proxmox cluster setup",
-		"project": "homelab",
+		"content": "new memory about compute cluster setup",
+		"project": "infra",
 		"type":    "memory",
-		"tags":    []string{"proxmox", "homelab"},
+		"tags":    []string{"compute", "infra"},
 		"speaker": "user",
-		"area":    "homelab",
+		"area":    "infrastructure",
 	}))
 	if err != nil {
 		t.Fatalf("Handle: %v", err)
@@ -519,8 +519,8 @@ func TestStoreConversation(t *testing.T) {
 
 	result, err := s.Handle(context.Background(), makeRequest(map[string]any{
 		"channel": "discord",
-		"summary": "Discussed homelab changes",
-		"topics":  []string{"homelab", "networking"},
+		"summary": "Discussed infrastructure changes",
+		"topics":  []string{"infrastructure", "networking"},
 	}))
 	if err != nil {
 		t.Fatalf("Handle: %v", err)

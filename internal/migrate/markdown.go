@@ -30,15 +30,15 @@ type FileMapping struct {
 	Tags     []string
 }
 
-// DefaultMappings returns the import mappings for the IaC project's memory files.
+// DefaultMappings returns example import mappings for a project's memory files.
 func DefaultMappings() []FileMapping {
 	return []FileMapping{
-		{Filename: "MEMORY.md", Project: "iac", Type: "context", Tags: []string{"index"}},
-		{Filename: "ephemeral-runners.md", Project: "iac", Type: "context", Tags: []string{"scaleset", "github-actions"}},
-		{Filename: "security-audit-2026-03-19.md", Project: "iac", Type: "security", Tags: []string{"audit", "remediation"}},
-		{Filename: "recovery-pi-project.md", Project: "iac", Type: "decision", Tags: []string{"recovery", "raspberry-pi"}},
-		{Filename: "project-authentik-sso.md", Project: "iac", Type: "context", Tags: []string{"authentik", "sso"}},
-		{Filename: "planned-review-session.md", Project: "iac", Type: "context", Tags: []string{"review", "tasks"}},
+		{Filename: "MEMORY.md", Project: "default", Type: "context", Tags: []string{"index"}},
+		{Filename: "architecture.md", Project: "default", Type: "context", Tags: []string{"architecture", "design"}},
+		{Filename: "security-audit.md", Project: "default", Type: "security", Tags: []string{"audit", "remediation"}},
+		{Filename: "recovery-plan.md", Project: "default", Type: "decision", Tags: []string{"recovery", "disaster-recovery"}},
+		{Filename: "auth-integration.md", Project: "default", Type: "context", Tags: []string{"auth", "sso"}},
+		{Filename: "review-session.md", Project: "default", Type: "context", Tags: []string{"review", "tasks"}},
 	}
 }
 

@@ -22,36 +22,32 @@ var rules = []rule{
 	{regexp.MustCompile(`(?i)microsoft fabric|fabric capacity|fabric workspace`), "work", "fabric"},
 	{regexp.MustCompile(`(?i)power.?bi|pbix|\bdax\b|\bdashboard\b|\breport\b`), "work", "power-bi"},
 	{regexp.MustCompile(`(?i)sharepoint|spo\b`), "work", "sharepoint"},
-	{regexp.MustCompile(`(?i)td.?synnex|synnex|partner enablement|solutions architect`), "work", "td-synnex"},
 	{regexp.MustCompile(`(?i)azure|microsoft 365|m365|\bteams\b|entra`), "work", "azure"},
 
-	// project (before homelab — more specific patterns like vault-unsealer must match before generic vault)
+	// project (before infrastructure — more specific patterns must match before generic ones)
 	{regexp.MustCompile(`(?i)magi|memory server|mcp server`), "project", "magi"},
-	{regexp.MustCompile(`(?i)distify|behavioral trust|trust verification`), "project", "distify"},
-	{regexp.MustCompile(`(?i)labctl|lab.?ctl`), "project", "labctl"},
-	{regexp.MustCompile(`(?i)vault.?unsealer|auto.?unseal`), "project", "vault-unsealer"},
 
-	// homelab (ansible/terraform before proxmox — "ansible playbook to configure LXC" should match iac, not proxmox)
-	{regexp.MustCompile(`(?i)ansible|playbook|\brole\b|inventory|semaphore`), "homelab", "iac"},
-	{regexp.MustCompile(`(?i)terraform|tfstate`), "homelab", "iac"},
-	{regexp.MustCompile(`(?i)proxmox|pve|lxc container|\bvm\b|qemu|ct\d+`), "homelab", "proxmox"},
-	{regexp.MustCompile(`(?i)pihole|pi-hole|\bdns\b|unbound|blocklist`), "homelab", "dns"},
-	{regexp.MustCompile(`(?i)traefik|reverse proxy|let.?s encrypt|acme|\bcertificate\b`), "homelab", "networking"},
-	{regexp.MustCompile(`(?i)\bvault\b|hashicorp|approle|\bsecret\b`), "homelab", "vault"},
-	{regexp.MustCompile(`(?i)authentik|oidc|\bsso\b|forward.?auth|webauthn|yubikey`), "homelab", "authentik"},
-	{regexp.MustCompile(`(?i)grafana|prometheus|loki|alertmanager|monitoring`), "homelab", "monitoring"},
-	{regexp.MustCompile(`(?i)lancache|steam.?cache|cdn.?cache`), "homelab", "lancache"},
-	{regexp.MustCompile(`(?i)\bvlan\b|\bswitch\b|ubiquiti|unifi|\bnetwork\b`), "homelab", "networking"},
+	// infrastructure (iac before compute — "ansible playbook to configure containers" should match iac, not compute)
+	{regexp.MustCompile(`(?i)ansible|playbook|\brole\b|inventory|semaphore`), "infrastructure", "iac"},
+	{regexp.MustCompile(`(?i)terraform|tfstate|pulumi|cloudformation`), "infrastructure", "iac"},
+	{regexp.MustCompile(`(?i)hypervisor|virtualization|\bvm\b|qemu|container runtime|lxc|docker|podman`), "infrastructure", "compute"},
+	{regexp.MustCompile(`(?i)\bdns\b|nameserver|resolver|blocklist|domain resolution`), "infrastructure", "dns"},
+	{regexp.MustCompile(`(?i)reverse proxy|load.?balancer|ingress|let.?s encrypt|acme|\bcertificate\b|tls termination`), "infrastructure", "networking"},
+	{regexp.MustCompile(`(?i)\bvault\b|hashicorp|approle|\bsecret\b|credential.?store`), "infrastructure", "security"},
+	{regexp.MustCompile(`(?i)oidc|\bsso\b|forward.?auth|webauthn|yubikey|identity.?provider|saml`), "infrastructure", "security"},
+	{regexp.MustCompile(`(?i)grafana|prometheus|loki|alertmanager|monitoring|observability|metrics`), "infrastructure", "monitoring"},
+	{regexp.MustCompile(`(?i)cdn.?cache|object.?storage|\bnfs\b|\bceph\b|backup.?storage`), "infrastructure", "storage"},
+	{regexp.MustCompile(`(?i)\bvlan\b|\bswitch\b|\bfirewall\b|\brouter\b|\bnetwork\b|subnet`), "infrastructure", "networking"},
+	{regexp.MustCompile(`(?i)ci.?cd|github.?actions|gitlab.?ci|jenkins|pipeline|build.?server`), "infrastructure", "ci-cd"},
 
-	// home
-	{regexp.MustCompile(`(?i)lego|technic|minifig|\bmoc\b|set \d{4,}`), "home", "lego"},
-	{regexp.MustCompile(`(?i)twitch|streaming|\bobs\b|ring light`), "home", "streaming"},
-	{regexp.MustCompile(`(?i)youtube`), "home", "streaming"},
-	{regexp.MustCompile(`(?i)stationeers|gaming|\bgame\b`), "home", "gaming"},
+	// personal
+	{regexp.MustCompile(`(?i)hobby|side.?project|personal|free.?time`), "personal", "general"},
+	{regexp.MustCompile(`(?i)gaming|\bgame\b|streaming|\bobs\b`), "personal", "gaming"},
 
-	// family
-	{regexp.MustCompile(`(?i)\bkids?\b|\bboys?\b|\bson\b|\bdaughter\b|school|sports`), "family", "kids"},
-	{regexp.MustCompile(`(?i)wife|spouse|\bpartner\b`), "family", "spouse"},
+	// development
+	{regexp.MustCompile(`(?i)\bapi\b|endpoint|rest|grpc|graphql`), "development", "api"},
+	{regexp.MustCompile(`(?i)database|\bsql\b|migration|schema`), "development", "database"},
+	{regexp.MustCompile(`(?i)testing|\btest\b|coverage|benchmark`), "development", "testing"},
 }
 
 // Infer returns a best-guess Classification for the given content.

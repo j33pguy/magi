@@ -86,7 +86,7 @@ func TestRememberContradictionDetection(t *testing.T) {
 	_, err := dbClient.SaveMemory(&db.Memory{
 		Content:    "VLAN 10 is used for management and is enabled",
 		Embedding:  emb,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 		Speaker:    "assistant",
@@ -98,7 +98,7 @@ func TestRememberContradictionDetection(t *testing.T) {
 	r := &Remember{DB: dbClient, Embedder: &orthogonalEmbedder{}}
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
 		"content": "VLAN 10 is used for management networking and is currently disabled on all switches",
-		"project": "homelab",
+		"project": "infra",
 		"type":    "memory",
 	}))
 	if err != nil {
@@ -127,7 +127,7 @@ func TestRememberParentLinkingMessage(t *testing.T) {
 	saved, err := dbClient.SaveMemory(&db.Memory{
 		Content:    content50,
 		Embedding:  emb,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 		Speaker:    "assistant",
@@ -140,7 +140,7 @@ func TestRememberParentLinkingMessage(t *testing.T) {
 	// Use content of similar length so the embedding is close
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
 		"content": content50, // exact same content, will trigger dedup
-		"project": "homelab",
+		"project": "infra",
 	}))
 	if err != nil {
 		t.Fatalf("Handle: %v", err)
@@ -164,9 +164,9 @@ func TestRememberNearDuplicateDedup(t *testing.T) {
 	emb := make([]float32, 384)
 	emb[0] = 0.50
 	_, err := dbClient.SaveMemory(&db.Memory{
-		Content:    "Original content about proxmox configuration",
+		Content:    "Original content about compute-cluster configuration",
 		Embedding:  emb,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 		Speaker:    "assistant",
@@ -179,8 +179,8 @@ func TestRememberNearDuplicateDedup(t *testing.T) {
 	// Very similar content - the mock embedder will produce near-identical embeddings
 	// for same-length strings, making distance ~0.0 which should trigger dedup
 	result, _ := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content":         "Original content about proxmox configuration",
-		"project":         "homelab",
+		"content":         "Original content about compute-cluster configuration",
+		"project":         "infra",
 		"dedup_threshold": 0.80,
 	}))
 	text := result.Content[0].(mcp.TextContent).Text
@@ -278,8 +278,8 @@ func TestIndexTurnWithSessionAndClassification(t *testing.T) {
 	// Content that classify.Infer might assign area/sub_area
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"role":       "user",
-		"content":    "I configured the proxmox cluster nodes for homelab networking with VLANs",
-		"project":    "homelab",
+		"content":    "I configured the compute-cluster cluster nodes for infrastructure networking with VLANs",
+		"project":    "infra",
 		"session_id": "sess-coverage",
 	}))
 	if err != nil {
@@ -370,11 +370,11 @@ func TestIngestConversationWithProject(t *testing.T) {
 	dbClient := newTestDB(t)
 	tool := &IngestConversation{DB: dbClient, Embedder: &mockEmbedder{}}
 
-	conv := "User: I set up a proxmox cluster with VLANs for homelab networking isolation\nAssistant: Great, that's a solid approach for network segmentation."
+	conv := "User: I set up a compute-cluster cluster with VLANs for infrastructure networking isolation\nAssistant: Great, that's a solid approach for network segmentation."
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"content": conv,
-		"project": "homelab",
+		"project": "infra",
 	}))
 	if err != nil {
 		t.Fatalf("Handle: %v", err)
@@ -671,7 +671,7 @@ func TestStoreConversationParentLinking(t *testing.T) {
 	// Store first conversation
 	result1, err := s.Handle(context.Background(), makeRequest(map[string]any{
 		"channel": "mcp",
-		"summary": "Discussion about setting up monitoring infrastructure for the homelab with Prometheus",
+		"summary": "Discussion about setting up monitoring infrastructure for the infra project with Prometheus",
 		"topics":  []string{"monitoring", "prometheus"},
 	}))
 	if err != nil {
@@ -684,7 +684,7 @@ func TestStoreConversationParentLinking(t *testing.T) {
 	// Store a different but related conversation (similar-ish embedding)
 	result2, err := s.Handle(context.Background(), makeRequest(map[string]any{
 		"channel": "mcp",
-		"summary": "Follow-up discussion about setting up alerting for monitoring infrastructure homelab Prometheus dashboards",
+		"summary": "Follow-up discussion about setting up alerting for monitoring infrastructure infra Prometheus dashboards",
 		"topics":  []string{"monitoring", "alerting"},
 	}))
 	if err != nil {
@@ -704,9 +704,9 @@ func TestRecallWithSpeakerFilter(t *testing.T) {
 	emb := make([]float32, 384)
 	emb[0] = 0.45
 	dbClient.SaveMemory(&db.Memory{
-		Content:    "User said proxmox cluster is running fine after upgrade",
+		Content:    "User said compute-cluster cluster is running fine after upgrade",
 		Embedding:  emb,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 		Speaker:    "user",
@@ -714,8 +714,8 @@ func TestRecallWithSpeakerFilter(t *testing.T) {
 
 	r := &Recall{DB: dbClient, Embedder: &mockEmbedder{}}
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
-		"query":   "proxmox cluster upgrade",
-		"project": "homelab",
+		"query":   "compute-cluster cluster upgrade",
+		"project": "infra",
 		"speaker": "user",
 	}))
 	if err != nil {
@@ -903,13 +903,13 @@ func TestRememberAllOptionalParams(t *testing.T) {
 	r := &Remember{DB: dbClient, Embedder: &mockEmbedder{}}
 
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content":         "Full parameter test for remember tool with homelab VLAN configuration",
-		"project":         "homelab",
+		"content":         "Full parameter test for remember tool with infrastructure VLAN configuration",
+		"project":         "infra",
 		"type":            "decision",
 		"summary":         "VLAN config decision",
 		"tags":            []string{"networking", "vlan"},
 		"speaker":         "user",
-		"area":            "homelab",
+		"area":            "infrastructure",
 		"sub_area":        "networking",
 		"dedup_threshold": 0.90,
 	}))
@@ -968,13 +968,13 @@ func TestLinkMemoriesSelfLink(t *testing.T) {
 
 func TestRecallWithProjects(t *testing.T) {
 	dbClient := newTestDB(t)
-	seedTestMemory(t, dbClient, "Multi-namespace recall test memory about proxmox", "homelab", "memory")
-	seedTestMemory(t, dbClient, "Multi-namespace recall test memory about terraform", "infra", "memory")
+	seedTestMemory(t, dbClient, "Multi-namespace recall test memory about compute-cluster", "infra", "memory")
+	seedTestMemory(t, dbClient, "Multi-namespace recall test memory about terraform", "ops", "memory")
 
 	r := &Recall{DB: dbClient, Embedder: &mockEmbedder{}}
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
-		"query":    "proxmox terraform",
-		"projects": []string{"homelab", "infra"},
+		"query":    "compute-cluster terraform",
+		"projects": []string{"infra", "ops"},
 	}))
 	if err != nil {
 		t.Fatalf("Handle: %v", err)
@@ -995,7 +995,7 @@ func TestIngestConversationDedupSecondRun(t *testing.T) {
 	// First ingest
 	result1, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"content": conv,
-		"project": "homelab",
+		"project": "infra",
 	}))
 	if err != nil {
 		t.Fatalf("first Handle: %v", err)
@@ -1007,7 +1007,7 @@ func TestIngestConversationDedupSecondRun(t *testing.T) {
 	// Second ingest of same content - should skip duplicates
 	result2, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"content": conv,
-		"project": "homelab",
+		"project": "infra",
 	}))
 	if err != nil {
 		t.Fatalf("second Handle: %v", err)
@@ -1052,18 +1052,18 @@ func TestCheckContradictionsAreaSubArea(t *testing.T) {
 	dbClient.SaveMemory(&db.Memory{
 		Content:    "The server runs Ubuntu 22.04 LTS",
 		Embedding:  emb,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 		Speaker:    "assistant",
-		Area:       "homelab",
+		Area:       "infrastructure",
 		SubArea:    "servers",
 	})
 
 	tool := &CheckContradictions{DB: dbClient, Embedder: &mockEmbedder{}}
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"content":   "The server runs Debian 12",
-		"area":      "homelab",
+		"area":      "infrastructure",
 		"sub_area":  "servers",
 		"threshold": 0.5,
 	}))
@@ -1092,7 +1092,7 @@ func TestRememberParentLinkPath(t *testing.T) {
 	_, err := dbClient.SaveMemory(&db.Memory{
 		Content:    "VLAN 5 is used for guest network access",
 		Embedding:  seedEmb,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 		Speaker:    "assistant",
@@ -1116,7 +1116,7 @@ func TestRememberParentLinkPath(t *testing.T) {
 
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
 		"content": "VLAN 50 is used for IoT device isolation",
-		"project": "homelab",
+		"project": "infra",
 		"type":    "memory",
 	}))
 	if err != nil {
@@ -1177,11 +1177,11 @@ func TestRememberWithContradictionDetected(t *testing.T) {
 	_, err := dbClient.SaveMemory(&db.Memory{
 		Content:    "VLAN 5 is used for IoT devices and is enabled on all switches",
 		Embedding:  seedEmb,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 		Speaker:    "assistant",
-		Area:       "homelab",
+		Area:       "infrastructure",
 		SubArea:    "networking",
 	})
 	if err != nil {
@@ -1201,9 +1201,9 @@ func TestRememberWithContradictionDetected(t *testing.T) {
 	// Set area/sub_area explicitly to match seed so contradiction detector finds it
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
 		"content":  "VLAN 5 is used for IoT devices and is disabled on all switches",
-		"project":  "homelab",
+		"project":  "infra",
 		"type":     "memory",
-		"area":     "homelab",
+		"area":     "infrastructure",
 		"sub_area": "networking",
 	}))
 	if err != nil {
@@ -1234,7 +1234,7 @@ func TestStoreConversationParentLinkNotDedup(t *testing.T) {
 	seedEmb[0] = 1.0
 
 	_, err := dbClient.SaveMemory(&db.Memory{
-		Content:    "Conversation about VLAN setup for homelab",
+		Content:    "Conversation about VLAN setup for infrastructure",
 		Summary:    "VLAN setup discussion",
 		Embedding:  seedEmb,
 		Type:       "conversation",
@@ -1371,7 +1371,7 @@ func TestIngestConversationFullImport(t *testing.T) {
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"content": conv,
-		"project": "homelab",
+		"project": "infra",
 	}))
 	if err != nil {
 		t.Fatalf("Handle: %v", err)

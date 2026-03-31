@@ -158,7 +158,7 @@ func TestRemember_WithTags(t *testing.T) {
 	resp, err := srv.Remember(ctx, &pb.RememberRequest{
 		Content: "tagged memory",
 		Tags:    []string{"important", "review"},
-		Speaker: "j33p",
+		Speaker: "alice",
 		Area:    "work",
 		SubArea: "magi",
 	})

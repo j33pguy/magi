@@ -169,11 +169,11 @@ func areaBadge(s string) string {
 	switch s {
 	case "work":
 		return "badge-blue"
-	case "homelab":
+	case "infrastructure":
 		return "badge-amber"
-	case "home":
+	case "personal":
 		return "badge-green"
-	case "family":
+	case "development":
 		return "badge-pink"
 	case "project":
 		return "badge-purple"
@@ -203,11 +203,11 @@ func areaColor(s string) string {
 	switch s {
 	case "work":
 		return "#3b82f6"
-	case "homelab":
+	case "infrastructure":
 		return "#f59e0b"
-	case "home":
+	case "personal":
 		return "#10b981"
-	case "family":
+	case "development":
 		return "#ec4899"
 	case "project":
 		return "#a855f7"

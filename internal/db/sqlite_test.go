@@ -45,7 +45,7 @@ func TestSQLiteSaveAndGet(t *testing.T) {
 		Project:    "test-project",
 		Type:       "memory",
 		Visibility: "internal",
-		Speaker:    "j33p",
+		Speaker:    "alice",
 		Area:       "work",
 		SubArea:    "testing",
 	}
@@ -68,8 +68,8 @@ func TestSQLiteSaveAndGet(t *testing.T) {
 	if got.Project != "test-project" {
 		t.Errorf("Project = %q, want %q", got.Project, "test-project")
 	}
-	if got.Speaker != "j33p" {
-		t.Errorf("Speaker = %q, want %q", got.Speaker, "j33p")
+	if got.Speaker != "alice" {
+		t.Errorf("Speaker = %q, want %q", got.Speaker, "alice")
 	}
 	if got.Area != "work" {
 		t.Errorf("Area = %q, want %q", got.Area, "work")

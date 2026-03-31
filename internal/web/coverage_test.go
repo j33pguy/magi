@@ -31,7 +31,7 @@ func newTestMuxWithData(t *testing.T) (*http.ServeMux, *db.Client) {
 		tags    []string
 	}{
 		{"Discussion about Go patterns", "user", "work", "conversation", []string{"conversation", "channel:discord", "topic:golang"}},
-		{"Proxmox cluster setup notes", "user", "homelab", "conversation", []string{"conversation", "channel:webchat", "topic:homelab"}},
+		{"Compute cluster setup notes", "user", "infrastructure", "conversation", []string{"conversation", "channel:webchat", "topic:infrastructure"}},
 		{"Family dinner planning", "user", "family", "note", []string{"topic:family"}},
 		{"Prefers functional style", "assistant", "work", "pattern", []string{"pattern", "pattern_type:preference"}},
 		{"Makes quick decisions under pressure", "user", "work", "pattern", []string{"pattern", "pattern_type:decision_style"}},
@@ -261,7 +261,7 @@ func TestCov_APIConversationsSearchWithData(t *testing.T) {
 func TestCov_APIConversationsSearchWithChannelData(t *testing.T) {
 	mux, _ := newTestMuxWithData(t)
 
-	body := `{"query":"proxmox","channel":"webchat"}`
+	body := `{"query":"compute-cluster","channel":"webchat"}`
 	req := httptest.NewRequest("POST", "/api/conversations/search", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -1508,7 +1508,7 @@ func TestCov_GetStatsWithTopArea(t *testing.T) {
 	emb3[0] = 0.3
 	saved, _ := client.SaveMemory(&db.Memory{
 		Content: "tagged memory", Summary: "tagged", Type: "note",
-		Speaker: "assistant", Area: "homelab", Embedding: emb3, TokenCount: 3,
+		Speaker: "assistant", Area: "infrastructure", Embedding: emb3, TokenCount: 3,
 	})
 	client.SetTags(saved.ID, []string{"test-tag"})
 

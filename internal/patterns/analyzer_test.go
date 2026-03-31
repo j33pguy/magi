@@ -112,29 +112,29 @@ func TestAnalyze_BelowThreshold_NoPattern(t *testing.T) {
 }
 
 func TestAnalyze_WorkTimingPattern_Weekends(t *testing.T) {
-	// Create memories: homelab on weekends, work on weekdays
+	// Create memories: infrastructure on weekends, work on weekdays
 	var memories []*db.Memory
 
-	// Saturday memories (homelab)
+	// Saturday memories (infrastructure)
 	sat := time.Date(2025, 3, 15, 14, 0, 0, 0, time.UTC) // Saturday
 	for i := 0; i < 5; i++ {
 		memories = append(memories, &db.Memory{
 			ID:        fmt.Sprintf("sat-%d", i),
 			Content:   fmt.Sprintf("Proxmox VM setup task %d", i),
 			Speaker:   "user",
-			Area:      "homelab",
+			Area:      "infrastructure",
 			CreatedAt: sat.Add(time.Duration(i) * time.Hour).Format(time.DateTime),
 		})
 	}
 
-	// Sunday memories (homelab)
+	// Sunday memories (infrastructure)
 	sun := time.Date(2025, 3, 16, 10, 0, 0, 0, time.UTC) // Sunday
 	for i := 0; i < 3; i++ {
 		memories = append(memories, &db.Memory{
 			ID:        fmt.Sprintf("sun-%d", i),
 			Content:   fmt.Sprintf("Network config task %d", i),
 			Speaker:   "user",
-			Area:      "homelab",
+			Area:      "infrastructure",
 			CreatedAt: sun.Add(time.Duration(i) * time.Hour).Format(time.DateTime),
 		})
 	}
@@ -156,15 +156,15 @@ func TestAnalyze_WorkTimingPattern_Weekends(t *testing.T) {
 
 	found := false
 	for _, p := range patterns {
-		if p.Type == PatternWorkPattern && containsString(p.Description, "homelab") && containsString(p.Description, "weekend") {
+		if p.Type == PatternWorkPattern && containsString(p.Description, "infrastructure") && containsString(p.Description, "weekend") {
 			found = true
-			if p.Area != "homelab" {
-				t.Errorf("expected area=homelab, got %s", p.Area)
+			if p.Area != "infrastructure" {
+				t.Errorf("expected area=infrastructure, got %s", p.Area)
 			}
 		}
 	}
 	if !found {
-		t.Error("expected weekend homelab work pattern, not found")
+		t.Error("expected weekend infrastructure work pattern, not found")
 	}
 }
 

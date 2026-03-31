@@ -128,11 +128,11 @@ curl -X POST http://localhost:8302/remember \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "content": "Switched from Terraform to Ansible for homelab IaC",
+    "content": "Switched from Terraform to Ansible for infrastructure IaC",
     "project": "iac",
     "type": "decision",
     "speaker": "grok",
-    "area": "homelab",
+    "area": "infrastructure",
     "sub_area": "iac",
     "tags": ["infrastructure", "tooling"]
   }'
@@ -174,7 +174,7 @@ curl -X POST http://localhost:8302/recall \
   -H "Content-Type: application/json" \
   -d '{
     "query": "DNS resolution problems",
-    "area": "homelab",
+    "area": "infrastructure",
     "top_k": 5,
     "min_relevance": 0.3
   }'
@@ -209,7 +209,7 @@ GET /search?q=<query>
 ```
 
 ```bash
-curl "http://localhost:8302/search?q=traefik+config&top_k=3" \
+curl "http://localhost:8302/search?q=reverse-proxy+config&top_k=3" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -233,7 +233,7 @@ GET /memories
 ```
 
 ```bash
-curl "http://localhost:8302/memories?area=homelab&type=decision&limit=10" \
+curl "http://localhost:8302/memories?area=infrastructure&type=decision&limit=10" \
   -H "Authorization: Bearer $TOKEN"
 ```
 

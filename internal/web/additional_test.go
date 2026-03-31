@@ -229,7 +229,7 @@ func TestAPIConversationsSearch_InvalidJSON(t *testing.T) {
 
 func TestAPIConversationsSearch_WithChannel(t *testing.T) {
 	mux := newTestMux(t)
-	body := `{"query":"homelab","channel":"discord"}`
+	body := `{"query":"infrastructure","channel":"discord"}`
 	req := httptest.NewRequest("POST", "/api/conversations/search", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -477,9 +477,9 @@ func TestAreaBadge(t *testing.T) {
 		want  string
 	}{
 		{"work", "badge-blue"},
-		{"homelab", "badge-amber"},
-		{"home", "badge-green"},
-		{"family", "badge-pink"},
+		{"infrastructure", "badge-amber"},
+		{"personal", "badge-green"},
+		{"development", "badge-pink"},
 		{"project", "badge-purple"},
 		{"meta", "badge-gray"},
 		{"other", "badge-gray"},
@@ -518,9 +518,9 @@ func TestAreaColor(t *testing.T) {
 		want  string
 	}{
 		{"work", "#3b82f6"},
-		{"homelab", "#f59e0b"},
-		{"home", "#10b981"},
-		{"family", "#ec4899"},
+		{"infrastructure", "#f59e0b"},
+		{"personal", "#10b981"},
+		{"development", "#ec4899"},
 		{"project", "#a855f7"},
 		{"meta", "#64748b"},
 		{"other", "#64748b"},
