@@ -6,17 +6,18 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/j33pguy/magi/internal/classify"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
 	"github.com/j33pguy/magi/internal/ingest"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // IngestConversation imports a conversation export into memory.
 type IngestConversation struct {
-	DB       db.Store
-	Embedder embeddings.Provider
+	DB             db.Store
+	Embedder       embeddings.Provider
+	DefaultProject string
 }
 
 // Tool returns the MCP tool definition for ingest_conversation.
@@ -38,6 +39,9 @@ func (t *IngestConversation) Handle(ctx context.Context, request mcp.CallToolReq
 	}
 
 	project := request.GetString("project", "")
+	if project == "" && t.DefaultProject != "" {
+		project = t.DefaultProject
+	}
 	dryRun := request.GetBool("dry_run", false)
 
 	data := []byte(content)
@@ -69,10 +73,10 @@ func (t *IngestConversation) Handle(ctx context.Context, request mcp.CallToolReq
 			})
 		}
 		result := struct {
-			Format    string    `json:"format"`
-			WouldImport int    `json:"would_import"`
-			WouldSkip   int    `json:"would_skip"`
-			Memories  []preview `json:"memories"`
+			Format      string    `json:"format"`
+			WouldImport int       `json:"would_import"`
+			WouldSkip   int       `json:"would_skip"`
+			Memories    []preview `json:"memories"`
 		}{
 			Format:      string(conv.Format),
 			WouldImport: len(kept),

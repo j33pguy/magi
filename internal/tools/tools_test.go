@@ -465,6 +465,29 @@ func TestRememberMissingProject(t *testing.T) {
 	}
 }
 
+func TestRememberDefaultProject(t *testing.T) {
+	dbClient := newTestDB(t)
+	r := &Remember{DB: dbClient, Embedder: &mockEmbedder{}, DefaultProject: "proj"}
+
+	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
+		"content": "default project memory",
+	}))
+	if err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %v", result.Content)
+	}
+
+	list, err := dbClient.ListMemories(&db.MemoryFilter{Project: "proj", Visibility: "all"})
+	if err != nil {
+		t.Fatalf("ListMemories: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected 1 memory, got %d", len(list))
+	}
+}
+
 func TestRememberSuccess(t *testing.T) {
 	dbClient := newTestDB(t)
 	r := &Remember{DB: dbClient, Embedder: &mockEmbedder{}}
