@@ -17,7 +17,7 @@
 ## What's New in v0.2.0
 
 - **Distributed Node Mesh** — Writer, Reader, Index, and Coordinator node types with goroutine pool routing, session affinity for read-your-writes consistency, zero overhead in embedded mode (PR #74)
-- **Prometheus Metrics** — 9 metrics: write/search latency, embedding duration, queue depth, memory count, session count, cache hit/miss, git commits. Scrape `/metrics` (PR #73)
+- **Metrics Endpoint** — 9 metrics: write/search latency, embedding duration, queue depth, memory count, session count, cache hit/miss, git commits. Scrape `/metrics` (PR #73)
 - **Health Probes** — `/readyz` and `/livez` for Kubernetes, expanded `/health` with DB status, uptime, memory count, git status (PR #73)
 - **Write Tracking Helpers** — `TrackTask`, `TrackDecision`, `TrackConversation` for production dogfooding (PR #73)
 - **MCP Config Generator** — `magi mcp-config` outputs ready-to-paste JSON for Claude/Codex (PR #73)
@@ -85,7 +85,7 @@ Route work however you want — [OpenClaw](https://github.com/openclaw/openclaw)
 - **Knowledge Graph** — Auto-linked memories with D3.js visualization
 - **Pattern Detection** — Surfaces behavioral insights across all agents
 - **Async Write Pipeline** — Returns 202 Accepted in <10ms. Worker pool with batch INSERT for throughput.
-- **Prometheus Metrics** — Write/search latency, queue depth, cache stats, embedding duration. Scrape `/metrics`.
+- **Metrics Endpoint** — Write/search latency, queue depth, cache stats, embedding duration. Scrape `/metrics`.
 - **Health Probes** — `/readyz`, `/livez`, expanded `/health`. Kubernetes-ready.
 - **Multi-Protocol** — MCP · gRPC · REST · Web UI
 - **Multi-Backend** — SQLite · Turso · PostgreSQL (pgvector) · MySQL/MariaDB · SQL Server/Azure SQL
@@ -120,7 +120,7 @@ curl http://localhost:8302/readyz
 # Full health (DB status, uptime, memory count, git status)
 curl http://localhost:8302/health
 
-# Prometheus metrics
+# Metrics endpoint
 curl http://localhost:8302/metrics
 ```
 
@@ -145,7 +145,7 @@ curl -X POST http://localhost:8302/recall \
 | Git-Backed Memory Versioning | Every mutation = git commit. Full history, diffs, rollback. DB is a derived index. |
 | Async Write Pipeline | 202 Accepted in <10ms. Worker pool with batch INSERT for high throughput. |
 | Caching Layer | Query cache (SHA256 key, 60s TTL), LRU memory cache (1000 items), embedding cache. |
-| Prometheus Metrics | 9 metrics: write/search latency, queue depth, cache stats, embedding duration, git commits. |
+| Metrics Endpoint | 9 metrics: write/search latency, queue depth, cache stats, embedding duration, git commits. |
 | Health Probes | `/readyz`, `/livez`, expanded `/health` with DB status, uptime, memory count, git status. |
 | Write Tracking | TrackTask, TrackDecision, TrackConversation helpers for production dogfooding. |
 | 20 MCP tools | Full agent integration via stdio |
@@ -166,7 +166,7 @@ curl -X POST http://localhost:8302/recall \
 | Knowledge graph | ✅ | ❌ | ❌ | ❌ |
 | Pattern detection | ✅ | ❌ | ❌ | ❌ |
 | Async pipeline | ✅ | ❌ | ❌ | ❌ |
-| Prometheus metrics | ✅ | ❌ | ❌ | ❌ |
+| Metrics endpoint | ✅ | ❌ | ❌ | ❌ |
 | Health probes (k8s) | ✅ | ❌ | ❌ | ❌ |
 | Typed memories | ✅ | ❌ | Partial | ❌ |
 | Orchestrator-agnostic | ✅ | ❌ | ❌ | ❌ |
@@ -198,7 +198,7 @@ graph TB
     end
 
     subgraph Observability["Observability"]
-        METRICS["Prometheus /metrics"]
+        METRICS["/metrics"]
         HEALTH["Health Probes (/readyz, /livez)"]
         TRACKING["Write Tracking"]
     end
