@@ -266,10 +266,6 @@ graph TB
 
 This project is dedicated to **Mary Margaret** — a dear friend who believed that the things worth remembering are the things that connect us. MAGI carries her spirit: nothing important should ever be forgotten.
 
-## License
-
-MIT
-
 ## Docker Compose
 
 ```bash
@@ -287,3 +283,7 @@ The compose file runs the SQLite backend by default and exposes:
 - `8302` REST API
 
 Persistent data (SQLite DB and ONNX models) is stored in the named volume `magi-data` mounted at `/data`.
+
+## License
+
+[Elastic License 2.0 (ELv2)](LICENSE) — free to use, modify, and self-host. Cannot be offered as a managed/hosted service without a commercial license from the author.
