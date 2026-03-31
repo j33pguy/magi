@@ -58,7 +58,7 @@ func TestAdaptive_RetryHybridSearchError(t *testing.T) {
 	ctx := context.Background()
 
 	// Seed data
-	seedMemory(t, client, "DNS configuration guide for homelab", "proj", "memory")
+	seedMemory(t, client, "DNS configuration guide for infrastructure", "proj", "memory")
 
 	callCount := 0
 	embedWithDBClose := func(ctx2 context.Context, text string) ([]float32, error) {

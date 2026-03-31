@@ -22,7 +22,7 @@ func (c *CheckContradictions) Tool() mcp.Tool {
 	return mcp.NewTool("check_contradictions",
 		mcp.WithDescription("Check if content contradicts any existing memories. Returns potential contradictions with similarity scores and reasons."),
 		mcp.WithString("content", mcp.Required(), mcp.Description("The text to check for contradictions against existing memories")),
-		mcp.WithString("area", mcp.Description("Filter to this top-level area (work, home, family, homelab, project, meta)")),
+		mcp.WithString("area", mcp.Description("Filter to this top-level area (work, infrastructure, development, personal, project, meta)")),
 		mcp.WithString("sub_area", mcp.Description("Filter to this sub-area")),
 		mcp.WithNumber("threshold", mcp.Description("Similarity threshold (0.0-1.0, default 0.85). Higher = stricter matching.")),
 	)

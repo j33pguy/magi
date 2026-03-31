@@ -72,7 +72,7 @@ func seedMemory(t *testing.T, s *Server, content, project, memType string) *db.M
 		Project:    project,
 		Type:       memType,
 		Visibility: "internal",
-		Speaker:    "gilfoyle",
+		Speaker:    "alice",
 	})
 	if err != nil {
 		t.Fatalf("seedMemory: %v", err)
@@ -352,7 +352,7 @@ func TestHandleDeleteMemoryEmptyID(t *testing.T) {
 
 func TestHandleRecall(t *testing.T) {
 	s := newTestServer(t)
-	seedMemory(t, s, "kubernetes cluster backup strategy for homelab", "proj", "memory")
+	seedMemory(t, s, "kubernetes cluster backup strategy for infrastructure", "proj", "memory")
 
 	body := `{"query": "kubernetes backup", "top_k": 5}`
 	req := httptest.NewRequest("POST", "/recall", strings.NewReader(body))
@@ -393,9 +393,9 @@ func TestHandleRecallInvalidJSON(t *testing.T) {
 
 func TestHandleSearch(t *testing.T) {
 	s := newTestServer(t)
-	seedMemory(t, s, "searchable content about proxmox", "proj", "memory")
+	seedMemory(t, s, "searchable content about compute-cluster", "proj", "memory")
 
-	req := httptest.NewRequest("GET", "/search?q=proxmox&top_k=5", nil)
+	req := httptest.NewRequest("GET", "/search?q=compute-cluster&top_k=5", nil)
 	w := httptest.NewRecorder()
 	s.handleSearch(w, req)
 
@@ -421,7 +421,7 @@ func TestHandleSearchMissingQuery(t *testing.T) {
 func TestHandleCreateConversation(t *testing.T) {
 	s := newTestServer(t)
 
-	body := `{"channel": "discord", "summary": "Discussed homelab rebuild", "topics": ["homelab"]}`
+	body := `{"channel": "discord", "summary": "Discussed infrastructure rebuild", "topics": ["infrastructure"]}`
 	req := httptest.NewRequest("POST", "/conversations", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	s.handleCreateConversation(w, req)
@@ -537,15 +537,15 @@ func TestHandleSearchConversations(t *testing.T) {
 
 	emb, _ := s.embedder.Embed(context.Background(), "conv search")
 	m, _ := s.db.SaveMemory(&db.Memory{
-		Content:    "Conversation about homelab rebuild",
-		Summary:    "Homelab rebuild",
+		Content:    "Conversation about infrastructure rebuild",
+		Summary:    "Infrastructure rebuild",
 		Embedding:  emb,
 		Type:       "conversation",
 		Visibility: "private",
 	})
 	_ = s.db.SetTags(m.ID, []string{"conversation"})
 
-	body := `{"query": "homelab rebuild"}`
+	body := `{"query": "infrastructure rebuild"}`
 	req := httptest.NewRequest("POST", "/conversations/search", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	s.handleSearchConversations(w, req)

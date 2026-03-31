@@ -39,11 +39,11 @@ type Memory struct {
 	UpdatedAt  string                 `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	TokenCount int32                  `protobuf:"varint,13,opt,name=token_count,json=tokenCount,proto3" json:"token_count,omitempty"`
 	Tags       []string               `protobuf:"bytes,14,rep,name=tags,proto3" json:"tags,omitempty"`
-	// Taxonomy: who said/wrote this (j33p, gilfoyle, agent, system)
+	// Taxonomy: who said/wrote this (user, assistant, agent, system)
 	Speaker string `protobuf:"bytes,15,opt,name=speaker,proto3" json:"speaker,omitempty"`
-	// Taxonomy: top-level domain (work, home, family, homelab, project, meta)
+	// Taxonomy: top-level domain (work, infrastructure, development, personal, project, meta)
 	Area string `protobuf:"bytes,16,opt,name=area,proto3" json:"area,omitempty"`
-	// Taxonomy: sub-domain, free-form (power-platform, proxmox, magi, etc.)
+	// Taxonomy: sub-domain, free-form (power-platform, networking, magi, etc.)
 	SubArea       string `protobuf:"bytes,17,opt,name=sub_area,json=subArea,proto3" json:"sub_area,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -309,8 +309,8 @@ type RememberRequest struct {
 	Visibility    string                 `protobuf:"bytes,5,opt,name=visibility,proto3" json:"visibility,omitempty"`
 	Tags          []string               `protobuf:"bytes,6,rep,name=tags,proto3" json:"tags,omitempty"`
 	Source        string                 `protobuf:"bytes,7,opt,name=source,proto3" json:"source,omitempty"`
-	Speaker       string                 `protobuf:"bytes,8,opt,name=speaker,proto3" json:"speaker,omitempty"`                 // j33p, gilfoyle, agent, system
-	Area          string                 `protobuf:"bytes,9,opt,name=area,proto3" json:"area,omitempty"`                       // work, home, family, homelab, project, meta
+	Speaker       string                 `protobuf:"bytes,8,opt,name=speaker,proto3" json:"speaker,omitempty"`                 // user, assistant, agent, system
+	Area          string                 `protobuf:"bytes,9,opt,name=area,proto3" json:"area,omitempty"`                       // work, infrastructure, development, personal, project, meta
 	SubArea       string                 `protobuf:"bytes,10,opt,name=sub_area,json=subArea,proto3" json:"sub_area,omitempty"` // free-form sub-domain
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

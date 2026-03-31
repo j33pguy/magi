@@ -88,7 +88,7 @@ func TestCheck_EmptyDB(t *testing.T) {
 	emb := &mockEmbedder{dims: 384}
 	d := &Detector{}
 
-	candidates, err := d.Check(context.Background(), client, emb, "the firewall is enabled", "homelab", "proxmox")
+	candidates, err := d.Check(context.Background(), client, emb, "the firewall is enabled", "infrastructure", "compute")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -103,10 +103,10 @@ func TestCheck_ContradictingMemory_BooleanFlip(t *testing.T) {
 
 	// unitVec produces identical embeddings so cosine distance = 0 (passes any threshold).
 	vec := unitVec()
-	saveTestMemory(t, client, "the firewall is enabled on proxmox", "homelab", "proxmox", vec)
+	saveTestMemory(t, client, "the firewall is enabled on compute", "infrastructure", "compute", vec)
 
 	d := &Detector{}
-	candidates, err := d.Check(context.Background(), client, emb, "the firewall is disabled on proxmox", "homelab", "proxmox")
+	candidates, err := d.Check(context.Background(), client, emb, "the firewall is disabled on compute", "infrastructure", "compute")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -133,9 +133,9 @@ func TestCheck_AreaFiltering(t *testing.T) {
 	// Save memory in area "work"
 	saveTestMemory(t, client, "the service is enabled", "work", "infra", vec)
 
-	// Search in area "homelab" — should not find the work memory
+	// Search in area "infrastructure" — should not find the work memory
 	d := &Detector{}
-	candidates, err := d.Check(context.Background(), client, emb, "the service is disabled", "homelab", "infra")
+	candidates, err := d.Check(context.Background(), client, emb, "the service is disabled", "infrastructure", "infra")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -149,11 +149,11 @@ func TestCheck_SubAreaFiltering(t *testing.T) {
 	emb := &mockEmbedder{dims: 384}
 	vec := unitVec()
 
-	saveTestMemory(t, client, "port 8080 is used for the API", "homelab", "proxmox", vec)
+	saveTestMemory(t, client, "port 8080 is used for the API", "infrastructure", "compute", vec)
 
 	// Same area but different subArea — should not match
 	d := &Detector{}
-	candidates, err := d.Check(context.Background(), client, emb, "port 9090 is used for the API", "homelab", "networking")
+	candidates, err := d.Check(context.Background(), client, emb, "port 9090 is used for the API", "infrastructure", "networking")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -167,11 +167,11 @@ func TestCheck_CustomThreshold(t *testing.T) {
 	emb := &mockEmbedder{dims: 384}
 	vec := unitVec()
 
-	saveTestMemory(t, client, "the service is enabled", "homelab", "", vec)
+	saveTestMemory(t, client, "the service is enabled", "infrastructure", "", vec)
 
 	// Threshold 0.99 means maxDistance = 0.01; zero-vector distance = 0 so it passes.
 	d := &Detector{Threshold: 0.99}
-	candidates, err := d.Check(context.Background(), client, emb, "the service is disabled", "homelab", "")
+	candidates, err := d.Check(context.Background(), client, emb, "the service is disabled", "infrastructure", "")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -186,10 +186,10 @@ func TestCheck_SimilarNonContradicting(t *testing.T) {
 	vec := unitVec()
 
 	// Two statements that are similar but don't contradict
-	saveTestMemory(t, client, "proxmox runs on the homelab server", "homelab", "proxmox", vec)
+	saveTestMemory(t, client, "compute runs on the infrastructure server", "infrastructure", "compute", vec)
 
 	d := &Detector{}
-	candidates, err := d.Check(context.Background(), client, emb, "proxmox runs on the homelab node", "homelab", "proxmox")
+	candidates, err := d.Check(context.Background(), client, emb, "compute runs on the infrastructure node", "infrastructure", "compute")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestCheck_NoAreaFilter(t *testing.T) {
 	emb := &mockEmbedder{dims: 384}
 	vec := unitVec()
 
-	saveTestMemory(t, client, "the firewall is enabled", "homelab", "proxmox", vec)
+	saveTestMemory(t, client, "the firewall is enabled", "infrastructure", "compute", vec)
 
 	// Empty area/subArea should match any memory
 	d := &Detector{}
@@ -226,7 +226,7 @@ func TestCheck_UsesMemorySummaryWhenAvailable(t *testing.T) {
 		Content:   "the firewall is enabled on all nodes",
 		Summary:   "firewall enabled",
 		Embedding: vec,
-		Area:      "homelab",
+		Area:      "infrastructure",
 		Type:      "fact",
 		Speaker:   "user",
 	})
@@ -236,7 +236,7 @@ func TestCheck_UsesMemorySummaryWhenAvailable(t *testing.T) {
 	_ = m
 
 	d := &Detector{}
-	candidates, err := d.Check(context.Background(), client, emb, "the firewall is disabled on all nodes", "homelab", "")
+	candidates, err := d.Check(context.Background(), client, emb, "the firewall is disabled on all nodes", "infrastructure", "")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -253,12 +253,12 @@ func TestCheck_TruncatesNewContent(t *testing.T) {
 	emb := &mockEmbedder{dims: 384}
 	vec := unitVec()
 
-	saveTestMemory(t, client, "the firewall is enabled and configured with rules for all services across every node in the cluster to ensure maximum security and compliance with corporate policy standards", "homelab", "", vec)
+	saveTestMemory(t, client, "the firewall is enabled and configured with rules for all services across every node in the cluster to ensure maximum security and compliance with corporate policy standards", "infrastructure", "", vec)
 
 	longContent := "the firewall is disabled and configured with rules for all services across every node in the cluster to ensure maximum security and compliance with corporate policy standards"
 
 	d := &Detector{}
-	candidates, err := d.Check(context.Background(), client, emb, longContent, "homelab", "")
+	candidates, err := d.Check(context.Background(), client, emb, longContent, "infrastructure", "")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -275,13 +275,13 @@ func TestCheck_MultipleMemories(t *testing.T) {
 	emb := &mockEmbedder{dims: 384}
 	vec := unitVec()
 
-	saveTestMemory(t, client, "the firewall is enabled", "homelab", "", vec)
-	saveTestMemory(t, client, "auto-deploy is true", "homelab", "", vec)
+	saveTestMemory(t, client, "the firewall is enabled", "infrastructure", "", vec)
+	saveTestMemory(t, client, "auto-deploy is true", "infrastructure", "", vec)
 	// Non-contradicting memory
-	saveTestMemory(t, client, "proxmox runs well", "homelab", "", vec)
+	saveTestMemory(t, client, "compute runs well", "infrastructure", "", vec)
 
 	d := &Detector{}
-	candidates, err := d.Check(context.Background(), client, emb, "the firewall is disabled and auto-deploy is false", "homelab", "")
+	candidates, err := d.Check(context.Background(), client, emb, "the firewall is disabled and auto-deploy is false", "infrastructure", "")
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}

@@ -58,7 +58,7 @@ func TestTrackTask(t *testing.T) {
 	tr := newTestTracker(t)
 
 	m, err := tr.TrackTask(context.Background(), "TASK-123", "in_progress", map[string]string{
-		"assignee": "gilfoyle",
+		"assignee": "alice",
 		"priority": "high",
 	})
 	if err != nil {

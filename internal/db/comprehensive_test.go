@@ -78,9 +78,9 @@ func TestSQLiteHybridSearch(t *testing.T) {
 	emb2[1] = 1.0
 
 	_, err := c.SaveMemory(&Memory{
-		Content:    "proxmox cluster backup strategy",
+		Content:    "compute-cluster backup strategy",
 		Embedding:  emb1,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 	})
@@ -90,7 +90,7 @@ func TestSQLiteHybridSearch(t *testing.T) {
 	_, err = c.SaveMemory(&Memory{
 		Content:    "vault cluster unsealer automation",
 		Embedding:  emb2,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 	})
@@ -98,16 +98,16 @@ func TestSQLiteHybridSearch(t *testing.T) {
 		t.Fatalf("SaveMemory 2: %v", err)
 	}
 
-	results, err := c.HybridSearch(emb1, "proxmox backup", &MemoryFilter{Project: "homelab", Visibility: "all"}, 5)
+	results, err := c.HybridSearch(emb1, "compute-cluster backup", &MemoryFilter{Project: "infra", Visibility: "all"}, 5)
 	if err != nil {
 		t.Fatalf("HybridSearch: %v", err)
 	}
 	if len(results) == 0 {
 		t.Fatal("expected at least 1 hybrid result")
 	}
-	// The proxmox memory should rank higher (matches both vector and BM25)
-	if results[0].Memory.Content != "proxmox cluster backup strategy" {
-		t.Errorf("top result = %q, want proxmox memory", results[0].Memory.Content)
+	// The compute-cluster memory should rank higher (matches both vector and BM25)
+	if results[0].Memory.Content != "compute-cluster backup strategy" {
+		t.Errorf("top result = %q, want compute-cluster memory", results[0].Memory.Content)
 	}
 	if results[0].RRFScore <= 0 {
 		t.Errorf("RRFScore should be > 0, got %f", results[0].RRFScore)
@@ -374,12 +374,12 @@ func TestSQLiteDefaultVisibility(t *testing.T) {
 func TestSQLiteMultiProjectFilter(t *testing.T) {
 	c := newTestSQLiteClient(t)
 
-	_, _ = c.SaveMemory(&Memory{Content: "a1", Embedding: zeroEmbedding(), Project: "agent:gilfoyle", Type: "memory", Visibility: "internal"})
+	_, _ = c.SaveMemory(&Memory{Content: "a1", Embedding: zeroEmbedding(), Project: "agent:alice", Type: "memory", Visibility: "internal"})
 	_, _ = c.SaveMemory(&Memory{Content: "a2", Embedding: zeroEmbedding(), Project: "crew:shared", Type: "memory", Visibility: "internal"})
-	_, _ = c.SaveMemory(&Memory{Content: "a3", Embedding: zeroEmbedding(), Project: "agent:dinesh", Type: "memory", Visibility: "internal"})
+	_, _ = c.SaveMemory(&Memory{Content: "a3", Embedding: zeroEmbedding(), Project: "agent:bob", Type: "memory", Visibility: "internal"})
 
 	list, err := c.ListMemories(&MemoryFilter{
-		Projects:   []string{"agent:gilfoyle", "crew:shared"},
+		Projects:   []string{"agent:alice", "crew:shared"},
 		Visibility: "all",
 	})
 	if err != nil {
@@ -399,7 +399,7 @@ func TestSQLiteTagFiltering(t *testing.T) {
 	m2, _ := c.SaveMemory(&Memory{Content: "tagged two", Embedding: zeroEmbedding(), Project: "proj", Type: "memory", Visibility: "internal"})
 	_, _ = c.SaveMemory(&Memory{Content: "untagged", Embedding: zeroEmbedding(), Project: "proj", Type: "memory", Visibility: "internal"})
 
-	_ = c.SetTags(m1.ID, []string{"important", "homelab"})
+	_ = c.SetTags(m1.ID, []string{"important", "infrastructure"})
 	_ = c.SetTags(m2.ID, []string{"important", "work"})
 
 	list, err := c.ListMemories(&MemoryFilter{
@@ -721,25 +721,25 @@ func TestSQLiteTypeFiltering(t *testing.T) {
 func TestSQLiteTaxonomyFiltering(t *testing.T) {
 	c := newTestSQLiteClient(t)
 
-	_, _ = c.SaveMemory(&Memory{Content: "j33p work", Embedding: zeroEmbedding(), Project: "proj", Type: "memory", Visibility: "internal", Speaker: "j33p", Area: "work", SubArea: "magi"})
-	_, _ = c.SaveMemory(&Memory{Content: "gilfoyle homelab", Embedding: zeroEmbedding(), Project: "proj", Type: "memory", Visibility: "internal", Speaker: "gilfoyle", Area: "homelab", SubArea: "proxmox"})
+	_, _ = c.SaveMemory(&Memory{Content: "user work", Embedding: zeroEmbedding(), Project: "proj", Type: "memory", Visibility: "internal", Speaker: "user", Area: "work", SubArea: "magi"})
+	_, _ = c.SaveMemory(&Memory{Content: "alice infrastructure", Embedding: zeroEmbedding(), Project: "proj", Type: "memory", Visibility: "internal", Speaker: "alice", Area: "infrastructure", SubArea: "compute-cluster"})
 
 	// Filter by speaker
-	list, _ := c.ListMemories(&MemoryFilter{Project: "proj", Speaker: "j33p", Visibility: "all"})
+	list, _ := c.ListMemories(&MemoryFilter{Project: "proj", Speaker: "user", Visibility: "all"})
 	if len(list) != 1 {
-		t.Errorf("speaker=j33p: got %d, want 1", len(list))
+		t.Errorf("speaker=user: got %d, want 1", len(list))
 	}
 
 	// Filter by area
-	list, _ = c.ListMemories(&MemoryFilter{Project: "proj", Area: "homelab", Visibility: "all"})
+	list, _ = c.ListMemories(&MemoryFilter{Project: "proj", Area: "infrastructure", Visibility: "all"})
 	if len(list) != 1 {
-		t.Errorf("area=homelab: got %d, want 1", len(list))
+		t.Errorf("area=infrastructure: got %d, want 1", len(list))
 	}
 
 	// Filter by sub_area
-	list, _ = c.ListMemories(&MemoryFilter{Project: "proj", SubArea: "proxmox", Visibility: "all"})
+	list, _ = c.ListMemories(&MemoryFilter{Project: "proj", SubArea: "compute-cluster", Visibility: "all"})
 	if len(list) != 1 {
-		t.Errorf("sub_area=proxmox: got %d, want 1", len(list))
+		t.Errorf("sub_area=compute-cluster: got %d, want 1", len(list))
 	}
 }
 
@@ -833,8 +833,8 @@ func TestSQLiteSearchMemoriesWithFilters(t *testing.T) {
 	emb := make([]float32, 384)
 	emb[0] = 1.0
 
-	_, _ = c.SaveMemory(&Memory{Content: "internal search", Embedding: emb, Project: "proj", Type: "memory", Visibility: "internal", Speaker: "j33p"})
-	_, _ = c.SaveMemory(&Memory{Content: "private search", Embedding: emb, Project: "proj", Type: "memory", Visibility: "private", Speaker: "j33p"})
+	_, _ = c.SaveMemory(&Memory{Content: "internal search", Embedding: emb, Project: "proj", Type: "memory", Visibility: "internal", Speaker: "user"})
+	_, _ = c.SaveMemory(&Memory{Content: "private search", Embedding: emb, Project: "proj", Type: "memory", Visibility: "private", Speaker: "user"})
 
 	// Default: exclude private
 	results, err := c.SearchMemories(emb, &MemoryFilter{Project: "proj"}, 10)

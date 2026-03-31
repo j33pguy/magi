@@ -307,8 +307,8 @@ project TEXT NOT NULL          -- namespace
 type TEXT DEFAULT 'memory'     -- decision, lesson, incident, etc.
 visibility TEXT DEFAULT 'internal'
 speaker TEXT                   -- user, assistant, agent, system
-area TEXT                      -- work, home, family, homelab, project, meta
-sub_area TEXT                  -- power-platform, proxmox, magi, etc.
+area TEXT                      -- work, infrastructure, development, personal, project, meta
+sub_area TEXT                  -- power-platform, networking, magi, etc.
 parent_id TEXT                 -- soft-grouping via dedup
 created_at TEXT
 updated_at TEXT
@@ -352,7 +352,7 @@ Content → BERT WordPiece tokenizer → all-MiniLM-L6-v2 (ONNX) → 384-dim flo
 | Area | Sub-areas |
 |------|-----------|
 | work | power-platform, fabric, power-bi, sharepoint, td-synnex, azure |
-| homelab | iac, proxmox, dns, networking, vault, sso, monitoring, caching |
+| infrastructure | iac, compute, dns, networking, security, ci-cd, monitoring, storage |
 | project | magi, distify, labctl, vault-unsealer |
 | home | lego, streaming, gaming |
 | family | kids, spouse |

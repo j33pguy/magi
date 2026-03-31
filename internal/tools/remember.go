@@ -40,10 +40,10 @@ func (r *Remember) Tool() mcp.Tool {
 		),
 		mcp.WithString("area",
 			mcp.Description("Top-level life/work domain"),
-			mcp.Enum("work", "home", "family", "homelab", "project", "meta"),
+			mcp.Enum("work", "infrastructure", "development", "personal", "project", "meta"),
 		),
 		mcp.WithString("sub_area",
-			mcp.Description("Sub-domain within area (e.g. unifi-vlans, unifi-switches, pihole-ha, vault-cluster). For type=state: use a specific component name so current state is queryable by sub_area. Examples — work: your-work-tool-1, your-work-tool-2; homelab: proxmox, networking, security, dns, monitoring, storage, iac, vault, traefik, authentik, lancache; project: your-project-1, your-project-2; home: lego, gaming, streaming, media; family: kids, spouse, schedule"),
+			mcp.Description("Sub-domain within area (e.g. database, api-gateway, auth, networking). For type=state: use a specific component name so current state is queryable by sub_area. Examples — work: power-platform, sharepoint, azure; infrastructure: networking, security, dns, monitoring, storage, compute, iac, ci-cd; project: magi, my-app; development: api, database, testing; personal: gaming, hobby"),
 		),
 	)
 }

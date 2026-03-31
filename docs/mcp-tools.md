@@ -49,8 +49,8 @@ Store a memory with automatic semantic embedding, deduplication, and contradicti
 | `summary` | string | no | Brief one-line summary |
 | `tags` | string[] | no | Tags for categorization |
 | `speaker` | string | no | Who said this: `user, assistant, agent, system`. Default: `assistant` |
-| `area` | string | no | Top-level domain: `work`, `home`, `family`, `homelab`, `project`, `meta` |
-| `sub_area` | string | no | Sub-domain (e.g. `power-platform`, `proxmox`, `magi`) |
+| `area` | string | no | Top-level domain: `work`, `home`, `family`, `infrastructure`, `project`, `meta` |
+| `sub_area` | string | no | Sub-domain (e.g. `power-platform`, `networking`, `magi`) |
 | `dedup_threshold` | number | no | Similarity threshold for dedup (0.0–1.0, default 0.95) |
 
 **Behavior:**
@@ -64,11 +64,11 @@ Store a memory with automatic semantic embedding, deduplication, and contradicti
 **Example:**
 ```json
 {
-  "content": "Switched from Terraform to Ansible for homelab IaC — Terraform state management was too painful for a single-node setup",
+  "content": "Switched from Terraform to Ansible for infrastructure IaC — Terraform state management was too painful for a single-node setup",
   "project": "iac",
   "type": "decision",
   "speaker": "grok",
-  "area": "homelab",
+  "area": "infrastructure",
   "sub_area": "iac"
 }
 ```
@@ -103,7 +103,7 @@ Hybrid semantic + keyword search with adaptive query rewriting. Uses BM25 and ve
 ```json
 {
   "query": "how did we fix the DNS resolution issue",
-  "area": "homelab",
+  "area": "infrastructure",
   "top_k": 3,
   "min_relevance": 0.3,
   "after": "30d"

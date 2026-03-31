@@ -192,15 +192,15 @@ The agent injects these at the top of context automatically.
 ## v0.4 — Cross-Machine Identity
 
 ### The pattern
-Multiple machines (homelab server, MacBook, future machines) all write to the same Turso DB.
+Multiple machines (server-01, laptop, future machines) all write to the same Turso DB.
 Each machine has its own local replica. Writes sync up, reads pull down.
 
 ### Features
 
 #### Machine identity tag
-- Each binary instance has a `MAGI_MACHINE_ID` (e.g. `homelab`, `macbook`, `work-laptop`)
-- Stored on every memory: `source_machine: homelab`
-- Useful for: "what did I work on from my MacBook last week?"
+- Each binary instance has a `MAGI_MACHINE_ID` (e.g. `server-01`, `laptop`, `work-laptop`)
+- Stored on every memory: `source_machine: server-01`
+- Useful for: "what did I work on from my laptop last week?"
 
 #### Conflict resolution
 - Turso handles this via its distributed write protocol
@@ -215,7 +215,7 @@ Shows which machines have written recently, last seen timestamps.
 ## v0.5 — Ingestion Pipeline
 
 ### The pattern
-Work offline on MacBook → Agent session logs captured → ingested into Turso → the homelab agent has full context on next session.
+Work offline on laptop → Agent session logs captured → ingested into Turso → the server agent has full context on next session.
 
 ### Features
 
@@ -291,7 +291,7 @@ More storage, more writes → dramatically better recall precision. Verbatim quo
 |---|---|---|
 | your-server | Server — HTTP API + MCP | magi (HTTP mode) |
 | Local Agent | MCP client | magi (stdio MCP) |
-| MacBook | MCP client + watcher | magi + magi-watcher |
+| Laptop | MCP client + watcher | magi + magi-watcher |
 | Future machines | MCP client + watcher | same |
 
 ## Environment variables (full set)
