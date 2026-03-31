@@ -10,7 +10,6 @@ import (
 
 // Config holds storage backend configuration.
 type Config struct {
-	Backend string // "turso" (default) | "sqlite" | "postgres" | "mysql" | "sqlserver"
 	Backend string // "sqlite" (default) | "turso" | "postgres" | "mysql" | "sqlserver"
 
 	// Turso
@@ -107,15 +106,6 @@ func NewStore(cfg *Config, logger *slog.Logger) (Store, error) {
 			ReplicaPath:  cfg.ReplicaPath,
 			SyncInterval: cfg.SyncInterval,
 		}, logger)
-<<<<<<< release/v0.3.0
-	case "sqlite":
-		c, err := NewSQLiteClient(cfg.SQLitePath, logger)
-		if err != nil {
-			return nil, err
-		}
-		return c.TursoClient, nil
-=======
->>>>>>> main
 	case "postgres", "postgresql":
 		return NewPostgresClient(cfg.PostgresURL, logger)
 	case "mysql", "mariadb":
