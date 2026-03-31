@@ -279,8 +279,8 @@ func TestFormatDate(t *testing.T) {
 }
 
 func TestIsTopicTag(t *testing.T) {
-	if !isTopicTag("topic:homelab") {
-		t.Error("expected true for topic:homelab")
+	if !isTopicTag("topic:infrastructure") {
+		t.Error("expected true for topic:infrastructure")
 	}
 	if isTopicTag("channel:discord") {
 		t.Error("expected false for channel:discord")

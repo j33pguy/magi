@@ -31,10 +31,10 @@ func (l *List) Tool() mcp.Tool {
 			mcp.Enum("user", "assistant", "agent", "system"),
 		),
 		mcp.WithString("area",
-			mcp.Description("Filter by area: work, home, family, homelab, project, meta"),
-			mcp.Enum("work", "home", "family", "homelab", "project", "meta"),
+			mcp.Description("Filter by area: work, infrastructure, development, personal, project, meta"),
+			mcp.Enum("work", "infrastructure", "development", "personal", "project", "meta"),
 		),
-		mcp.WithString("sub_area", mcp.Description("Filter by sub-area (e.g. power-platform, proxmox, magi)")),
+		mcp.WithString("sub_area", mcp.Description("Filter by sub-area (e.g. power-platform, networking, magi)")),
 		mcp.WithString("after", mcp.Description("Only memories created after this time. Relative (7d, 2w, 1m, 1y) or absolute (2006-01-02, RFC3339).")),
 		mcp.WithString("before", mcp.Description("Only memories created before this time. Relative (7d, 2w, 1m, 1y) or absolute (2006-01-02, RFC3339).")),
 	)

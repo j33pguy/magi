@@ -33,8 +33,8 @@ func TestIndexTurnHandleUserTurn(t *testing.T) {
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"role":       "user",
-		"content":    "I configured the proxmox cluster with 3 nodes",
-		"project":    "homelab",
+		"content":    "I configured the compute-cluster cluster with 3 nodes",
+		"project":    "infra",
 		"session_id": "sess-001",
 	}))
 	if err != nil {
@@ -62,8 +62,8 @@ func TestIndexTurnHandleAssistantTurn(t *testing.T) {
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"role":    "assistant",
-		"content": "Sure, I can help you set up a proxmox cluster.",
-		"project": "homelab",
+		"content": "Sure, I can help you set up a compute-cluster cluster.",
+		"project": "infra",
 	}))
 	if err != nil {
 		t.Fatalf("Handle: %v", err)
@@ -249,7 +249,7 @@ func TestIndexSessionHandleWithSummarize(t *testing.T) {
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"turns":      turns,
-		"project":    "homelab",
+		"project":    "infra",
 		"session_id": "sess-summarize",
 		"summarize":  true,
 	}))
@@ -353,7 +353,7 @@ func TestCheckContradictionsWithThreshold(t *testing.T) {
 	tool := &CheckContradictions{DB: dbClient, Embedder: &mockEmbedder{}}
 
 	// Seed a memory
-	seedTestMemory(t, dbClient, "VLAN 5 is used for IoT devices", "homelab", "memory")
+	seedTestMemory(t, dbClient, "VLAN 5 is used for IoT devices", "infra", "memory")
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"content":   "VLAN 50 is used for IoT devices",
@@ -392,7 +392,7 @@ func TestCheckContradictionsWithAreaFilter(t *testing.T) {
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"content":  "The server is running Ubuntu 24.04",
-		"area":     "homelab",
+		"area":     "infrastructure",
 		"sub_area": "servers",
 	}))
 	if err != nil {
@@ -426,11 +426,11 @@ func TestIngestConversationPlainText(t *testing.T) {
 	dbClient := newTestDB(t)
 	tool := &IngestConversation{DB: dbClient, Embedder: &mockEmbedder{}}
 
-	conv := "User: I decided to use Tailscale for VPN\nAssistant: Good choice, Tailscale is great for homelab networking.\nUser: I also learned that WireGuard is the underlying protocol."
+	conv := "User: I decided to use Tailscale for VPN\nAssistant: Good choice, Tailscale is great for infrastructure networking.\nUser: I also learned that WireGuard is the underlying protocol."
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"content": conv,
-		"project": "homelab",
+		"project": "infra",
 	}))
 	if err != nil {
 		t.Fatalf("Handle: %v", err)
@@ -453,7 +453,7 @@ func TestIngestConversationDryRun(t *testing.T) {
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"content": conv,
-		"project": "homelab",
+		"project": "infra",
 		"dry_run": true,
 	}))
 	if err != nil {
@@ -477,7 +477,7 @@ func TestIngestConversationDryRun(t *testing.T) {
 	}
 
 	// Verify nothing was actually stored
-	memories, _ := dbClient.ListMemories(&db.MemoryFilter{Project: "homelab", Visibility: "all"})
+	memories, _ := dbClient.ListMemories(&db.MemoryFilter{Project: "infra", Visibility: "all"})
 	if len(memories) != 0 {
 		t.Errorf("dry run should not store memories, got %d", len(memories))
 	}
@@ -546,7 +546,7 @@ func TestRecallIncidentsNoResults(t *testing.T) {
 
 func TestRecallIncidentsWithSeededMemory(t *testing.T) {
 	dbClient := newTestDB(t)
-	seedTestMemory(t, dbClient, "DNS resolution failed on proxmox node 3, fixed by restarting systemd-resolved", "homelab", "incident")
+	seedTestMemory(t, dbClient, "DNS resolution failed on compute-cluster node 3, fixed by restarting systemd-resolved", "infra", "incident")
 
 	tool := &RecallIncidents{DB: dbClient, Embedder: &mockEmbedder{}}
 
@@ -587,7 +587,7 @@ func TestRecallIncidentsWithProjectFilter(t *testing.T) {
 
 func TestRecallIncidentsWithRecencyDecay(t *testing.T) {
 	dbClient := newTestDB(t)
-	seedTestMemory(t, dbClient, "Disk full on /var/log, rotated logs", "homelab", "incident")
+	seedTestMemory(t, dbClient, "Disk full on /var/log, rotated logs", "infra", "incident")
 
 	tool := &RecallIncidents{DB: dbClient, Embedder: &mockEmbedder{}}
 
@@ -677,7 +677,7 @@ func TestRecallLessonsWithMultipleProjects(t *testing.T) {
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"query":    "apt upgrade safety",
-		"projects": []string{"infra", "homelab"},
+		"projects": []string{"infra", "infra"},
 	}))
 	if err != nil {
 		t.Fatalf("Handle: %v", err)
@@ -732,7 +732,7 @@ func TestRecallConversationsNoResults(t *testing.T) {
 
 func TestRecallConversationsWithSeededMemory(t *testing.T) {
 	dbClient := newTestDB(t)
-	seedTestMemory(t, dbClient, "We discussed setting up monitoring with Prometheus and Grafana", "homelab", "conversation")
+	seedTestMemory(t, dbClient, "We discussed setting up monitoring with Prometheus and Grafana", "infra", "conversation")
 
 	tool := &RecallConversations{DB: dbClient, Embedder: &mockEmbedder{}}
 
@@ -823,7 +823,7 @@ func TestRecentConversationsWithChannelFilter(t *testing.T) {
 	tool := &RecentConversations{DB: dbClient}
 
 	// Seed a conversation memory with proper tags
-	m := seedTestMemory(t, dbClient, "Discussed backup strategies", "homelab", "conversation")
+	m := seedTestMemory(t, dbClient, "Discussed backup strategies", "infra", "conversation")
 	dbClient.SetTags(m.ID, []string{"conversation", "channel:discord"})
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
@@ -864,7 +864,7 @@ func TestRecentConversationsWithSinceFilter(t *testing.T) {
 	tool := &RecentConversations{DB: dbClient}
 
 	// Seed a conversation memory with tags
-	m := seedTestMemory(t, dbClient, "Recent chat about networking", "homelab", "conversation")
+	m := seedTestMemory(t, dbClient, "Recent chat about networking", "infra", "conversation")
 	dbClient.SetTags(m.ID, []string{"conversation"})
 
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
@@ -1034,7 +1034,7 @@ func TestListMemoriesWithSpeakerAndAreaFilters(t *testing.T) {
 	result, err := l.Handle(context.Background(), makeRequest(map[string]any{
 		"project":  "proj",
 		"speaker":  "assistant",
-		"area":     "homelab",
+		"area":     "infrastructure",
 		"sub_area": "networking",
 		"limit":    10,
 		"offset":   0,
@@ -1128,7 +1128,7 @@ func TestRecallWithAllFilters(t *testing.T) {
 		"min_relevance": 0.0,
 		"recency_decay": 0.01,
 		"speaker":      "assistant",
-		"area":         "homelab",
+		"area":         "infrastructure",
 		"sub_area":     "networking",
 	}))
 	if err != nil {
@@ -1147,8 +1147,8 @@ func TestRememberAutoClassify(t *testing.T) {
 
 	// No area/sub_area set, should auto-classify
 	result, err := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content": "I configured the proxmox cluster with 3 nodes for high availability",
-		"project": "homelab",
+		"content": "I configured the compute-cluster cluster with 3 nodes for high availability",
+		"project": "infra",
 		"type":    "memory",
 	}))
 	if err != nil {
@@ -1306,7 +1306,7 @@ func TestIngestConversationWithSource(t *testing.T) {
 
 func TestRecallIncidentsWithTags(t *testing.T) {
 	dbClient := newTestDB(t)
-	m := seedTestMemory(t, dbClient, "NFS mount timeout during backup window", "homelab", "incident")
+	m := seedTestMemory(t, dbClient, "NFS mount timeout during backup window", "infra", "incident")
 	dbClient.SetTags(m.ID, []string{"nfs", "backup"})
 
 	tool := &RecallIncidents{DB: dbClient, Embedder: &mockEmbedder{}}
@@ -1494,7 +1494,7 @@ func TestRecallIncidentsWithParentMemory(t *testing.T) {
 	dbClient := newTestDB(t)
 
 	// Create a parent incident
-	parent := seedTestMemory(t, dbClient, "Parent incident: full detailed report about network outage on VLAN 10", "homelab", "incident")
+	parent := seedTestMemory(t, dbClient, "Parent incident: full detailed report about network outage on VLAN 10", "infra", "incident")
 
 	// Create a child incident that references the parent
 	childEmb := make([]float32, 384)
@@ -1502,7 +1502,7 @@ func TestRecallIncidentsWithParentMemory(t *testing.T) {
 	child, err := dbClient.SaveMemory(&db.Memory{
 		Content:    "Brief: network outage VLAN 10",
 		Embedding:  childEmb,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "incident",
 		Visibility: "internal",
 		Speaker:    "assistant",
@@ -1616,8 +1616,8 @@ func TestRememberDedupNearDuplicate(t *testing.T) {
 
 	// Store first memory
 	result1, _ := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content": "The proxmox cluster has three nodes for HA",
-		"project": "homelab",
+		"content": "The compute-cluster cluster has three nodes for HA",
+		"project": "infra",
 	}))
 	if result1.IsError {
 		t.Fatalf("first remember error: %v", result1.Content)
@@ -1625,8 +1625,8 @@ func TestRememberDedupNearDuplicate(t *testing.T) {
 
 	// Store very similar memory - might hit dedup or parent path
 	result2, _ := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content": "The proxmox cluster has three nodes for high availability",
-		"project": "homelab",
+		"content": "The compute-cluster cluster has three nodes for high availability",
+		"project": "infra",
 	}))
 	// Should not panic, may or may not dedup
 	if result2.IsError {
@@ -1643,9 +1643,9 @@ func TestRememberWithParentLinking(t *testing.T) {
 	emb := make([]float32, 384)
 	emb[0] = 0.55
 	_, err := dbClient.SaveMemory(&db.Memory{
-		Content:    "Original memory about proxmox networking setup details",
+		Content:    "Original memory about compute-cluster networking setup details",
 		Embedding:  emb,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 		Speaker:    "assistant",
@@ -1657,8 +1657,8 @@ func TestRememberWithParentLinking(t *testing.T) {
 	r := &Remember{DB: dbClient, Embedder: &mockEmbedder{}}
 	// Store a related memory that exercises FindSimilar parent linking
 	result, _ := r.Handle(context.Background(), makeRequest(map[string]any{
-		"content": "Updated proxmox networking setup with new VLAN configuration",
-		"project": "homelab",
+		"content": "Updated compute-cluster networking setup with new VLAN configuration",
+		"project": "infra",
 	}))
 	if result.IsError {
 		t.Fatalf("remember error: %v", result.Content)
@@ -1726,7 +1726,7 @@ func TestUpdateMemoryContent(t *testing.T) {
 		"content":  "changed content that triggers re-embedding",
 		"summary":  "updated summary",
 		"type":     "lesson",
-		"area":     "homelab",
+		"area":     "infrastructure",
 		"sub_area": "networking",
 	}))
 	if err != nil {
@@ -1751,7 +1751,7 @@ func TestRecallIncidentsWithMultipleProjects(t *testing.T) {
 	tool := &RecallIncidents{DB: dbClient, Embedder: &mockEmbedder{}}
 	result, err := tool.Handle(context.Background(), makeRequest(map[string]any{
 		"query":    "database connection pool",
-		"projects": []string{"infra", "homelab"},
+		"projects": []string{"infra", "infra"},
 		"top_k":    3,
 	}))
 	if err != nil {
@@ -2012,7 +2012,7 @@ func TestCheckContradictionsWithContradiction(t *testing.T) {
 	_, err := dbClient.SaveMemory(&db.Memory{
 		Content:    "VLAN 5 is used for IoT devices and is enabled",
 		Embedding:  emb,
-		Project:    "homelab",
+		Project:    "infra",
 		Type:       "memory",
 		Visibility: "internal",
 		Speaker:    "assistant",

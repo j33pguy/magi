@@ -16,13 +16,13 @@ func TestMemoryRoundTrip(t *testing.T) {
 		Type:       "memory",
 		Visibility: "internal",
 		Source:     "grpc",
-		Speaker:    "j33p",
-		Area:       "homelab",
+		Speaker:    "alice",
+		Area:       "infrastructure",
 		SubArea:    "magi",
 		CreatedAt:  "2025-01-01 00:00:00",
 		UpdatedAt:  "2025-01-01 00:00:00",
 		TokenCount: 5,
-		Tags:       []string{"test", "speaker:j33p"},
+		Tags:       []string{"test", "speaker:alice"},
 		Embedding:  []float32{0.1, 0.2, 0.3}, // should be excluded from JSON
 	}
 

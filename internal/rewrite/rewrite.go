@@ -33,7 +33,7 @@ var abbreviations = map[string]string{
 	"udm":  "UDM UniFi Dream Machine",
 	"usg":  "USG UniFi Security Gateway",
 	"k8s":  "kubernetes",
-	"pve":  "proxmox",
+	"pve":  "hypervisor",
 	"tf":   "terraform",
 	"gh":   "github",
 	"gha":  "github actions",

@@ -55,7 +55,7 @@ New memory type: `conversation`
     "topics": ["magi", "conversation sync", "deployment"]
   },
   "created_at": "2026-03-26T17:45:00Z",
-  "source_machine": "homelab"
+  "source_machine": "server-01"
 }
 ```
 

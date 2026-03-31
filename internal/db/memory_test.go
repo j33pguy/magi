@@ -20,7 +20,7 @@ func TestAppendTaxonomyConditions(t *testing.T) {
 		},
 		{
 			name:           "speaker only",
-			filter:         &MemoryFilter{Speaker: "j33p"},
+			filter:         &MemoryFilter{Speaker: "alice"},
 			wantConditions: 1,
 			wantArgs:       1,
 		},
@@ -32,19 +32,19 @@ func TestAppendTaxonomyConditions(t *testing.T) {
 		},
 		{
 			name:           "sub_area only",
-			filter:         &MemoryFilter{SubArea: "proxmox"},
+			filter:         &MemoryFilter{SubArea: "networking"},
 			wantConditions: 1,
 			wantArgs:       1,
 		},
 		{
 			name:           "all taxonomy fields",
-			filter:         &MemoryFilter{Speaker: "gilfoyle", Area: "homelab", SubArea: "proxmox"},
+			filter:         &MemoryFilter{Speaker: "bob", Area: "infrastructure", SubArea: "networking"},
 			wantConditions: 3,
 			wantArgs:       3,
 		},
 		{
 			name:           "taxonomy with other filters",
-			filter:         &MemoryFilter{Project: "iac", Type: "memory", Speaker: "j33p", Area: "work"},
+			filter:         &MemoryFilter{Project: "iac", Type: "memory", Speaker: "alice", Area: "work"},
 			wantConditions: 2, // appendTaxonomyConditions only adds speaker + area
 			wantArgs:       2,
 		},
@@ -71,7 +71,7 @@ func TestAppendTaxonomyConditions_Values(t *testing.T) {
 	var conditions []string
 	var args []any
 
-	filter := &MemoryFilter{Speaker: "j33p", Area: "homelab", SubArea: "proxmox"}
+	filter := &MemoryFilter{Speaker: "alice", Area: "infrastructure", SubArea: "networking"}
 	appendTaxonomyConditions(filter, &conditions, &args)
 
 	// Verify correct SQL conditions
@@ -83,7 +83,7 @@ func TestAppendTaxonomyConditions_Values(t *testing.T) {
 	}
 
 	// Verify correct args
-	expectedArgs := []any{"j33p", "homelab", "proxmox"}
+	expectedArgs := []any{"alice", "infrastructure", "networking"}
 	for i, want := range expectedArgs {
 		if args[i] != want {
 			t.Errorf("args[%d] = %v, want %v", i, args[i], want)
@@ -93,13 +93,13 @@ func TestAppendTaxonomyConditions_Values(t *testing.T) {
 
 func TestMemoryStructTaxonomyFields(t *testing.T) {
 	m := &Memory{
-		Speaker: "j33p",
+		Speaker: "alice",
 		Area:    "work",
 		SubArea: "power-platform",
 	}
 
-	if m.Speaker != "j33p" {
-		t.Errorf("Speaker = %q, want %q", m.Speaker, "j33p")
+	if m.Speaker != "alice" {
+		t.Errorf("Speaker = %q, want %q", m.Speaker, "alice")
 	}
 	if m.Area != "work" {
 		t.Errorf("Area = %q, want %q", m.Area, "work")

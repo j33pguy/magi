@@ -424,7 +424,7 @@ func TestCov_ListMemoriesProjectsSlice(t *testing.T) {
 func TestCov_SearchMemoriesBM25WithFilter(t *testing.T) {
 	c := newTestSQLiteClient(t)
 
-	_, _ = c.SaveMemory(&Memory{Content: "kubernetes error pod crash", Embedding: zeroEmbedding(), Project: "p", Type: "incident", Visibility: "internal", Speaker: "j33p", Area: "work"})
+	_, _ = c.SaveMemory(&Memory{Content: "kubernetes error pod crash", Embedding: zeroEmbedding(), Project: "p", Type: "incident", Visibility: "internal", Speaker: "alice", Area: "work"})
 	_, _ = c.SaveMemory(&Memory{Content: "kubernetes deployment success", Embedding: zeroEmbedding(), Project: "p", Type: "memory", Visibility: "private", Speaker: "bot", Area: "home"})
 
 	// Filter by type
@@ -814,7 +814,7 @@ func TestCov_SaveMemoryAllFields(t *testing.T) {
 		Source:     "api",
 		SourceFile: "/path/to/file.md",
 		ParentID:   "",
-		Speaker:    "j33p",
+		Speaker:    "alice",
 		Area:       "work",
 		SubArea:    "magi",
 		TokenCount: 42,
@@ -880,11 +880,11 @@ func TestCov_SearchMemoriesWithTaxonomy(t *testing.T) {
 	emb := make([]float32, 384)
 	emb[0] = 1.0
 
-	_, _ = c.SaveMemory(&Memory{Content: "work memory", Embedding: emb, Project: "p", Type: "memory", Visibility: "internal", Speaker: "j33p", Area: "work", SubArea: "magi"})
+	_, _ = c.SaveMemory(&Memory{Content: "work memory", Embedding: emb, Project: "p", Type: "memory", Visibility: "internal", Speaker: "alice", Area: "work", SubArea: "magi"})
 	_, _ = c.SaveMemory(&Memory{Content: "home memory", Embedding: emb, Project: "p", Type: "memory", Visibility: "internal", Speaker: "bot", Area: "home", SubArea: "garden"})
 
 	// Filter by speaker
-	results, err := c.SearchMemories(emb, &MemoryFilter{Speaker: "j33p", Visibility: "all"}, 10)
+	results, err := c.SearchMemories(emb, &MemoryFilter{Speaker: "alice", Visibility: "all"}, 10)
 	if err != nil {
 		t.Fatalf("SearchMemories speaker: %v", err)
 	}
@@ -972,11 +972,11 @@ func TestCov_HybridSearchBM25Only(t *testing.T) {
 	emb2[200] = 1.0
 
 	// These two have very different embeddings but share BM25 terms
-	_, _ = c.SaveMemory(&Memory{Content: "proxmox backup strategy for homelab", Embedding: emb1, Project: "p", Type: "memory", Visibility: "internal"})
-	_, _ = c.SaveMemory(&Memory{Content: "proxmox cluster maintenance notes", Embedding: emb2, Project: "p", Type: "memory", Visibility: "internal"})
+	_, _ = c.SaveMemory(&Memory{Content: "compute-cluster backup strategy for infrastructure", Embedding: emb1, Project: "p", Type: "memory", Visibility: "internal"})
+	_, _ = c.SaveMemory(&Memory{Content: "compute-cluster maintenance notes", Embedding: emb2, Project: "p", Type: "memory", Visibility: "internal"})
 
-	// Query vector close to emb1, but keyword "proxmox" matches both
-	results, err := c.HybridSearch(emb1, "proxmox", &MemoryFilter{Visibility: "all"}, 10)
+	// Query vector close to emb1, but keyword "compute-cluster" matches both
+	results, err := c.HybridSearch(emb1, "compute-cluster", &MemoryFilter{Visibility: "all"}, 10)
 	if err != nil {
 		t.Fatalf("HybridSearch: %v", err)
 	}
@@ -2072,17 +2072,17 @@ func TestCov_ListMemoriesCombinedFilters(t *testing.T) {
 
 	_, _ = c.SaveMemory(&Memory{
 		Content: "match all", Embedding: zeroEmbedding(), Project: "proj",
-		Type: "incident", Visibility: "internal", Speaker: "j33p", Area: "work", SubArea: "magi",
+		Type: "incident", Visibility: "internal", Speaker: "alice", Area: "work", SubArea: "magi",
 	})
 	_, _ = c.SaveMemory(&Memory{
 		Content: "wrong type", Embedding: zeroEmbedding(), Project: "proj",
-		Type: "memory", Visibility: "internal", Speaker: "j33p", Area: "work",
+		Type: "memory", Visibility: "internal", Speaker: "alice", Area: "work",
 	})
 
 	list, err := c.ListMemories(&MemoryFilter{
 		Project:    "proj",
 		Type:       "incident",
-		Speaker:    "j33p",
+		Speaker:    "alice",
 		Area:       "work",
 		Visibility: "internal",
 	})

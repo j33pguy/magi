@@ -10,7 +10,7 @@ func TestQuery(t *testing.T) {
 		// Filler stripping
 		{"what is kubernetes", "kubernetes"},
 		{"how do I configure DNS", "configure domain name system DNS"},
-		{"tell me about proxmox clusters", "proxmox clusters"},
+		{"tell me about compute clusters", "compute clusters"},
 		{"can you help with terraform", "help with terraform"},
 		{"please show me the config", "show me the config"},
 
@@ -24,12 +24,12 @@ func TestQuery(t *testing.T) {
 
 		// Abbreviation expansion
 		{"k8s deployment", "kubernetes deployment"},
-		{"pve cluster setup", "proxmox cluster setup"},
+		{"pve cluster setup", "hypervisor cluster setup"},
 		{"UDM firewall rules", "UDM UniFi Dream Machine firewall rules"},
 
 		// Combined
 		{"how do I set up k8s?", "set up kubernetes"},
-		{"why does pve crash?", "proxmox crash cause"},
+		{"why does pve crash?", "hypervisor crash cause"},
 		{"tell me about udm firewall", "UDM UniFi Dream Machine firewall"},
 
 		// No change

@@ -128,18 +128,18 @@ func TestAdaptive_MinRelevanceFiltering(t *testing.T) {
 	ctx := context.Background()
 
 	// Seed several memories
-	seedMemory(t, client, "proxmox virtual machine cluster setup", "proj", "memory")
-	seedMemory(t, client, "proxmox backup server configuration", "proj", "memory")
+	seedMemory(t, client, "compute-cluster virtual machine cluster setup", "proj", "memory")
+	seedMemory(t, client, "compute-cluster backup server configuration", "proj", "memory")
 	seedMemory(t, client, "unrelated topic about cooking recipes", "proj", "memory")
 
 	// With minRelevance = 0, all results pass
-	respAll, err := search.Adaptive(ctx, client, mockEmbed, "proxmox cluster", nil, 10, 0, 0)
+	respAll, err := search.Adaptive(ctx, client, mockEmbed, "compute-cluster cluster", nil, 10, 0, 0)
 	if err != nil {
 		t.Fatalf("Adaptive(minRelevance=0): %v", err)
 	}
 
 	// With a very high minRelevance, fewer (or zero) results should pass
-	respStrict, err := search.Adaptive(ctx, client, mockEmbed, "proxmox cluster", nil, 10, 0.99, 0)
+	respStrict, err := search.Adaptive(ctx, client, mockEmbed, "compute-cluster cluster", nil, 10, 0.99, 0)
 	if err != nil {
 		t.Fatalf("Adaptive(minRelevance=0.99): %v", err)
 	}
@@ -158,17 +158,17 @@ func TestAdaptive_RecencyDecay(t *testing.T) {
 	client := newTestDB(t)
 	ctx := context.Background()
 
-	seedMemory(t, client, "network configuration notes for homelab", "proj", "memory")
-	seedMemory(t, client, "network troubleshooting guide for homelab", "proj", "memory")
+	seedMemory(t, client, "network configuration notes for infrastructure", "proj", "memory")
+	seedMemory(t, client, "network troubleshooting guide for infrastructure", "proj", "memory")
 
 	// Run with recencyDecay = 0 (disabled)
-	respNone, err := search.Adaptive(ctx, client, mockEmbed, "network homelab", nil, 10, 0, 0)
+	respNone, err := search.Adaptive(ctx, client, mockEmbed, "network infrastructure", nil, 10, 0, 0)
 	if err != nil {
 		t.Fatalf("Adaptive(decay=0): %v", err)
 	}
 
 	// Run with recencyDecay > 0 (enabled)
-	respDecay, err := search.Adaptive(ctx, client, mockEmbed, "network homelab", nil, 10, 0, 0.01)
+	respDecay, err := search.Adaptive(ctx, client, mockEmbed, "network infrastructure", nil, 10, 0, 0.01)
 	if err != nil {
 		t.Fatalf("Adaptive(decay=0.01): %v", err)
 	}

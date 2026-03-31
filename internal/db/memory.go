@@ -27,9 +27,9 @@ type Memory struct {
 	ChunkIndex int    `json:"chunkIndex"`
 	// Speaker is who said/wrote this: user, assistant, agent, system
 	Speaker string `json:"speaker,omitempty"`
-	// Area is the top-level domain: work, home, family, homelab, project, meta
+	// Area is the top-level domain: work, infrastructure, development, personal, project, meta
 	Area string `json:"area,omitempty"`
-	// SubArea is a free-form sub-domain (power-platform, proxmox, magi, etc.)
+	// SubArea is a free-form sub-domain (power-platform, networking, magi, etc.)
 	SubArea   string   `json:"subArea,omitempty"`
 	CreatedAt  string  `json:"createdAt"`
 	UpdatedAt  string  `json:"updatedAt"`
@@ -45,7 +45,7 @@ type MemoryFilter struct {
 	Project string
 	// Projects filters to any of the listed namespaces — useful for agents that
 	// want to query their own context AND shared crew memory in one call.
-	// Example: []string{"agent:dinesh", "crew:shared"}
+	// Example: []string{"agent:alice", "crew:shared"}
 	Projects []string
 	Type       string
 	Tags       []string
@@ -56,9 +56,9 @@ type MemoryFilter struct {
 	Visibility string
 	// Speaker filters by who said/wrote it (user, assistant, agent, system).
 	Speaker string
-	// Area filters by top-level domain (work, home, family, homelab, project, meta).
+	// Area filters by top-level domain (work, infrastructure, development, personal, project, meta).
 	Area string
-	// SubArea filters by sub-domain (power-platform, proxmox, magi, etc.).
+	// SubArea filters by sub-domain (power-platform, networking, magi, etc.).
 	SubArea string
 	// AfterTime filters to memories created after this time.
 	AfterTime *time.Time

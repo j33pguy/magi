@@ -60,7 +60,7 @@ var techPatterns = []techMention{
 	{"Terraform", regexp.MustCompile(`(?i)\b(terraform|\.tf\b|hcl)\b`)},
 	{"Docker", regexp.MustCompile(`(?i)\b(docker|dockerfile|container)\b`)},
 	{"Kubernetes", regexp.MustCompile(`(?i)\b(kubernetes|k8s|kubectl|helm)\b`)},
-	{"Proxmox", regexp.MustCompile(`(?i)\bproxmox\b`)},
+	{"Compute", regexp.MustCompile(`(?i)\bcompute\b`)},
 	{"Vault", regexp.MustCompile(`(?i)\b(hashicorp vault|vault secret|vault token)\b`)},
 	{"SQLite", regexp.MustCompile(`(?i)\b(sqlite|libsql|turso)\b`)},
 	{"Python", regexp.MustCompile(`(?i)\b(python|\.py\b|pip install)\b`)},

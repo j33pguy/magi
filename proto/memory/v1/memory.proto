@@ -73,11 +73,11 @@ message Memory {
   string updated_at = 12;
   int32 token_count = 13;
   repeated string tags = 14;
-  // Taxonomy: who said/wrote this (j33p, gilfoyle, agent, system)
+  // Taxonomy: who said/wrote this (user, assistant, agent, system)
   string speaker = 15;
-  // Taxonomy: top-level domain (work, home, family, homelab, project, meta)
+  // Taxonomy: top-level domain (work, infrastructure, development, personal, project, meta)
   string area = 16;
-  // Taxonomy: sub-domain, free-form (power-platform, proxmox, magi, etc.)
+  // Taxonomy: sub-domain, free-form (power-platform, networking, magi, etc.)
   string sub_area = 17;
 }
 
@@ -102,8 +102,8 @@ message RememberRequest {
   string visibility = 5;
   repeated string tags = 6;
   string source = 7;
-  string speaker = 8;  // j33p, gilfoyle, agent, system
-  string area = 9;     // work, home, family, homelab, project, meta
+  string speaker = 8;  // user, assistant, agent, system
+  string area = 9;     // work, infrastructure, development, personal, project, meta
   string sub_area = 10; // free-form sub-domain
 }
 

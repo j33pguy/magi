@@ -29,7 +29,7 @@ sudo ldconfig
 ## Building
 
 ```bash
-git clone https://github.com/j33pguy/magi
+git clone https://github.com/your-org/magi
 cd magi
 CGO_ENABLED=1 make build
 ```
@@ -205,7 +205,7 @@ metadata:
 spec:
   containers:
     - name: magi
-      image: ghcr.io/j33pguy/magi:latest
+      image: ghcr.io/your-org/magi:latest
       ports:
         - containerPort: 8302
           name: http
@@ -249,12 +249,12 @@ spec:
 | Readiness | `GET /readyz` | Database accessible | Don't route traffic until DB is ready |
 | Health | `GET /health` | DB + git + memory count | Dashboards, debugging |
 
-## Reverse Proxy (Traefik)
+## Reverse Proxy
 
-Example Traefik dynamic config to expose the web UI and API behind authentication:
+Example reverse proxy dynamic config to expose the web UI and API behind authentication:
 
 ```yaml
-# traefik/dynamic/magi.yml
+# reverse-proxy/dynamic/magi.yml
 http:
   routers:
     magi-ui:
@@ -265,7 +265,7 @@ http:
       tls:
         certResolver: letsencrypt
       middlewares:
-        - authentik@docker   # or your auth middleware
+        - auth-middleware   # your auth middleware
 
     magi-api:
       rule: "Host(`memory-api.example.com`)"

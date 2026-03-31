@@ -238,7 +238,7 @@ func TestHandleSearchWithParentID(t *testing.T) {
 	s := newTestServer(t)
 
 	// Create a parent memory
-	parent := seedMemory(t, s, "parent memory with lots of detail about proxmox configuration", "proj", "memory")
+	parent := seedMemory(t, s, "parent memory with lots of detail about compute-cluster configuration", "proj", "memory")
 
 	// Create a child memory referencing the parent
 	emb, _ := s.embedder.Embed(context.Background(), "child chunk of parent")
@@ -248,7 +248,7 @@ func TestHandleSearchWithParentID(t *testing.T) {
 		Project:    "proj",
 		Type:       "memory",
 		Visibility: "internal",
-		Speaker:    "gilfoyle",
+		Speaker:    "alice",
 		ParentID:   parent.ID,
 		ChunkIndex: 1,
 	}
@@ -278,7 +278,7 @@ func TestHandleSearchWithParentIDFound(t *testing.T) {
 		Project:    "proj",
 		Type:       "memory",
 		Visibility: "internal",
-		Speaker:    "gilfoyle",
+		Speaker:    "alice",
 		ParentID:   parent.ID,
 		ChunkIndex: 1,
 	}
@@ -411,8 +411,8 @@ func TestHandleListConversationsNoChannel(t *testing.T) {
 
 func TestHandleSearchWithSpeakerFilter(t *testing.T) {
 	s := newTestServer(t)
-	seedMemoryFull(t, s, "speaker specific search", "proj", "memory", "dinesh", "", "", "api", nil)
-	seedMemoryFull(t, s, "other speaker search", "proj", "memory", "gilfoyle", "", "", "api", nil)
+	seedMemoryFull(t, s, "speaker specific search", "proj", "memory", "bob", "", "", "api", nil)
+	seedMemoryFull(t, s, "other speaker search", "proj", "memory", "alice", "", "", "api", nil)
 
 	req := httptest.NewRequest("GET", "/search?q=speaker+specific&project=proj", nil)
 	w := httptest.NewRecorder()
@@ -602,7 +602,7 @@ func TestNewServerRoutesWithAuth(t *testing.T) {
 
 func TestHandleRecallWithAllFilters(t *testing.T) {
 	s := newTestServer(t)
-	seedMemoryFull(t, s, "complete filter test for recall", "myproj", "decision", "dinesh", "homelab", "proxmox", "api", []string{"infra"})
+	seedMemoryFull(t, s, "complete filter test for recall", "myproj", "decision", "bob", "infrastructure", "compute-cluster", "api", []string{"infra"})
 
 	after := time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
 	before := time.Now().Add(1 * time.Hour).UTC().Format(time.RFC3339)
@@ -614,9 +614,9 @@ func TestHandleRecallWithAllFilters(t *testing.T) {
 		"top_k": 10,
 		"min_relevance": 0.01,
 		"recency_decay": 0.01,
-		"speaker": "dinesh",
-		"area": "homelab",
-		"sub_area": "proxmox",
+		"speaker": "bob",
+		"area": "infrastructure",
+		"sub_area": "compute-cluster",
 		"after": "%s",
 		"before": "%s"
 	}`, after, before)
@@ -633,7 +633,7 @@ func TestHandleRecallWithAllFilters(t *testing.T) {
 
 func TestHandleSearchAllParams(t *testing.T) {
 	s := newTestServer(t)
-	seedMemoryFull(t, s, "full param search test content", "proj", "decision", "user", "homelab", "proxmox", "api", []string{"infra", "k8s"})
+	seedMemoryFull(t, s, "full param search test content", "proj", "decision", "user", "infrastructure", "compute-cluster", "api", []string{"infra", "k8s"})
 
 	req := httptest.NewRequest("GET", "/search?q=full+param+search&project=proj&type=decision&top_k=3&recency_decay=0.01&tags=infra,k8s", nil)
 	w := httptest.NewRecorder()
@@ -656,8 +656,8 @@ func TestHandleRememberAllOptionalFields(t *testing.T) {
 		"type": "insight",
 		"visibility": "public",
 		"source": "discord",
-		"speaker": "j33p",
-		"area": "homelab",
+		"speaker": "alice",
+		"area": "infrastructure",
 		"sub_area": "networking",
 		"tags": ["infra", "vlan", "lacp"]
 	}`
@@ -697,7 +697,7 @@ func TestHandleCreateConversationWithDecisionsAndActions(t *testing.T) {
 		"ended_at": "2026-03-29T11:00:00Z",
 		"turn_count": 20,
 		"summary": "Discussed migration to Talos Linux",
-		"topics": ["homelab", "talos"],
+		"topics": ["infrastructure", "talos"],
 		"decisions": ["Migrate primary cluster to Talos", "Keep secondary on k3s"],
 		"action_items": ["Create Talos config", "Backup etcd"]
 	}`
@@ -877,7 +877,7 @@ func TestHandleRememberTagWarning(t *testing.T) {
 func TestHandleCreateConversationWithTopicsVerifyTags(t *testing.T) {
 	s := newTestServer(t)
 
-	body := `{"channel": "discord", "summary": "tagged conv", "topics": ["homelab", "networking"]}`
+	body := `{"channel": "discord", "summary": "tagged conv", "topics": ["infrastructure", "networking"]}`
 	req := httptest.NewRequest("POST", "/conversations", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	s.handleCreateConversation(w, req)
