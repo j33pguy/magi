@@ -11,6 +11,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/syncstate"
 )
 
 func newTestDB(t *testing.T) *db.Client {
@@ -210,6 +211,39 @@ func TestContext_Handle_WithData(t *testing.T) {
 	text := contents[0].(mcp.TextResourceContents)
 	if !strings.Contains(text.Text, "context info") {
 		t.Error("expected context memory in response")
+	}
+}
+
+// --- Sync Status ---
+
+func TestSyncStatus_Resource(t *testing.T) {
+	s := &SyncStatus{DB: newTestDB(t), Project: "proj", Tracker: syncstate.NewTracker()}
+	res := s.Resource()
+	if res.URI != "memory://sync-status" {
+		t.Errorf("URI = %q", res.URI)
+	}
+}
+
+func TestSyncStatus_Handle(t *testing.T) {
+	dbClient := newTestDB(t)
+	seedMemory(t, dbClient, "sync status data", "proj", "memory", "internal", nil)
+
+	tracker := syncstate.NewTracker()
+	if tracker.Start() {
+		tracker.Finish(nil)
+	}
+
+	s := &SyncStatus{DB: dbClient, Project: "proj", Tracker: tracker}
+	contents, err := s.Handle(context.Background(), mcp.ReadResourceRequest{})
+	if err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	text := contents[0].(mcp.TextResourceContents)
+	if !strings.Contains(text.Text, "\"project\": \"proj\"") {
+		t.Error("expected project in response")
+	}
+	if !strings.Contains(text.Text, "\"status\"") {
+		t.Error("expected status in response")
 	}
 }
 

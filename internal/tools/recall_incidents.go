@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
 	"github.com/j33pguy/magi/internal/search"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // RecallIncidents searches only incident-type memories (things that broke + how they were fixed).
 type RecallIncidents struct {
-	DB       db.Store
-	Embedder embeddings.Provider
+	DB             db.Store
+	Embedder       embeddings.Provider
+	DefaultProject string
 }
 
 // Tool returns the MCP tool definition for recall_incidents.
@@ -39,6 +40,9 @@ func (r *RecallIncidents) Handle(ctx context.Context, request mcp.CallToolReques
 
 	project := request.GetString("project", "")
 	projects := request.GetStringSlice("projects", nil)
+	if project == "" && len(projects) == 0 && r.DefaultProject != "" {
+		project = r.DefaultProject
+	}
 	tags := request.GetStringSlice("tags", nil)
 	topK := request.GetInt("top_k", 5)
 	recencyDecay := request.GetFloat("recency_decay", 0.0)

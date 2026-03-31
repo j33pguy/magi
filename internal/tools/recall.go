@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
 	"github.com/j33pguy/magi/internal/search"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // Recall performs hybrid search (BM25 + vector + RRF) over stored memories.
 type Recall struct {
-	DB       db.Store
-	Embedder embeddings.Provider
+	DB             db.Store
+	Embedder       embeddings.Provider
+	DefaultProject string
 }
 
 // Tool returns the MCP tool definition for recall.
@@ -55,6 +56,9 @@ func (r *Recall) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.
 
 	project := request.GetString("project", "")
 	projects := request.GetStringSlice("projects", nil)
+	if project == "" && len(projects) == 0 && r.DefaultProject != "" {
+		project = r.DefaultProject
+	}
 	memType := request.GetString("type", "")
 	tags := request.GetStringSlice("tags", nil)
 	topK := request.GetInt("top_k", 5)
