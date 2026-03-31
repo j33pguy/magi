@@ -89,10 +89,11 @@ func TestHealth(t *testing.T) {
 }
 
 func TestRememberValidation(t *testing.T) {
-	client, cleanup := newTestServer(t, "")
+	client, cleanup := newTestServer(t, "test-token")
 	defer cleanup()
 
-	_, err := client.Remember(context.Background(), &pb.RememberRequest{Content: ""})
+	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer test-token")
+	_, err := client.Remember(ctx, &pb.RememberRequest{Content: ""})
 	if err == nil {
 		t.Fatal("expected error for empty content")
 	}
@@ -120,10 +121,11 @@ func TestRecallValidation(t *testing.T) {
 }
 
 func TestForgetValidation(t *testing.T) {
-	client, cleanup := newTestServer(t, "")
+	client, cleanup := newTestServer(t, "test-token")
 	defer cleanup()
 
-	_, err := client.Forget(context.Background(), &pb.ForgetRequest{Id: ""})
+	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer test-token")
+	_, err := client.Forget(ctx, &pb.ForgetRequest{Id: ""})
 	if err == nil {
 		t.Fatal("expected error for empty id")
 	}
@@ -201,11 +203,12 @@ func TestAuthInterceptor_InvalidToken(t *testing.T) {
 }
 
 func TestCreateConversationValidation(t *testing.T) {
-	client, cleanup := newTestServer(t, "")
+	client, cleanup := newTestServer(t, "test-token")
 	defer cleanup()
 
+	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer test-token")
 	// Missing summary
-	_, err := client.CreateConversation(context.Background(), &pb.CreateConversationRequest{Channel: "test"})
+	_, err := client.CreateConversation(ctx, &pb.CreateConversationRequest{Channel: "test"})
 	if err == nil {
 		t.Fatal("expected error for empty summary")
 	}
@@ -215,7 +218,7 @@ func TestCreateConversationValidation(t *testing.T) {
 	}
 
 	// Missing channel
-	_, err = client.CreateConversation(context.Background(), &pb.CreateConversationRequest{Summary: "test"})
+	_, err = client.CreateConversation(ctx, &pb.CreateConversationRequest{Summary: "test"})
 	if err == nil {
 		t.Fatal("expected error for empty channel")
 	}

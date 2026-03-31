@@ -440,8 +440,12 @@ func TestNewServerRoutesIntegration(t *testing.T) {
 	}
 
 	t.Setenv("MAGI_LEGACY_HTTP_PORT", "0")
-	t.Setenv("MAGI_API_TOKEN", "")
+	t.Setenv("MAGI_API_TOKEN", "test-integration")
 	s := NewServer(client.TursoClient, &mockEmbedder{}, logger)
+	addAuth := func(r *http.Request) *http.Request {
+		r.Header.Set("Authorization", "Bearer test-integration")
+		return r
+	}
 
 	// Test health endpoint through the mux
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -454,7 +458,7 @@ func TestNewServerRoutesIntegration(t *testing.T) {
 
 	// Test remember through the mux
 	body := `{"content": "integration test memory", "project": "test"}`
-	req = httptest.NewRequest("POST", "/remember", strings.NewReader(body))
+	req = addAuth(httptest.NewRequest("POST", "/remember", strings.NewReader(body)))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	s.httpServer.Handler.ServeHTTP(w, req)
@@ -465,7 +469,7 @@ func TestNewServerRoutesIntegration(t *testing.T) {
 
 	// Test recall through the mux
 	body = `{"query": "integration test"}`
-	req = httptest.NewRequest("POST", "/recall", strings.NewReader(body))
+	req = addAuth(httptest.NewRequest("POST", "/recall", strings.NewReader(body)))
 	w = httptest.NewRecorder()
 	s.httpServer.Handler.ServeHTTP(w, req)
 
@@ -474,7 +478,7 @@ func TestNewServerRoutesIntegration(t *testing.T) {
 	}
 
 	// Test search through the mux
-	req = httptest.NewRequest("GET", "/search?q=integration", nil)
+	req = addAuth(httptest.NewRequest("GET", "/search?q=integration", nil))
 	w = httptest.NewRecorder()
 	s.httpServer.Handler.ServeHTTP(w, req)
 
@@ -483,7 +487,7 @@ func TestNewServerRoutesIntegration(t *testing.T) {
 	}
 
 	// Test list memories through the mux
-	req = httptest.NewRequest("GET", "/memories", nil)
+	req = addAuth(httptest.NewRequest("GET", "/memories", nil))
 	w = httptest.NewRecorder()
 	s.httpServer.Handler.ServeHTTP(w, req)
 
@@ -493,7 +497,7 @@ func TestNewServerRoutesIntegration(t *testing.T) {
 
 	// Test create conversation through the mux
 	body = `{"channel": "test", "summary": "integration test conversation"}`
-	req = httptest.NewRequest("POST", "/conversations", strings.NewReader(body))
+	req = addAuth(httptest.NewRequest("POST", "/conversations", strings.NewReader(body)))
 	w = httptest.NewRecorder()
 	s.httpServer.Handler.ServeHTTP(w, req)
 
@@ -506,7 +510,7 @@ func TestNewServerRoutesIntegration(t *testing.T) {
 	convID := convResp["id"].(string)
 
 	// Test list conversations through the mux
-	req = httptest.NewRequest("GET", "/conversations", nil)
+	req = addAuth(httptest.NewRequest("GET", "/conversations", nil))
 	w = httptest.NewRecorder()
 	s.httpServer.Handler.ServeHTTP(w, req)
 
@@ -515,7 +519,7 @@ func TestNewServerRoutesIntegration(t *testing.T) {
 	}
 
 	// Test get conversation through the mux
-	req = httptest.NewRequest("GET", "/conversations/"+convID, nil)
+	req = addAuth(httptest.NewRequest("GET", "/conversations/"+convID, nil))
 	w = httptest.NewRecorder()
 	s.httpServer.Handler.ServeHTTP(w, req)
 
@@ -525,7 +529,7 @@ func TestNewServerRoutesIntegration(t *testing.T) {
 
 	// Test search conversations through the mux
 	body = `{"query": "integration test"}`
-	req = httptest.NewRequest("POST", "/conversations/search", strings.NewReader(body))
+	req = addAuth(httptest.NewRequest("POST", "/conversations/search", strings.NewReader(body)))
 	w = httptest.NewRecorder()
 	s.httpServer.Handler.ServeHTTP(w, req)
 
@@ -976,7 +980,7 @@ func TestHandleDeleteMemoryThroughMux(t *testing.T) {
 		t.Fatalf("Migrate: %v", err)
 	}
 
-	t.Setenv("MAGI_API_TOKEN", "")
+	t.Setenv("MAGI_API_TOKEN", "test-delete")
 	t.Setenv("MAGI_LEGACY_HTTP_PORT", "0")
 	s := NewServer(client.TursoClient, &mockEmbedder{}, logger)
 
@@ -994,6 +998,7 @@ func TestHandleDeleteMemoryThroughMux(t *testing.T) {
 
 	// Delete through the mux (tests path parameter extraction)
 	req := httptest.NewRequest("DELETE", "/memories/"+m.ID, nil)
+	req.Header.Set("Authorization", "Bearer test-delete")
 	w := httptest.NewRecorder()
 	s.httpServer.Handler.ServeHTTP(w, req)
 
