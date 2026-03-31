@@ -30,7 +30,7 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	h := &handler{db: dbClient, embedder: embedder, logger: logger, tmpl: tmpl, pages: pages}
 	token := os.Getenv("MAGI_API_TOKEN")
 	if token == "" {
-		logger.Warn("MAGI_API_TOKEN not set, running web UI without auth (dev mode)")
+		logger.Warn("MAGI_API_TOKEN not set — web UI running in read-only mode")
 	}
 	auth := authMiddleware(token)
 	handle := func(pattern string, handler http.Handler) {
