@@ -23,7 +23,10 @@ import (
 	memgrpc "github.com/j33pguy/magi/internal/grpc"
 	"github.com/j33pguy/magi/internal/node"
 	localnode "github.com/j33pguy/magi/internal/node/local"
+<<<<<<< release/v0.3.0
 	"github.com/j33pguy/magi/internal/project"
+=======
+>>>>>>> main
 	"github.com/j33pguy/magi/internal/pipeline"
 	"github.com/j33pguy/magi/internal/resources"
 	"github.com/j33pguy/magi/internal/syncstate"
@@ -44,10 +47,13 @@ type Server struct {
 	store       db.Store // either dbClient directly, or a VersionedStore wrapper
 	embedder    *embeddings.OnnxProvider
 	logger      *slog.Logger
+<<<<<<< release/v0.3.0
 	gitRepo     *vcs.Repo              // nil if git versioning is disabled
 	coordinator *localnode.Coordinator // nil if coordinator is disabled
 	project     string
 	syncTracker *syncstate.Tracker
+=======
+>>>>>>> main
 	pipeline    *pipeline.Writer
 	gitRepo     *vcs.Repo               // nil if git versioning is disabled
 	coordinator *localnode.Coordinator   // nil if coordinator is disabled

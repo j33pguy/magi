@@ -308,7 +308,7 @@ More storage, more writes → dramatically better recall precision. Verbatim quo
 
 | Variable | Default | Description |
 |---|---|---|
-| `MEMORY_BACKEND` | `turso` | Database backend: `sqlite`, `turso`, `postgres`, `mysql`, `sqlserver` |
+| `MEMORY_BACKEND` | `sqlite` | Database backend: `sqlite`, `turso`, `postgres`, `mysql`, `sqlserver` |
 | `TURSO_URL` | required | Turso DB URL (when using turso backend) |
 | `TURSO_AUTH_TOKEN` | required | Turso auth token (when using turso backend) |
 | `MAGI_REPLICA_PATH` | `~/.magi.db` | Local replica path |

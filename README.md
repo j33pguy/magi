@@ -6,10 +6,10 @@
 <p align="center">Universal memory for AI agents. Self-hosted. Multi-protocol. Agent-agnostic.</p>
 
 <p align="center">
-  <a href="https://github.com/your-org/magi/wiki">Wiki</a> ·
-  <a href="https://github.com/your-org/magi/wiki/Getting-Started">Quick Start</a> ·
-  <a href="https://github.com/your-org/magi/wiki/REST-API-Reference">API Docs</a> ·
-  <a href="https://github.com/your-org/magi/wiki/Architecture">Architecture</a>
+  <a href="https://github.com/j33pguy/magi/wiki">Wiki</a> ·
+  <a href="https://github.com/j33pguy/magi/wiki/Getting-Started">Quick Start</a> ·
+  <a href="https://github.com/j33pguy/magi/wiki/REST-API-Reference">API Docs</a> ·
+  <a href="https://github.com/j33pguy/magi/wiki/Architecture">Architecture</a>
 </p>
 
 ---
@@ -108,14 +108,19 @@ Route work however you want — [OpenClaw](https://github.com/openclaw/openclaw)
 ## Quick Start
 
 ```bash
+<<<<<<< release/v0.3.0
 # Docker (MEMORY_BACKEND: sqlite | turso | postgres | mysql | sqlserver)
 docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/example-org/magi:latest
+=======
+# Docker (MEMORY_BACKEND: sqlite (default) | turso | postgres | mysql | sqlserver)
+docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/j33pguy/magi:latest
+>>>>>>> main
 
 # Binary
 MEMORY_BACKEND=postgres ./magi --http-only
 
 # From source
-git clone https://github.com/your-org/magi.git && cd magi && make build
+git clone https://github.com/j33pguy/magi.git && cd magi && make build
 
 # Generate MCP config for Claude/Codex
 magi mcp-config
@@ -258,18 +263,21 @@ graph TB
 
 ## Docs
 
-**[Full documentation in the Wiki →](https://github.com/your-org/magi/wiki)**
+**[Full documentation in the Wiki →](https://github.com/j33pguy/magi/wiki)**
 
-[Getting Started](https://github.com/your-org/magi/wiki/Getting-Started) · [Architecture](https://github.com/your-org/magi/wiki/Architecture) · [MCP Tools](https://github.com/your-org/magi/wiki/MCP-Tools-Reference) · [REST API](https://github.com/your-org/magi/wiki/REST-API-Reference) · [Multi-Agent Setup](https://github.com/your-org/magi/wiki/Multi-Agent-Setup) · [Knowledge Graph](https://github.com/your-org/magi/wiki/Knowledge-Graph) · [Deployment](https://github.com/your-org/magi/wiki/Deployment-Guide) · [Config](https://github.com/your-org/magi/wiki/Configuration) · [FAQ](https://github.com/your-org/magi/wiki/FAQ)
+[Getting Started](https://github.com/j33pguy/magi/wiki/Getting-Started) · [Architecture](https://github.com/j33pguy/magi/wiki/Architecture) · [MCP Tools](https://github.com/j33pguy/magi/wiki/MCP-Tools-Reference) · [REST API](https://github.com/j33pguy/magi/wiki/REST-API-Reference) · [Multi-Agent Setup](https://github.com/j33pguy/magi/wiki/Multi-Agent-Setup) · [Knowledge Graph](https://github.com/j33pguy/magi/wiki/Knowledge-Graph) · [Deployment](https://github.com/j33pguy/magi/wiki/Deployment-Guide) · [Config](https://github.com/j33pguy/magi/wiki/Configuration) · [FAQ](https://github.com/j33pguy/magi/wiki/FAQ)
 
 ## In Memory Of
 
 This project is dedicated to **Mary Margaret** — a dear friend who believed that the things worth remembering are the things that connect us. MAGI carries her spirit: nothing important should ever be forgotten.
 
+<<<<<<< release/v0.3.0
 ## License
 
 [Elastic License 2.0 (ELv2)](LICENSE) — free to use, modify, and self-host. Cannot be offered as a managed/hosted service without a commercial license from the author.
 
+=======
+>>>>>>> main
 ## Docker Compose
 
 ```bash
@@ -287,3 +295,7 @@ The compose file runs the SQLite backend by default and exposes:
 - `8302` REST API
 
 Persistent data (SQLite DB and ONNX models) is stored in the named volume `magi-data` mounted at `/data`.
+
+## License
+
+[Elastic License 2.0 (ELv2)](LICENSE) — free to use, modify, and self-host. Cannot be offered as a managed/hosted service without a commercial license from the author.

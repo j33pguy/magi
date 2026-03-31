@@ -11,6 +11,7 @@ import (
 // Config holds storage backend configuration.
 type Config struct {
 	Backend string // "turso" (default) | "sqlite" | "postgres" | "mysql" | "sqlserver"
+	Backend string // "sqlite" (default) | "turso" | "postgres" | "mysql" | "sqlserver"
 
 	// Turso
 	TursoURL       string
@@ -93,19 +94,28 @@ func ConfigFromEnv() *Config {
 // VCS wrapping) should use NewTursoStore.
 func NewStore(cfg *Config, logger *slog.Logger) (Store, error) {
 	switch cfg.Backend {
-	case "turso", "":
+	case "sqlite", "":
+		c, err := NewSQLiteClient(cfg.SQLitePath, logger)
+		if err != nil {
+			return nil, err
+		}
+		return c.TursoClient, nil
+	case "turso":
 		return NewTursoClient(&TursoConfig{
 			URL:          cfg.TursoURL,
 			AuthToken:    cfg.TursoAuthToken,
 			ReplicaPath:  cfg.ReplicaPath,
 			SyncInterval: cfg.SyncInterval,
 		}, logger)
+<<<<<<< release/v0.3.0
 	case "sqlite":
 		c, err := NewSQLiteClient(cfg.SQLitePath, logger)
 		if err != nil {
 			return nil, err
 		}
 		return c.TursoClient, nil
+=======
+>>>>>>> main
 	case "postgres", "postgresql":
 		return NewPostgresClient(cfg.PostgresURL, logger)
 	case "mysql", "mariadb":
@@ -122,19 +132,19 @@ func NewStore(cfg *Config, logger *slog.Logger) (Store, error) {
 // Only supports turso and sqlite backends.
 func NewTursoStore(cfg *Config, logger *slog.Logger) (*Client, error) {
 	switch cfg.Backend {
-	case "turso", "":
+	case "sqlite", "":
+		c, err := NewSQLiteClient(cfg.SQLitePath, logger)
+		if err != nil {
+			return nil, err
+		}
+		return c.TursoClient, nil
+	case "turso":
 		return NewTursoClient(&TursoConfig{
 			URL:          cfg.TursoURL,
 			AuthToken:    cfg.TursoAuthToken,
 			ReplicaPath:  cfg.ReplicaPath,
 			SyncInterval: cfg.SyncInterval,
 		}, logger)
-	case "sqlite":
-		c, err := NewSQLiteClient(cfg.SQLitePath, logger)
-		if err != nil {
-			return nil, err
-		}
-		return c.TursoClient, nil
 	default:
 		return nil, fmt.Errorf("backend %q does not support concrete *Client return — use NewStore", cfg.Backend)
 	}
