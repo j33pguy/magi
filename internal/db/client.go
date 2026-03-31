@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/tursodatabase/go-libsql"
@@ -73,13 +74,13 @@ func NewTursoClient(cfg *TursoConfig, logger *slog.Logger) (*TursoClient, error)
 
 	db := sql.OpenDB(connector)
 
-	// Keep pool small for embedded replica. Turso Hrana streams can expire on
-	// long-idle connections, so cap idle time. Tag writes use batched INSERTs
-	// to minimize round-trips and stream expiry exposure.
+	// Keep pool small for embedded replica. Turso Hrana streams expire
+	// server-side after idle periods; short lifetimes force the pool to
+	// discard stale connections before reuse.
 	db.SetMaxOpenConns(2)
 	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(5 * time.Minute)
-	db.SetConnMaxIdleTime(30 * time.Second)
+	db.SetConnMaxLifetime(2 * time.Minute)
+	db.SetConnMaxIdleTime(15 * time.Second)
 
 	// Verify connectivity
 	if err := db.Ping(); err != nil {
@@ -106,6 +107,12 @@ func (c *TursoClient) Sync() error {
 	}
 	c.logger.Debug("Database synced", slog.Int("framesSynced", rep.FramesSynced))
 	return nil
+}
+
+// isStreamExpired reports whether the error is a Turso Hrana "stream not found"
+// error, indicating the server-side stream expired during idle.
+func isStreamExpired(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "stream not found")
 }
 
 // Close shuts down the database connection and connector.
