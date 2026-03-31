@@ -241,21 +241,7 @@ Located in `internal/cache/`. Three independent caches reduce latency for repeat
 
 ## Observability
 
-### Prometheus Metrics
-
-Located in `internal/metrics/`. Exposed at `GET /metrics` in Prometheus exposition format.
-
-| Metric | Type | Description |
-|--------|------|-------------|
-| `magi_write_latency_seconds` | Histogram | Latency of memory write operations |
-| `magi_search_latency_seconds` | Histogram | Latency of memory search operations |
-| `magi_embedding_duration_seconds` | Histogram | Duration of ONNX embedding generation |
-| `magi_queue_depth` | Gauge | Current depth of async write pipeline |
-| `magi_memory_count` | Gauge | Current number of memories in database |
-| `magi_active_sessions` | Gauge | Number of active MCP sessions |
-| `magi_cache_hits_total` | Counter | Cache hits (label: `cache` = query/memory/embedding) |
-| `magi_cache_misses_total` | Counter | Cache misses (label: `cache` = query/memory/embedding) |
-| `magi_git_commits_total` | Counter | Total git commits made for memory versioning |
+Metrics endpoint (Prometheus-compatible format): `GET /metrics`
 
 ### Health Probes
 
@@ -423,7 +409,7 @@ magi/
 │   ├── db/                  # Pluggable SQL backends (factory, store interface)
 │   ├── node/                # Distributed node mesh (types, pool, router, registry)
 │   │   └── local/           # Embedded-mode implementations (coordinator, writer, reader, index, store)
-│   ├── metrics/             # Prometheus metrics (9 metrics, /metrics handler)
+│   ├── metrics/             # Metrics and /metrics handler (9 metrics)
 │   ├── tracking/            # Write tracking helpers (TrackTask, TrackDecision, TrackConversation)
 │   ├── chaos/               # Chaos testing framework (concurrent writes, kill recovery, etc.)
 │   ├── vcs/                 # Git-backed memory versioning (VersionedStore)
