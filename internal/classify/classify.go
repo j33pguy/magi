@@ -37,7 +37,7 @@ var rules = []rule{
 	{regexp.MustCompile(`(?i)oidc|\bsso\b|forward.?auth|webauthn|yubikey|identity.?provider|saml`), "infrastructure", "security"},
 	{regexp.MustCompile(`(?i)grafana|prometheus|loki|alertmanager|monitoring|observability|metrics`), "infrastructure", "monitoring"},
 	{regexp.MustCompile(`(?i)cdn.?cache|object.?storage|\bnfs\b|\bceph\b|backup.?storage`), "infrastructure", "storage"},
-	{regexp.MustCompile(`(?i)\bvlan\b|\bswitch\b|\bfirewall\b|\brouter\b|\bnetwork\b|subnet`), "infrastructure", "networking"},
+	{regexp.MustCompile(`(?i)\bfirewall\b|\brouter\b|\bnetwork\b|subnet|\bgateway\b|\bproxy\b`), "infrastructure", "networking"},
 	{regexp.MustCompile(`(?i)ci.?cd|github.?actions|gitlab.?ci|jenkins|pipeline|build.?server`), "infrastructure", "ci-cd"},
 
 	// personal

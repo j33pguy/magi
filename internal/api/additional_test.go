@@ -731,7 +731,7 @@ func TestHandleRememberAllFields(t *testing.T) {
 		"speaker": "alice",
 		"area": "infrastructure",
 		"sub_area": "networking",
-		"tags": ["infra", "vlan"]
+		"tags": ["infra", "networking"]
 	}`
 	req := httptest.NewRequest("POST", "/remember", strings.NewReader(body))
 	w := httptest.NewRecorder()
@@ -931,7 +931,7 @@ func TestHandleCreateConversationAllFields(t *testing.T) {
 		"turn_count": 15,
 		"summary": "Discussed full rebuild of the infrastructure rack",
 		"topics": ["infrastructure", "networking", "compute"],
-		"decisions": ["Switch to LACP bond", "Use vault-unsealer"],
+		"decisions": ["Switch to load balancer", "Use backup-service"],
 		"action_items": ["Order new NIC", "Flash firmware"]
 	}`
 	req := httptest.NewRequest("POST", "/conversations", strings.NewReader(body))
@@ -990,7 +990,7 @@ func TestHandleCreateConversationAllFields(t *testing.T) {
 	if !strings.Contains(got.Content, "2026-03-28T10:00:00Z") {
 		t.Error("content missing started_at")
 	}
-	if !strings.Contains(got.Content, "Switch to LACP bond") {
+	if !strings.Contains(got.Content, "Switch to load balancer") {
 		t.Error("content missing decisions")
 	}
 	if !strings.Contains(got.Content, "Order new NIC") {

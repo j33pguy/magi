@@ -7,12 +7,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Self-hosted runners — only run for trusted actors (repo owner + dependabot)
+# Only run for trusted actors (repo owner + dependabot)
 
 jobs:
   build:
     name: Build & Test
-    runs-on: [self-hosted, homelab]
+    runs-on: ubuntu-latest
     # Only run for repo owner
     if: github.actor == 'j33pguy' || github.actor == 'dependabot[bot]'
 
@@ -32,7 +32,7 @@ jobs:
 
   deploy:
     name: Deploy
-    runs-on: [self-hosted, homelab]
+    runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.actor == 'j33pguy'
 
@@ -58,7 +58,7 @@ jobs:
             -d "{\"role_id\":\"${VAULT_ROLE_ID}\",\"secret_id\":\"${VAULT_SECRET_ID}\"}" \
             | jq -r '.auth.client_token')
           curl -sk -H "X-Vault-Token: ${VAULT_TOKEN}" \
-            ${REDACTED}/v1/ci/data/deploy-key | jq -r '.data.data.REDACTED' \
+            ${REDACTED}/v1/secret/data/ssh | jq -r '.data.data.REDACTED' \
             > /tmp/REDACTED_KEY
           chmod 600 /tmp/REDACTED_KEY
 
