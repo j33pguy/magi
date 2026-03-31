@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -39,8 +40,8 @@ type Server struct {
 	store       db.Store // either dbClient directly, or a VersionedStore wrapper
 	embedder    *embeddings.OnnxProvider
 	logger      *slog.Logger
-	gitRepo     *vcs.Repo               // nil if git versioning is disabled
-	coordinator *localnode.Coordinator   // nil if coordinator is disabled
+	gitRepo     *vcs.Repo              // nil if git versioning is disabled
+	coordinator *localnode.Coordinator // nil if coordinator is disabled
 }
 
 // New creates and configures a new magi MCP server.
@@ -272,6 +273,17 @@ func (s *Server) ServeGateway() error {
 
 // ServeWeb starts the web UI server. Blocks until the server stops.
 func (s *Server) ServeWeb() error {
+	uiEnabled := true
+	if v := os.Getenv("MAGI_UI_ENABLED"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			uiEnabled = parsed
+		}
+	}
+	if !uiEnabled {
+		s.logger.Info("Web UI disabled via MAGI_UI_ENABLED")
+		return nil
+	}
+
 	port := os.Getenv("MAGI_UI_PORT")
 	if port == "" {
 		port = "8080"
