@@ -108,7 +108,7 @@ Route work however you want — [OpenClaw](https://github.com/openclaw/openclaw)
 ## Quick Start
 
 ```bash
-# Docker (MEMORY_BACKEND: sqlite | turso | postgres | mysql | sqlserver)
+# Docker (MEMORY_BACKEND: sqlite (default) | turso | postgres | mysql | sqlserver)
 docker run -d -p 8302:8302 -p 8080:8080 -e MEMORY_BACKEND=sqlite ghcr.io/j33pguy/magi:latest
 
 # Binary

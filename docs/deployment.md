@@ -47,7 +47,7 @@ sudo make install   # copies to /usr/local/bin/
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `MEMORY_BACKEND` | `turso` | Storage backend: `sqlite`, `turso`, `postgres`, `mysql`, `sqlserver` |
+| `MEMORY_BACKEND` | `sqlite` | Storage backend: `sqlite`, `turso`, `postgres`, `mysql`, `sqlserver` |
 | `TURSO_URL` | none | Turso/libSQL connection string |
 | `TURSO_AUTH_TOKEN` | none | Turso/libSQL auth token |
 | `POSTGRES_URL` | none | PostgreSQL connection string |
@@ -68,7 +68,7 @@ sudo make install   # copies to /usr/local/bin/
 | Backend | `MEMORY_BACKEND` | Connection Env | Notes |
 |---------|------------------|----------------|-------|
 | SQLite | `sqlite` | `SQLITE_PATH` | Local file storage for single-node deployments |
-| Turso/libSQL | `turso` (default) | `TURSO_URL`, `TURSO_AUTH_TOKEN`, `MAGI_REPLICA_PATH` | Embedded replica with sync |
+| SQLite | `sqlite` (default) | `TURSO_URL`, `TURSO_AUTH_TOKEN`, `MAGI_REPLICA_PATH` | Embedded replica with sync |
 | PostgreSQL | `postgres` | `POSTGRES_URL` | Requires pgvector for embeddings |
 | MySQL/MariaDB | `mysql` | `MYSQL_DSN` | Use a DSN string for connection details |
 | SQL Server | `sqlserver` | `SQLSERVER_URL` or `SQLSERVER_HOST`/`SQLSERVER_PORT`/`SQLSERVER_DATABASE`/`SQLSERVER_USER`/`SQLSERVER_PASSWORD` | Full SQL Server support |
