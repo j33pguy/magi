@@ -39,7 +39,7 @@ func NewServer(dbClient db.Store, embedder embeddings.Provider, logger *slog.Log
 }
 
 func (s *Server) Health(_ context.Context, _ *pb.HealthRequest) (*pb.HealthResponse, error) {
-	return &pb.HealthResponse{Ok: true, Version: "0.1.0"}, nil
+	return &pb.HealthResponse{Ok: true, Version: "0.3.0"}, nil
 }
 
 func (s *Server) Remember(ctx context.Context, req *pb.RememberRequest) (*pb.RememberResponse, error) {
