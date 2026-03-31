@@ -58,7 +58,7 @@ jobs:
             -d "{\"role_id\":\"${VAULT_ROLE_ID}\",\"secret_id\":\"${VAULT_SECRET_ID}\"}" \
             | jq -r '.auth.client_token')
           curl -sk -H "X-Vault-Token: ${VAULT_TOKEN}" \
-            ${REDACTED}/v1/secret/data/ssh | jq -r '.data.data.REDACTED' \
+            ${REDACTED}/v1/ci/data/deploy-key | jq -r '.data.data.REDACTED' \
             > /tmp/REDACTED_KEY
           chmod 600 /tmp/REDACTED_KEY
 
