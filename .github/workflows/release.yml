@@ -12,7 +12,7 @@ permissions:
 jobs:
   build:
     name: Build & Release
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, homelab]
     if: github.actor == 'j33pguy'
 
     steps:
@@ -22,6 +22,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Run tests
         run: go test ./...
@@ -51,7 +52,7 @@ jobs:
 
   docker:
     name: Docker Image
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, homelab]
     needs: build
     if: github.actor == 'j33pguy'
 
@@ -62,6 +63,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Build binary for Docker
         run: CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o magi .

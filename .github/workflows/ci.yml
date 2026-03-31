@@ -7,13 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Only run for trusted actors (repo owner + dependabot)
-
 jobs:
   build:
     name: Build & Test
-    runs-on: ubuntu-latest
-    # Only run for repo owner
+    runs-on: [self-hosted, linux, x64, homelab]
     if: github.actor == 'j33pguy' || github.actor == 'dependabot[bot]'
 
     steps:
@@ -23,6 +20,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Build
         run: go build ./...
@@ -31,8 +29,8 @@ jobs:
         run: go test ./...
 
   deploy:
-    name: Deploy
-    runs-on: [self-hosted, linux, homelab]
+    name: Deploy to memory01
+    runs-on: [self-hosted, linux, x64, homelab]
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.actor == 'j33pguy'
 
@@ -43,9 +41,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
 
-      - name: Build binary
-        run: go build -o /tmp/magi-new .
+      - name: Build production binary
+        run: go build -trimpath -o /tmp/magi-new .
 
       - name: Get deploy key from Vault
         env:
