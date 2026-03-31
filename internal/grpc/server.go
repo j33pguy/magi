@@ -291,6 +291,104 @@ func (s *Server) SearchConversations(ctx context.Context, req *pb.SearchConversa
 	}, nil
 }
 
+func (s *Server) LinkMemories(ctx context.Context, req *pb.LinkMemoriesRequest) (*pb.LinkMemoriesResponse, error) {
+	if req.FromId == "" {
+		return nil, status.Error(codes.InvalidArgument, "from_id is required")
+	}
+	if req.ToId == "" {
+		return nil, status.Error(codes.InvalidArgument, "to_id is required")
+	}
+	if req.Relation == "" {
+		return nil, status.Error(codes.InvalidArgument, "relation is required")
+	}
+
+	weight := req.Weight
+	if weight == 0 {
+		weight = 1.0
+	}
+
+	if _, err := s.db.GetMemory(req.FromId); err != nil {
+		return nil, status.Errorf(codes.NotFound, "source memory not found: %v", err)
+	}
+	if _, err := s.db.GetMemory(req.ToId); err != nil {
+		return nil, status.Errorf(codes.NotFound, "target memory not found: %v", err)
+	}
+
+	link, err := s.db.CreateLink(ctx, req.FromId, req.ToId, req.Relation, weight, false)
+	if err != nil {
+		s.logger.Error("creating link", "error", err, "from_id", req.FromId, "to_id", req.ToId)
+		return nil, status.Errorf(codes.Internal, "creating link: %v", err)
+	}
+
+	return &pb.LinkMemoriesResponse{Link: memoryLinkToProto(link)}, nil
+}
+
+func (s *Server) GetRelated(ctx context.Context, req *pb.GetRelatedRequest) (*pb.GetRelatedResponse, error) {
+	if req.MemoryId == "" {
+		return nil, status.Error(codes.InvalidArgument, "memory_id is required")
+	}
+
+	depth := int(req.Depth)
+	if depth <= 0 {
+		depth = 1
+	}
+
+	direction := req.Direction
+	if direction == "" {
+		direction = "both"
+	}
+
+	var memoryIDs []string
+	var allLinks []*db.MemoryLink
+
+	if depth == 1 {
+		links, err := s.db.GetLinks(ctx, req.MemoryId, direction)
+		if err != nil {
+			s.logger.Error("getting links", "error", err, "memory_id", req.MemoryId)
+			return nil, status.Errorf(codes.Internal, "getting links: %v", err)
+		}
+		allLinks = links
+		seen := map[string]bool{}
+		for _, l := range links {
+			neighborID := l.ToID
+			if neighborID == req.MemoryId {
+				neighborID = l.FromID
+			}
+			if !seen[neighborID] {
+				seen[neighborID] = true
+				memoryIDs = append(memoryIDs, neighborID)
+			}
+		}
+	} else {
+		ids, err := s.db.TraverseGraph(ctx, req.MemoryId, depth)
+		if err != nil {
+			s.logger.Error("traversing graph", "error", err, "memory_id", req.MemoryId, "depth", depth)
+			return nil, status.Errorf(codes.Internal, "traversing graph: %v", err)
+		}
+		memoryIDs = ids
+		links, err := s.db.GetLinks(ctx, req.MemoryId, "both")
+		if err != nil {
+			s.logger.Error("getting links", "error", err, "memory_id", req.MemoryId)
+			return nil, status.Errorf(codes.Internal, "getting links: %v", err)
+		}
+		allLinks = links
+	}
+
+	var memories []*db.Memory
+	for _, id := range memoryIDs {
+		mem, err := s.db.GetMemory(id)
+		if err != nil {
+			continue
+		}
+		memories = append(memories, mem)
+	}
+
+	return &pb.GetRelatedResponse{
+		Memories: memoriesToProto(memories),
+		Links:    memoryLinksToProto(allLinks),
+	}, nil
+}
+
 // Conversion helpers
 
 func memoryToProto(m *db.Memory) *pb.Memory {
@@ -336,6 +434,29 @@ func hybridResultsToProto(results []*db.HybridResult) []*pb.MemoryResult {
 			RecencyWeight: r.RecencyWeight,
 			WeightedScore: r.WeightedScore,
 		}
+	}
+	return out
+}
+
+func memoryLinkToProto(link *db.MemoryLink) *pb.MemoryLink {
+	if link == nil {
+		return nil
+	}
+	return &pb.MemoryLink{
+		Id:        link.ID,
+		FromId:    link.FromID,
+		ToId:      link.ToID,
+		Relation:  link.Relation,
+		Weight:    link.Weight,
+		Auto:      link.Auto,
+		CreatedAt: link.CreatedAt,
+	}
+}
+
+func memoryLinksToProto(links []*db.MemoryLink) []*pb.MemoryLink {
+	out := make([]*pb.MemoryLink, len(links))
+	for i, link := range links {
+		out[i] = memoryLinkToProto(link)
 	}
 	return out
 }
