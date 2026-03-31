@@ -256,3 +256,21 @@ This project is dedicated to **Mary Margaret** — a dear friend who believed th
 ## License
 
 MIT
+
+## Docker Compose
+
+```bash
+# Build the binary into the repo root for the Dockerfile build context
+CGO_ENABLED=1 go build -o magi .
+
+# Build and start
+docker compose up --build -d
+```
+
+The compose file runs the SQLite backend by default and exposes:
+- `8080` Web UI
+- `8300` gRPC
+- `8301` gateway
+- `8302` REST API
+
+Persistent data (SQLite DB and ONNX models) is stored in the named volume `magi-data` mounted at `/data`.
