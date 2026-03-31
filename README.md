@@ -255,4 +255,4 @@ This project is dedicated to **Mary Margaret** — a dear friend who believed th
 
 ## License
 
-MIT
+[Elastic License 2.0 (ELv2)](LICENSE) — free to use, modify, and self-host. Cannot be offered as a managed/hosted service without a commercial license from the author.
