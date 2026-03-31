@@ -3,6 +3,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -12,10 +13,11 @@ import (
 
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
-	"github.com/j33pguy/magi/internal/vcs"
-	pb "github.com/j33pguy/magi/proto/memory/v1"
+	"github.com/j33pguy/magi/internal/remember"
 	"github.com/j33pguy/magi/internal/search"
 	"github.com/j33pguy/magi/internal/tools"
+	"github.com/j33pguy/magi/internal/vcs"
+	pb "github.com/j33pguy/magi/proto/memory/v1"
 )
 
 // Server implements the MemoryService gRPC service.
@@ -45,68 +47,45 @@ func (s *Server) Remember(ctx context.Context, req *pb.RememberRequest) (*pb.Rem
 		return nil, status.Error(codes.InvalidArgument, "content is required")
 	}
 
-	memType := req.Type
-	if memType == "" {
-		memType = "memory"
-	}
 	source := req.Source
 	if source == "" {
 		source = "grpc"
 	}
-
-	embedding, err := s.embedder.Embed(ctx, req.Content)
-	if err != nil {
-		s.logger.Error("generating embedding", "error", err)
-		return nil, status.Errorf(codes.Internal, "generating embedding: %v", err)
-	}
-
-	speaker := req.Speaker
-	if speaker == "" {
-		speaker = "assistant"
-	}
-
-	memory := &db.Memory{
+	input := remember.Input{
 		Content:    req.Content,
 		Summary:    req.Summary,
-		Embedding:  embedding,
 		Project:    req.Project,
-		Type:       memType,
+		Type:       req.Type,
 		Visibility: req.Visibility,
 		Source:     source,
-		Speaker:    speaker,
+		Speaker:    req.Speaker,
 		Area:       req.Area,
 		SubArea:    req.SubArea,
-		TokenCount: len(req.Content) / 4,
+		Tags:       req.Tags,
 	}
-
-	saved, err := s.db.SaveMemory(memory)
+	result, err := remember.Remember(ctx, s.db, s.embedder, input, remember.Options{
+		TagMode: remember.TagModeWarn,
+		Logger:  s.logger,
+	})
 	if err != nil {
-		s.logger.Error("saving memory", "error", err)
-		return nil, status.Errorf(codes.Internal, "saving memory: %v", err)
-	}
-
-	// Build tags list: user-provided + structured taxonomy tags
-	tags := append([]string{}, req.Tags...)
-	if speaker != "" {
-		tags = append(tags, "speaker:"+speaker)
-	}
-	if req.Area != "" {
-		tags = append(tags, "area:"+req.Area)
-	}
-	if req.SubArea != "" {
-		tags = append(tags, "sub_area:"+req.SubArea)
-	}
-
-	resp := &pb.RememberResponse{Id: saved.ID, Ok: true}
-	if len(tags) > 0 {
-		if err := s.db.SetTags(saved.ID, tags); err != nil {
-			s.logger.Warn("setting tags failed (non-fatal)", "error", err, "memory_id", saved.ID)
-			tagErr := err.Error()
-			if len(tagErr) > 80 {
-				tagErr = tagErr[:80]
-			}
-			resp.TagWarning = "tags may not have been saved: " + tagErr
+		var secretErr *remember.SecretError
+		if errors.As(err, &secretErr) {
+			return nil, status.Error(codes.InvalidArgument, secretErr.Error())
 		}
+		s.logger.Error("remember failed", "error", err)
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	if result.Deduplicated {
+		return &pb.RememberResponse{Id: result.Match.Memory.ID, Ok: true}, nil
+	}
+
+	resp := &pb.RememberResponse{Id: result.Saved.ID, Ok: true}
+	if result.TagWarning != "" {
+		tagErr := result.TagWarning
+		if len(tagErr) > 80 {
+			tagErr = tagErr[:80]
+		}
+		resp.TagWarning = "tags may not have been saved: " + tagErr
 	}
 
 	return resp, nil
@@ -400,4 +379,3 @@ func formatConversationContent(req *pb.CreateConversationRequest) string {
 
 	return b.String()
 }
-
