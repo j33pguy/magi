@@ -56,6 +56,7 @@ sudo make install   # copies to /usr/local/bin/
 | `SQLITE_PATH` | `~/.magi/memory-local.db` | SQLite file path |
 | `MAGI_REPLICA_PATH` | `~/.magi/memory.db` | Local replica path for sync-backed stores |
 | `MAGI_API_TOKEN` | empty | Bearer token for API/UI auth (unset = no auth) |
+| `MAGI_TRUSTED_PROXY_AUTH` | `false` | Trust reverse proxy auth header for web UI (`true`/`1` to enable; still requires Bearer for `/api/*`) |
 | `MAGI_UI_ENABLED` | `true` | Enable or disable the web UI server |
 | `MAGI_GRPC_PORT` | `8300` | gRPC server port |
 | `MAGI_HTTP_PORT` | `8301` | gRPC gateway (HTTP/JSON) port |
@@ -95,6 +96,7 @@ RestartSec=5
 Environment=TURSO_URL=libsql://magi-<you>.turso.io
 Environment=TURSO_AUTH_TOKEN=<token>
 Environment=MAGI_API_TOKEN=<bearer-token>
+Environment=MAGI_TRUSTED_PROXY_AUTH=true
 Environment=MAGI_REPLICA_PATH=/var/lib/magi/memory.db
 Environment=MAGI_MODEL_DIR=/opt/magi/models
 Environment=MAGI_GRPC_PORT=8300
