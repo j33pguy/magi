@@ -26,6 +26,9 @@ func main() {
 	// --http-only: run HTTP/gRPC servers only (no stdio MCP). Used for systemd deployments.
 	httpOnly := len(os.Args) > 1 && os.Args[1] == "--http-only"
 
+	// --mcp-only: run ONLY the MCP stdio server (no HTTP/gRPC/web). Used for Codex/Claude MCP integration.
+	mcpOnly := len(os.Args) > 1 && os.Args[1] == "--mcp-only"
+
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
@@ -63,6 +66,20 @@ func main() {
 			logger.Error("Web UI server error", "error", err)
 		}
 	}()
+
+	if mcpOnly {
+		// MCP-only mode: just stdio MCP, no network listeners
+		logger.Info("Starting in MCP-only mode (stdio only)")
+		go func() {
+			<-sigCh
+			logger.Info("Received shutdown signal")
+		}()
+		if err := s.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "server error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if httpOnly {
 		// HTTP-only mode: serve legacy HTTP API alongside gRPC and block on signal
