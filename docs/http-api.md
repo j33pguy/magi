@@ -30,7 +30,7 @@ curl http://localhost:8302/health
 ```json
 {
   "ok": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "uptime": "2h15m30s",
   "db_status": "ok",
   "memory_count": 1523,

@@ -130,6 +130,18 @@ In embedded mode, all pools run as in-process goroutines communicating via Go ch
 
 ## Data Flow
 
+### Remember Service Layer
+
+The `internal/remember` service layer centralizes write enrichment so every transport shares the same behavior. MCP, gRPC, REST, and the async pipeline all call into this layer to guarantee consistent classification, safety checks, and dedup logic.
+
+Enrichment stages include:
+- Secret detection and rejection
+- Area/sub_area auto-classification
+- Embedding generation
+- Deduplication and soft-group linking
+- Tag enrichment
+- Contradiction detection (non-blocking)
+
 ### Write Path (remember)
 
 When `MAGI_ASYNC_WRITES=true`, writes go through the async pipeline (see below) and return 202 Accepted in under 10ms. The synchronous path is:

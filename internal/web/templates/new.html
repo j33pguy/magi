@@ -91,12 +91,13 @@ document.addEventListener('keydown', function(e) {
 {{define "dedup_preview"}}
 {{if .Results}}
 <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Similar existing memories:</div>
-<div class="card" style="padding: 0; overflow: hidden;">
+<div style="display: flex; flex-direction: column; gap: 10px;">
 {{range .Results}}
-<div class="memory-row" style="cursor: default;">
-    <span class="memory-summary">{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 60}}{{end}}</span>
-    <div class="memory-meta">
-        <span class="score-badge">{{printf "%.0f" .ScorePercent}}%</span>
+<div class="card no-hover" style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+    <div class="memory-preview">{{if .Memory.Summary}}{{.Memory.Summary}}{{else}}{{truncate .Memory.Content 60}}{{end}}</div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="score-label">{{printf "%.0f" .ScorePercent}}%</span>
+        <div class="score-bar"><span class="score-fill" style="width: {{.ScorePercent}}%;"></span></div>
     </div>
 </div>
 {{end}}
