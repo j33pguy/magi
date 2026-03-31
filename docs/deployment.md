@@ -167,59 +167,7 @@ To disable the coordinator (direct store access, same as pre-v0.2.0 behavior):
 Environment=MAGI_COORDINATOR_ENABLED=false
 ```
 
-## Prometheus Monitoring
-
-MAGI exposes a `/metrics` endpoint in Prometheus exposition format on the legacy HTTP port (default 8302).
-
-### Scrape Config
-
-Add to your `prometheus.yml`:
-
-```yaml
-scrape_configs:
-  - job_name: 'magi'
-    scrape_interval: 15s
-    static_configs:
-      - targets: ['localhost:8302']
-    metrics_path: /metrics
-```
-
-### Available Metrics
-
-| Metric | Type | Description |
-|--------|------|-------------|
-| `magi_write_latency_seconds` | Histogram | Memory write latency |
-| `magi_search_latency_seconds` | Histogram | Memory search latency |
-| `magi_embedding_duration_seconds` | Histogram | ONNX embedding duration |
-| `magi_queue_depth` | Gauge | Async write pipeline depth |
-| `magi_memory_count` | Gauge | Total memories in DB |
-| `magi_active_sessions` | Gauge | Active MCP sessions |
-| `magi_cache_hits_total` | Counter | Cache hits by type |
-| `magi_cache_misses_total` | Counter | Cache misses by type |
-| `magi_git_commits_total` | Counter | Git commits for versioning |
-
-### Example Alert Rules
-
-```yaml
-groups:
-  - name: magi
-    rules:
-      - alert: MAGIWriteLatencyHigh
-        expr: histogram_quantile(0.95, rate(magi_write_latency_seconds_bucket[5m])) > 1
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "MAGI write latency p95 > 1s"
-
-      - alert: MAGIQueueBacklog
-        expr: magi_queue_depth > 100
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "MAGI async write queue backlog"
-```
+Metrics endpoint (Prometheus-compatible format): `GET /metrics` on the legacy HTTP port (default 8302).
 
 ## Kubernetes Health Probes
 

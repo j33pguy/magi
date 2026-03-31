@@ -161,7 +161,7 @@ curl -X POST http://localhost:8302/recall \
 | Metrics Endpoint | 9 metrics: write/search latency, queue depth, cache stats, embedding duration, git commits. |
 | Health Probes | `/readyz`, `/livez`, expanded `/health` with DB status, uptime, memory count, git status. |
 | Write Tracking | TrackTask, TrackDecision, TrackConversation helpers for production dogfooding. |
-| 20 MCP tools | Full agent integration via stdio |
+| 17 MCP tools | Full agent integration via stdio |
 | REST + gRPC APIs | Any language, any platform |
 | Web Dashboard | Browse, search, graph, analyze |
 | Knowledge Graph | Auto-linked with typed relationships |
