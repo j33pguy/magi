@@ -53,7 +53,8 @@ func (s *Server) handleCreateConversation(w http.ResponseWriter, r *http.Request
 	embedding, err := s.embedder.Embed(r.Context(), content)
 	if err != nil {
 		s.logger.Error("generating embedding", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("generating embedding: %v", err)})
+		s.logger.Error("generating embedding", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
@@ -70,7 +71,8 @@ func (s *Server) handleCreateConversation(w http.ResponseWriter, r *http.Request
 	saved, err := s.db.SaveMemory(memory)
 	if err != nil {
 		s.logger.Error("saving conversation", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("saving conversation: %v", err)})
+		s.logger.Error("saving conversation", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
@@ -127,7 +129,8 @@ func (s *Server) handleListConversations(w http.ResponseWriter, r *http.Request)
 	memories, err := s.db.ListMemories(filter)
 	if err != nil {
 		s.logger.Error("listing conversations", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("listing conversations: %v", err)})
+		s.logger.Error("listing conversations", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
@@ -198,7 +201,8 @@ func (s *Server) handleSearchConversations(w http.ResponseWriter, r *http.Reques
 	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.Limit, req.MinRelevance, req.RecencyDecay)
 	if err != nil {
 		s.logger.Error("searching conversations", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("search: %v", err)})
+		s.logger.Error("search failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 

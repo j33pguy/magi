@@ -935,21 +935,26 @@ func TestAuthInterceptor_InvalidFormat(t *testing.T) {
 	assertGRPCCode(t, err, codes.Unauthenticated)
 }
 
-func TestAuthInterceptor_EmptyToken_DevMode(t *testing.T) {
-	interceptor := AuthInterceptor("") // dev mode
+func TestAuthInterceptor_EmptyToken_ReadOnly(t *testing.T) {
+	interceptor := AuthInterceptor("") // no token = read-only mode
+
+	// Read-only methods should be allowed
 	called := false
 	handler := func(_ context.Context, _ any) (any, error) {
 		called = true
 		return "ok", nil
 	}
-
-	_, err := interceptor(context.Background(), nil, &ggrpc.UnaryServerInfo{FullMethod: "/memory.v1.MemoryService/Remember"}, handler)
+	_, err := interceptor(context.Background(), nil, &ggrpc.UnaryServerInfo{FullMethod: "/memory.v1.MemoryService/Recall"}, handler)
 	if err != nil {
-		t.Fatalf("expected no error in dev mode: %v", err)
+		t.Fatalf("expected read-only method to succeed: %v", err)
 	}
 	if !called {
-		t.Error("handler should have been called")
+		t.Error("handler should have been called for read-only method")
 	}
+
+	// Write methods should be blocked
+	_, err = interceptor(context.Background(), nil, &ggrpc.UnaryServerInfo{FullMethod: "/memory.v1.MemoryService/Remember"}, handler)
+	assertGRPCCode(t, err, codes.PermissionDenied)
 }
 
 func TestAuthInterceptor_HealthBypass(t *testing.T) {
