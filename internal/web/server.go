@@ -2,13 +2,15 @@
 package web
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
-	"log/slog"
 	"io/fs"
+	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -16,8 +18,8 @@ import (
 	"github.com/j33pguy/magi/internal/classify"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/j33pguy/magi/internal/ingest"
 	"github.com/j33pguy/magi/internal/patterns"
-"github.com/j33pguy/magi/internal/ingest"
 )
 
 const pageSize = 30
@@ -26,39 +28,81 @@ const pageSize = 30
 func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings.Provider, logger *slog.Logger) {
 	tmpl, pages := parseTemplates()
 	h := &handler{db: dbClient, embedder: embedder, logger: logger, tmpl: tmpl, pages: pages}
+	token := os.Getenv("MAGI_API_TOKEN")
+	if token == "" {
+		logger.Warn("MAGI_API_TOKEN not set, running web UI without auth (dev mode)")
+	}
+	auth := authMiddleware(token)
+	handle := func(pattern string, handler http.Handler) {
+		mux.Handle(pattern, auth(handler))
+	}
+	handleFunc := func(pattern string, handler http.HandlerFunc) {
+		mux.Handle(pattern, auth(handler))
+	}
 
 	// Pages
 	// Static assets
 	staticFS, _ := fs.Sub(WebFS, "static")
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
-	mux.HandleFunc("GET /", h.listPage)
-	mux.HandleFunc("GET /search", h.searchPage)
-	mux.HandleFunc("GET /memory/{id}", h.detailPage)
-	mux.HandleFunc("GET /memory/{id}/partial", h.memoryPartial)
-	mux.HandleFunc("GET /new", h.newPage)
-	mux.HandleFunc("GET /stats", h.statsPage)
-	mux.HandleFunc("GET /graph", h.graphPage)
+	handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	handleFunc("GET /", h.listPage)
+	handleFunc("GET /search", h.searchPage)
+	handleFunc("GET /memory/{id}", h.detailPage)
+	handleFunc("GET /memory/{id}/partial", h.memoryPartial)
+	handleFunc("GET /new", h.newPage)
+	handleFunc("GET /stats", h.statsPage)
+	handleFunc("GET /graph", h.graphPage)
 
-	mux.HandleFunc("GET /patterns", h.patternsPage)
-// Ingest
-	mux.HandleFunc("GET /ingest", h.ingestPage)
-	mux.HandleFunc("POST /ingest", h.handleIngest)
-	mux.HandleFunc("POST /api/ingest/detect", h.handleDetectFormat)
+	handleFunc("GET /patterns", h.patternsPage)
+	// Ingest
+	handleFunc("GET /ingest", h.ingestPage)
+	handleFunc("POST /ingest", h.handleIngest)
+	handleFunc("POST /api/ingest/detect", h.handleDetectFormat)
 
 	// API endpoints
-	mux.HandleFunc("GET /api/memories", h.apiMemories)
-	mux.HandleFunc("GET /api/search", h.apiSearch)
-	mux.HandleFunc("GET /api/stats", h.apiStats)
-	mux.HandleFunc("POST /api/memories", h.apiCreateMemory)
-	mux.HandleFunc("DELETE /api/memories/{id}", h.apiDeleteMemory)
-	mux.HandleFunc("GET /api/memories/{id}/related", h.apiRelatedMemories)
-	mux.HandleFunc("GET /api/graph", h.apiGraph)
+	handleFunc("GET /api/memories", h.apiMemories)
+	handleFunc("GET /api/search", h.apiSearch)
+	handleFunc("GET /api/stats", h.apiStats)
+	handleFunc("POST /api/memories", h.apiCreateMemory)
+	handleFunc("DELETE /api/memories/{id}", h.apiDeleteMemory)
+	handleFunc("GET /api/memories/{id}/related", h.apiRelatedMemories)
+	handleFunc("GET /api/graph", h.apiGraph)
 
 	// Conversations
-	mux.HandleFunc("GET /conversations", h.conversationsPage)
-	mux.HandleFunc("GET /api/conversations/list", h.apiConversationsList)
-	mux.HandleFunc("POST /api/conversations/search", h.apiConversationsSearch)
-mux.HandleFunc("POST /api/analyze-patterns", h.apiAnalyzePatterns)
+	handleFunc("GET /conversations", h.conversationsPage)
+	handleFunc("GET /api/conversations/list", h.apiConversationsList)
+	handleFunc("POST /api/conversations/search", h.apiConversationsSearch)
+	handleFunc("POST /api/analyze-patterns", h.apiAnalyzePatterns)
+}
+
+func authMiddleware(token string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if token == "" {
+			return next
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			auth := r.Header.Get("Authorization")
+			if !strings.HasPrefix(auth, "Bearer ") {
+				writeUnauthorized(w, r)
+				return
+			}
+			provided := auth[7:]
+			if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
+				writeUnauthorized(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func writeUnauthorized(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/api/") || strings.Contains(r.Header.Get("Accept"), "application/json") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+		return
+	}
+	http.Error(w, "unauthorized", http.StatusUnauthorized)
 }
 
 type handler struct {
@@ -231,7 +275,6 @@ type listData struct {
 func (h *handler) listPage(w http.ResponseWriter, r *http.Request) {
 	filter := filterFromQuery(r)
 	filter.Limit = pageSize + 1
-	filter.Visibility = "all"
 
 	memories, err := h.db.ListMemories(&filter)
 	if err != nil {
@@ -310,7 +353,6 @@ func (h *handler) memoryPartial(w http.ResponseWriter, r *http.Request) {
 func (h *handler) apiMemories(w http.ResponseWriter, r *http.Request) {
 	filter := filterFromQuery(r)
 	filter.Limit = pageSize + 1
-	filter.Visibility = "all"
 
 	memories, err := h.db.ListMemories(&filter)
 	if err != nil {
@@ -365,7 +407,7 @@ func (h *handler) apiSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filter := &db.MemoryFilter{Visibility: "all"}
+	filter := &db.MemoryFilter{}
 	results, err := h.db.HybridSearch(embedding, q, filter, 20)
 	if err != nil {
 		h.serverError(w, err)
@@ -468,7 +510,7 @@ func (h *handler) apiDeleteMemory(w http.ResponseWriter, r *http.Request) {
 }
 
 type relatedMemoryResult struct {
-	Memory *db.Memory      `json:"memory"`
+	Memory *db.Memory       `json:"memory"`
 	Links  []*db.MemoryLink `json:"links"`
 }
 
@@ -707,10 +749,9 @@ func (h *handler) conversationsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	memories, err := h.db.ListMemories(&db.MemoryFilter{
-		Type:       "conversation",
-		Tags:       tags,
-		Limit:      50,
-		Visibility: "all",
+		Type:  "conversation",
+		Tags:  tags,
+		Limit: 50,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -740,9 +781,8 @@ type patternsData struct {
 
 func (h *handler) patternsPage(w http.ResponseWriter, r *http.Request) {
 	memories, err := h.db.ListMemories(&db.MemoryFilter{
-		Tags:       []string{"pattern"},
-		Limit:      200,
-		Visibility: "all",
+		Tags:  []string{"pattern"},
+		Limit: 200,
 	})
 	if err != nil {
 		h.serverError(w, err)
@@ -794,10 +834,9 @@ func (h *handler) apiConversationsList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	memories, err := h.db.ListMemories(&db.MemoryFilter{
-		Type:       "conversation",
-		Tags:       tags,
-		Limit:      50,
-		Visibility: "all",
+		Type:  "conversation",
+		Tags:  tags,
+		Limit: 50,
 	})
 	if err != nil {
 		h.serverError(w, err)
@@ -847,9 +886,8 @@ func (h *handler) apiConversationsSearch(w http.ResponseWriter, r *http.Request)
 	}
 
 	filter := &db.MemoryFilter{
-		Type:       "conversation",
-		Tags:       filterTags,
-		Visibility: "all",
+		Type: "conversation",
+		Tags: filterTags,
 	}
 	results, err := h.db.HybridSearch(embedding, req.Query, filter, 20)
 	if err != nil {
@@ -949,10 +987,10 @@ func (h *handler) ingestPage(w http.ResponseWriter, r *http.Request) {
 }
 
 type ingestResponse struct {
-	Imported int              `json:"imported"`
-	Skipped  int              `json:"skipped"`
+	Imported int               `json:"imported"`
+	Skipped  int               `json:"skipped"`
 	Memories []ingestMemoryRef `json:"memories,omitempty"`
-	Error    string           `json:"error,omitempty"`
+	Error    string            `json:"error,omitempty"`
 }
 
 type ingestMemoryRef struct {
@@ -1063,15 +1101,13 @@ func (h *handler) handleDetectFormat(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-
 func (h *handler) apiAnalyzePatterns(w http.ResponseWriter, r *http.Request) {
 	// Fetch last 90 days of user memories
 	since := time.Now().AddDate(0, 0, -90)
 	memories, err := h.db.ListMemories(&db.MemoryFilter{
-		Speaker:    "user",
-		AfterTime:  &since,
-		Limit:      1000,
-		Visibility: "all",
+		Speaker:   "user",
+		AfterTime: &since,
+		Limit:     1000,
 	})
 	if err != nil {
 		h.serverError(w, err)
