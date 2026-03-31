@@ -2,17 +2,18 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/remember"
 )
 
 type rememberRequest struct {
-	Content    string   `json:"content"`
-	Summary    string   `json:"summary"`
-	Project    string   `json:"project"`
-	Type       string   `json:"type"`
+	Content string `json:"content"`
+	Summary string `json:"summary"`
+	Project string `json:"project"`
+	Type    string `json:"type"`
 	// Visibility: "private", "internal" (default), or "public"
 	Visibility string   `json:"visibility"`
 	Tags       []string `json:"tags"`
@@ -40,70 +41,45 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 	if req.Source == "" {
 		req.Source = "api"
 	}
-
-	embedding, err := s.embedder.Embed(r.Context(), req.Content)
+	input := remember.Input{
+		Content:    req.Content,
+		Summary:    req.Summary,
+		Project:    req.Project,
+		Type:       req.Type,
+		Visibility: req.Visibility,
+		Source:     req.Source,
+		Speaker:    req.Speaker,
+		Area:       req.Area,
+		SubArea:    req.SubArea,
+		Tags:       req.Tags,
+	}
+	result, err := remember.Remember(r.Context(), s.db, s.embedder, input, remember.Options{
+		TagMode: remember.TagModeWarn,
+		Logger:  s.logger,
+	})
 	if err != nil {
-		s.logger.Error("generating embedding", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("generating embedding: %v", err)})
+		var secretErr *remember.SecretError
+		if errors.As(err, &secretErr) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": secretErr.Error()})
+			return
+		}
+		s.logger.Error("remember failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("%v", err)})
 		return
 	}
-
-	// Deduplication: check for near-duplicate before inserting
-	const maxDistance = 1.0 - 0.95 // cosine distance for 95% similarity
-	match, err := s.db.FindSimilar(embedding, maxDistance)
-	if err != nil {
-		s.logger.Warn("dedup check failed, proceeding with insert", "error", err)
-	} else if match != nil && match.Distance <= maxDistance {
-		s.logger.Info("deduplicated memory", "existing_id", match.Memory.ID, "distance", match.Distance)
+	if result.Deduplicated {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"id":          match.Memory.ID,
-			"ok":          true,
+			"id":           result.Match.Memory.ID,
+			"ok":           true,
 			"deduplicated": true,
-			"note":        fmt.Sprintf("existing memory %s is %.1f%% similar", match.Memory.ID, (1.0-match.Distance)*100),
+			"note":         fmt.Sprintf("existing memory %s is %.1f%% similar", result.Match.Memory.ID, (1.0-result.Match.Distance)*100),
 		})
 		return
 	}
 
-	speaker := req.Speaker
-	if speaker == "" {
-		speaker = "assistant"
-	}
-
-	memory := &db.Memory{
-		Content:    req.Content,
-		Summary:    req.Summary,
-		Embedding:  embedding,
-		Project:    req.Project,
-		Type:       req.Type,
-		Visibility: req.Visibility, // defaults to "internal" in SaveMemory if empty
-		Source:     req.Source,
-		Speaker:    speaker,
-		Area:       req.Area,
-		SubArea:    req.SubArea,
-		TokenCount: len(req.Content) / 4,
-	}
-
-	saved, err := s.db.SaveMemory(memory)
-	if err != nil {
-		s.logger.Error("saving memory", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("saving memory: %v", err)})
-		return
-	}
-
-	var tagErr string
-	if len(req.Tags) > 0 {
-		if err := s.db.SetTags(saved.ID, req.Tags); err != nil {
-			// Tags are non-fatal — log the error but return the memory ID.
-			// Turso Hrana streams can expire between the INSERT and the tag write;
-			// the memory is stored, tags can be retried later.
-			s.logger.Warn("setting tags failed (non-fatal)", "error", err, "memory_id", saved.ID)
-			tagErr = err.Error()
-		}
-	}
-
-	resp := map[string]any{"id": saved.ID, "ok": true}
-	if tagErr != "" {
-		resp["tag_warning"] = "tags may not have been saved: " + tagErr[:min(len(tagErr), 80)]
+	resp := map[string]any{"id": result.Saved.ID, "ok": true}
+	if result.TagWarning != "" {
+		resp["tag_warning"] = "tags may not have been saved: " + result.TagWarning[:min(len(result.TagWarning), 80)]
 	}
 	writeJSON(w, http.StatusCreated, resp)
 }

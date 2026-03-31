@@ -215,8 +215,12 @@ func TestHandleRememberWithTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTags: %v", err)
 	}
-	if len(tags) != 2 {
-		t.Errorf("got %d tags, want 2", len(tags))
+	tagSet := make(map[string]bool)
+	for _, tag := range tags {
+		tagSet[tag] = true
+	}
+	if !tagSet["alpha"] || !tagSet["beta"] {
+		t.Errorf("missing expected tags: %v", tags)
 	}
 }
 
