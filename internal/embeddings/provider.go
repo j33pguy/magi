@@ -9,3 +9,9 @@ type Provider interface {
 	EmbedBatch(ctx context.Context, texts []string) ([][]float32, error)
 	Dimensions() int
 }
+
+// ManagedProvider is a Provider with explicit lifecycle cleanup.
+type ManagedProvider interface {
+	Provider
+	Destroy()
+}

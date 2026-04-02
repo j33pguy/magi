@@ -44,6 +44,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		Tags:       tags,
 		Visibility: "", // HTTP API: exclude private memories by default
 	}
+	applyRequestAccessScope(r, filter)
 
 	results, err := s.db.HybridSearch(embedding, query, filter, topK)
 	if err != nil {
@@ -57,8 +58,10 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		if result.Memory.ParentID != "" {
 			parent, err := s.db.GetMemory(result.Memory.ParentID)
 			if err == nil {
-				result.Memory.Content = parent.Content
-				result.Memory.Tags = parent.Tags
+				if memoryAllowedForFilter(parent, parent.Tags, filter) {
+					result.Memory.Content = parent.Content
+					result.Memory.Tags = parent.Tags
+				}
 			}
 		}
 	}

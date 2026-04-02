@@ -37,7 +37,7 @@ func (mc *MemoryCache) Get(id string) *db.Memory {
 
 	if el, ok := mc.items[id]; ok {
 		mc.eviction.MoveToFront(el)
-		return el.Value.(*memoryCacheEntry).memory
+		return cloneMemory(el.Value.(*memoryCacheEntry).memory)
 	}
 	return nil
 }
@@ -49,7 +49,7 @@ func (mc *MemoryCache) Set(id string, m *db.Memory) {
 
 	if el, ok := mc.items[id]; ok {
 		mc.eviction.MoveToFront(el)
-		el.Value.(*memoryCacheEntry).memory = m
+		el.Value.(*memoryCacheEntry).memory = cloneMemory(m)
 		return
 	}
 
@@ -61,7 +61,7 @@ func (mc *MemoryCache) Set(id string, m *db.Memory) {
 		}
 	}
 
-	el := mc.eviction.PushFront(&memoryCacheEntry{key: id, memory: m})
+	el := mc.eviction.PushFront(&memoryCacheEntry{key: id, memory: cloneMemory(m)})
 	mc.items[id] = el
 }
 

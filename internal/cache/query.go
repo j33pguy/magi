@@ -43,7 +43,7 @@ func (qc *QueryCache) Get(key string) []*db.HybridResult {
 	if !ok || time.Now().After(e.expiresAt) {
 		return nil
 	}
-	return e.results
+	return cloneHybridResults(e.results)
 }
 
 // Set stores search results under the given key.
@@ -52,7 +52,7 @@ func (qc *QueryCache) Set(key string, results []*db.HybridResult) {
 	defer qc.mu.Unlock()
 
 	qc.entries[key] = &queryEntry{
-		results:   results,
+		results:   cloneHybridResults(results),
 		expiresAt: time.Now().Add(qc.ttl),
 	}
 }

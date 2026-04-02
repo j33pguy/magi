@@ -54,6 +54,12 @@ type MemoryFilter struct {
 	// Visibility filters by access level. If empty, defaults to excluding "private"
 	// for HTTP API callers. Set to "all" to include private (MCP/internal use only).
 	Visibility string
+	// RequestUser and RequestGroups carry the caller identity used for tag-based
+	// access filtering. When EnforceAccess is true, memories tagged with owner/viewer
+	// metadata are only returned when the caller matches.
+	RequestUser   string
+	RequestGroups []string
+	EnforceAccess bool
 	// Speaker filters by who said/wrote it (user, assistant, agent, system).
 	Speaker string
 	// Area filters by top-level domain (work, infrastructure, development, personal, project, meta).
@@ -459,14 +465,47 @@ func appendTimeConditions(filter *MemoryFilter, conditions *[]string, args *[]an
 // appendVisibilityCondition adds visibility filtering to conditions/args.
 func appendVisibilityCondition(filter *MemoryFilter, conditions *[]string, args *[]any) {
 	if filter.Visibility == "all" {
-		return
-	}
-	if filter.Visibility != "" {
+	} else if filter.Visibility != "" {
 		*conditions = append(*conditions, "m.visibility = ?")
 		*args = append(*args, filter.Visibility)
 	} else {
 		*conditions = append(*conditions, "m.visibility != 'private'")
 	}
+	appendAccessCondition(filter, conditions, args)
+}
+
+func appendAccessCondition(filter *MemoryFilter, conditions *[]string, args *[]any) {
+	if filter == nil || !filter.EnforceAccess {
+		return
+	}
+
+	var scoped []string
+	scoped = append(scoped,
+		"(m.visibility != 'private' AND NOT EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND (acl.tag LIKE 'owner:%' OR acl.tag LIKE 'viewer:%' OR acl.tag LIKE 'viewer_group:%')))",
+	)
+
+	if filter.RequestUser != "" {
+		scoped = append(scoped,
+			"EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND acl.tag = ?)",
+			"EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND acl.tag = ?)",
+		)
+		*args = append(*args, "owner:"+filter.RequestUser, "viewer:"+filter.RequestUser)
+	}
+
+	for _, group := range filter.RequestGroups {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		scoped = append(scoped, "EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND acl.tag = ?)")
+		*args = append(*args, "viewer_group:"+group)
+	}
+
+	if len(scoped) == 1 {
+		*conditions = append(*conditions, scoped[0])
+		return
+	}
+	*conditions = append(*conditions, "("+strings.Join(scoped, " OR ")+")")
 }
 
 // SearchMemoriesBM25 performs full-text keyword search using the FTS5 index.

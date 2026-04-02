@@ -13,17 +13,18 @@ import (
 type recallRequest struct {
 	Query        string   `json:"query"`
 	Project      string   `json:"project"`
-	Projects     []string `json:"projects"`      // multi-namespace: any match
+	Projects     []string `json:"projects"` // multi-namespace: any match
 	Type         string   `json:"type"`
 	Tags         []string `json:"tags"`
 	TopK         int      `json:"top_k"`
-	MinRelevance float64  `json:"min_relevance"`  // 0.0-1.0, filter by score >= threshold
-	RecencyDecay float64  `json:"recency_decay"`  // exponential decay rate (0.0 = disabled, 0.01 recommended)
+	Limit        int      `json:"limit"`         // backwards-compatible alias for top_k
+	MinRelevance float64  `json:"min_relevance"` // 0.0-1.0, filter by score >= threshold
+	RecencyDecay float64  `json:"recency_decay"` // exponential decay rate (0.0 = disabled, 0.01 recommended)
 	Speaker      string   `json:"speaker"`
 	Area         string   `json:"area"`
 	SubArea      string   `json:"sub_area"`
-	After        string   `json:"after"`           // only memories after this time (ISO-8601 or relative: 7d, 2w, 1m)
-	Before       string   `json:"before"`          // only memories before this time
+	After        string   `json:"after"`  // only memories after this time (ISO-8601 or relative: 7d, 2w, 1m)
+	Before       string   `json:"before"` // only memories before this time
 }
 
 func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +39,9 @@ func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.TopK <= 0 && req.Limit > 0 {
+		req.TopK = req.Limit
+	}
 	if req.TopK <= 0 {
 		req.TopK = 5
 	}
@@ -65,6 +69,7 @@ func (s *Server) handleRecall(w http.ResponseWriter, r *http.Request) {
 		AfterTime:  afterTime,
 		BeforeTime: beforeTime,
 	}
+	applyRequestAccessScope(r, filter)
 
 	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.TopK, req.MinRelevance, req.RecencyDecay)
 	if err != nil {

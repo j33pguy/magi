@@ -106,3 +106,73 @@ CREATE TABLE IF NOT EXISTS memory_links (
 CREATE INDEX IF NOT EXISTS idx_memory_links_from ON memory_links(from_id);
 CREATE INDEX IF NOT EXISTS idx_memory_links_to ON memory_links(to_id);
 `
+
+const pgMigrationV8 = `
+CREATE TABLE IF NOT EXISTS machine_credentials (
+	id           TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+	token_hash   TEXT NOT NULL UNIQUE,
+	user_name    TEXT NOT NULL,
+	machine_id   TEXT NOT NULL,
+	agent_name   TEXT NOT NULL DEFAULT '',
+	agent_type   TEXT NOT NULL DEFAULT '',
+	groups_json  TEXT NOT NULL DEFAULT '[]',
+	display_name TEXT NOT NULL DEFAULT '',
+	description  TEXT NOT NULL DEFAULT '',
+	created_at   TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+	last_seen_at TIMESTAMPTZ,
+	revoked_at   TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_machine_credentials_machine ON machine_credentials(machine_id);
+CREATE INDEX IF NOT EXISTS idx_machine_credentials_user ON machine_credentials(user_name);
+CREATE INDEX IF NOT EXISTS idx_machine_credentials_revoked ON machine_credentials(revoked_at);
+`
+
+const pgMigrationV9 = `
+CREATE TABLE IF NOT EXISTS tasks (
+	id             TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+	project        TEXT NOT NULL DEFAULT '',
+	queue_name     TEXT NOT NULL DEFAULT 'default',
+	title          TEXT NOT NULL,
+	summary        TEXT NOT NULL DEFAULT '',
+	description    TEXT NOT NULL DEFAULT '',
+	status         TEXT NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','started','done','failed','blocked','canceled')),
+	priority       TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low','normal','high','urgent')),
+	created_by     TEXT NOT NULL DEFAULT '',
+	orchestrator   TEXT NOT NULL DEFAULT '',
+	worker         TEXT NOT NULL DEFAULT '',
+	parent_task_id TEXT REFERENCES tasks(id),
+	metadata_json  TEXT NOT NULL DEFAULT '{}',
+	created_at     TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+	updated_at     TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+	started_at     TIMESTAMPTZ,
+	completed_at   TIMESTAMPTZ,
+	failed_at      TIMESTAMPTZ,
+	blocked_at     TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_status_created ON tasks(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project, status);
+CREATE INDEX IF NOT EXISTS idx_tasks_queue_status ON tasks(queue_name, status);
+CREATE INDEX IF NOT EXISTS idx_tasks_worker_status ON tasks(worker, status);
+CREATE INDEX IF NOT EXISTS idx_tasks_orchestrator_status ON tasks(orchestrator, status);
+
+CREATE TABLE IF NOT EXISTS task_events (
+	id            TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+	task_id       TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+	event_type    TEXT NOT NULL CHECK(event_type IN ('status','communication','issue','lesson','pitfall','success','memory_ref','note')),
+	actor_role    TEXT NOT NULL DEFAULT '',
+	actor_name    TEXT NOT NULL DEFAULT '',
+	actor_user    TEXT NOT NULL DEFAULT '',
+	actor_machine TEXT NOT NULL DEFAULT '',
+	actor_agent   TEXT NOT NULL DEFAULT '',
+	summary       TEXT NOT NULL DEFAULT '',
+	content       TEXT NOT NULL DEFAULT '',
+	status        TEXT NOT NULL DEFAULT '',
+	memory_id     TEXT REFERENCES memories(id) ON DELETE SET NULL,
+	source        TEXT NOT NULL DEFAULT '',
+	metadata_json TEXT NOT NULL DEFAULT '{}',
+	created_at    TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')
+);
+CREATE INDEX IF NOT EXISTS idx_task_events_task_created ON task_events(task_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_task_events_type_created ON task_events(event_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_task_events_memory ON task_events(memory_id);
+`

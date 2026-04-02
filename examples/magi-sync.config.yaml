@@ -1,0 +1,49 @@
+server:
+  url: http://magi.tailnet-name.ts.net:8302
+  enroll_token_env: MAGI_ADMIN_TOKEN
+  protocol: http
+
+machine:
+  id: laptop-macbook
+  user: UserA
+  groups:
+    - platform
+
+sync:
+  mode: push
+  watch: true
+  interval: 30s
+  retry_backoff: 5s
+  max_batch_size: 50
+  state_file: ~/.config/magi-sync/state.json
+
+privacy:
+  mode: allowlist
+  redact_secrets: true
+  max_file_size_kb: 512
+
+agents:
+  - type: claude
+    name: claude-main
+    enabled: true
+    owner: UserA
+    viewers:
+      - UserB
+    viewer_groups:
+      - platform
+    paths:
+      - ~/.claude
+    include:
+      - "**/projects/**/*.jsonl"
+      - "**/CLAUDE.md"
+      - "**/.claude/**/*.md"
+    exclude:
+      - "**/tmp/**"
+      - "**/cache/**"
+      - "**/*.bin"
+    visibility: team
+
+  - type: codex
+    enabled: false
+    paths:
+      - ~/.codex
