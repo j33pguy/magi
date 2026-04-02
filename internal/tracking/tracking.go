@@ -1,6 +1,6 @@
 // Package tracking provides convenience helpers for common dogfooding patterns.
-// These are wrappers around the database store for tracking tasks, decisions,
-// and conversations as memories.
+// These are wrappers around the database store for recording decisions,
+// conversations, and legacy task tracking memories.
 package tracking
 
 import (
@@ -19,6 +19,10 @@ type Tracker struct {
 }
 
 // TrackTask writes a task state change as a memory.
+//
+// Deprecated: task progress now has a dedicated task queue and event log.
+// Prefer the separate task queue (`/tasks`, `create_task`, `add_task_event`)
+// for new orchestrator/worker coordination flows.
 func (t *Tracker) TrackTask(ctx context.Context, id, state string, metadata map[string]string) (*db.Memory, error) {
 	var parts []string
 	parts = append(parts, fmt.Sprintf("Task %s → %s", id, state))

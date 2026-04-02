@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/j33pguy/magi/internal/auth"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/search"
 )
@@ -77,6 +78,11 @@ func (s *Server) handleCreateConversation(w http.ResponseWriter, r *http.Request
 	}
 
 	tags := []string{"channel:" + req.Channel, "conversation"}
+	if identity, ok := auth.FromContext(r.Context()); ok {
+		if ownerTag := auth.OwnerTag(identity); ownerTag != "" {
+			tags = append(tags, ownerTag)
+		}
+	}
 	for _, topic := range req.Topics {
 		tags = append(tags, "topic:"+topic)
 	}
@@ -110,6 +116,7 @@ func (s *Server) handleListConversations(w http.ResponseWriter, r *http.Request)
 		Limit:      limit,
 		Visibility: "all",
 	}
+	applyRequestAccessScope(r, filter)
 
 	// Apply "since" filter via listing then filtering — ListMemories returns
 	// newest first, so we can stop when we pass the threshold.
@@ -197,6 +204,7 @@ func (s *Server) handleSearchConversations(w http.ResponseWriter, r *http.Reques
 		Tags:       tags,
 		Visibility: "all",
 	}
+	applyRequestAccessScope(r, filter)
 
 	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.Limit, req.MinRelevance, req.RecencyDecay)
 	if err != nil {
@@ -226,6 +234,20 @@ func (s *Server) handleGetConversation(w http.ResponseWriter, r *http.Request) {
 	if memory.Type != "conversation" {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not a conversation"})
 		return
+	}
+
+	if user, groups, ok := requestAccessScope(r); ok {
+		tags, err := s.db.GetTags(memory.ID)
+		if err != nil {
+			s.logger.Error("getting conversation tags", "error", err, "id", id)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+			return
+		}
+		if !canAccessMemory(memory, tags, user, groups) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		memory.Tags = tags
 	}
 
 	writeJSON(w, http.StatusOK, memory)

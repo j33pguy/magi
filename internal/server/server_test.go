@@ -27,7 +27,7 @@ func TestServerStructFields(t *testing.T) {
 	var _ *http.Server = s.gwServer
 	var _ *http.Server = s.webServer
 	var _ db.Store = s.dbClient
-	var _ *embeddings.OnnxProvider = s.embedder
+	var _ embeddings.Provider = s.embedder
 	var _ *slog.Logger = s.logger
 	var _ *localnode.Coordinator = s.coordinator
 }

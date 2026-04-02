@@ -12,20 +12,23 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/j33pguy/magi/internal/auth"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/j33pguy/magi/internal/api"
+	"github.com/j33pguy/magi/internal/cache"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
 	memgrpc "github.com/j33pguy/magi/internal/grpc"
 	"github.com/j33pguy/magi/internal/node"
 	localnode "github.com/j33pguy/magi/internal/node/local"
-	"github.com/j33pguy/magi/internal/project"
 	"github.com/j33pguy/magi/internal/pipeline"
+	"github.com/j33pguy/magi/internal/project"
 	"github.com/j33pguy/magi/internal/resources"
+	"github.com/j33pguy/magi/internal/secretstore"
 	"github.com/j33pguy/magi/internal/syncstate"
 	"github.com/j33pguy/magi/internal/tools"
 	"github.com/j33pguy/magi/internal/vcs"
@@ -42,12 +45,13 @@ type Server struct {
 	webServer   *http.Server
 	dbClient    db.Store
 	store       db.Store // either dbClient directly, or a VersionedStore wrapper
-	embedder    *embeddings.OnnxProvider
+	embedder    embeddings.Provider
 	logger      *slog.Logger
 	pipeline    *pipeline.Writer
-	gitRepo     *vcs.Repo               // nil if git versioning is disabled
-	coordinator *localnode.Coordinator   // nil if coordinator is disabled
+	gitRepo     *vcs.Repo              // nil if git versioning is disabled
+	coordinator *localnode.Coordinator // nil if coordinator is disabled
 	project     string
+	secrets     secretstore.Manager
 	syncTracker *syncstate.Tracker
 }
 
@@ -72,13 +76,44 @@ func New(logger *slog.Logger) (*Server, error) {
 		dbClient.Close()
 		return nil, fmt.Errorf("initializing embeddings: %w", err)
 	}
+	embedderCfg := embeddings.ConfigFromEnv()
+	var provider embeddings.Provider = embedder
+	if embedderCfg.CompressionEnabled {
+		compressed, err := embeddings.NewCompressedProvider(embedder, embedderCfg.CompressionBits)
+		if err != nil {
+			embedder.Destroy()
+			dbClient.Close()
+			return nil, fmt.Errorf("initializing turboquant compression: %w", err)
+		}
+		provider = compressed
+		logger.Info("TurboQuant compression enabled", "bits_per_angle", embedderCfg.CompressionBits)
+	}
+	cacheCfg := cache.ConfigFromEnv()
+	if cacheCfg.Enabled {
+		provider = cache.NewProvider(provider, cacheCfg.EmbeddingSize)
+		logger.Info("Embedding cache enabled", "size", cacheCfg.EmbeddingSize)
+	}
 
 	s := &Server{
 		dbClient:    dbClient,
 		store:       dbClient, // default: use raw client
-		embedder:    embedder,
+		embedder:    provider,
 		logger:      logger,
 		syncTracker: syncstate.NewTracker(),
+	}
+	secrets, err := secretstore.NewFromEnv(logger.WithGroup("secrets"))
+	if err != nil {
+		s.Close()
+		return nil, fmt.Errorf("loading secret store config: %w", err)
+	}
+	s.secrets = secrets
+	authResolver, err := auth.LoadResolverFromEnv()
+	if err != nil {
+		s.Close()
+		return nil, fmt.Errorf("loading auth config: %w", err)
+	}
+	if lookup, ok := dbClient.(auth.MachineLookup); ok {
+		authResolver.SetMachineLookup(lookup)
 	}
 
 	cwd, err := os.Getwd()
@@ -104,7 +139,7 @@ func New(logger *slog.Logger) (*Server, error) {
 			// Rebuild DB from git if DB is empty but git has memories
 			if vcs.DBIsEmpty(dbClient) && gitRepo.HasMemories() {
 				logger.Info("DB is empty but git repo has memories, rebuilding...")
-				if err := vcs.RebuildDB(dbClient, gitRepo, embedder, logger.WithGroup("rebuild")); err != nil {
+				if err := vcs.RebuildDB(dbClient, gitRepo, s.embedder, logger.WithGroup("rebuild")); err != nil {
 					logger.Error("git rebuild failed", "error", err)
 				}
 			}
@@ -131,6 +166,14 @@ func New(logger *slog.Logger) (*Server, error) {
 		// Wrap store so all tools/gRPC/API route through the node pools.
 		s.store = localnode.NewCoordinatedStore(coord, s.store)
 	}
+	if cacheCfg.Enabled {
+		s.store = cache.NewStore(s.store, cacheCfg)
+		logger.Info("Hot memory cache enabled",
+			"query_ttl", cacheCfg.QueryTTL.String(),
+			"memory_size", cacheCfg.MemorySize,
+			"embedding_size", cacheCfg.EmbeddingSize,
+		)
+	}
 
 	s.mcp = mcpserver.NewMCPServer(
 		"magi",
@@ -144,18 +187,26 @@ func New(logger *slog.Logger) (*Server, error) {
 	s.registerResources()
 
 	// gRPC server with auth interceptor
-	token := os.Getenv("MAGI_API_TOKEN")
 	s.grpcServer = grpc.NewServer(
-		grpc.UnaryInterceptor(memgrpc.AuthInterceptor(token)),
+		grpc.UnaryInterceptor(memgrpc.AuthInterceptor(authResolver)),
 	)
 	grpcSvc := memgrpc.NewServer(s.store, s.embedder, logger.WithGroup("grpc"))
 	if s.gitRepo != nil {
 		grpcSvc.SetGitRepo(s.gitRepo)
 	}
+	grpcSvc.SetSecretManager(s.secrets)
 	pb.RegisterMemoryServiceServer(s.grpcServer, grpcSvc)
 
 	// Keep existing HTTP API (will be deprecated once grpc-gateway is proven)
 	s.httpAPI = api.NewServer(s.store, s.embedder, logger.WithGroup("http"))
+	s.httpAPI.SetAuthResolver(authResolver)
+	if machines, ok := dbClient.(api.MachineRegistryStore); ok {
+		s.httpAPI.SetMachineStore(machines)
+	}
+	if tasks, ok := dbClient.(api.TaskStore); ok {
+		s.httpAPI.SetTaskStore(tasks)
+	}
+	s.httpAPI.SetSecretManager(s.secrets)
 	if s.gitRepo != nil {
 		s.httpAPI.SetGitRepo(s.gitRepo)
 	}
@@ -170,7 +221,12 @@ func New(logger *slog.Logger) (*Server, error) {
 }
 
 func (s *Server) registerTools() {
-	remember := &tools.Remember{DB: s.store, Embedder: s.embedder, DefaultProject: s.project}
+	remember := &tools.Remember{
+		DB:             s.store,
+		Embedder:       s.embedder,
+		DefaultProject: s.project,
+		SecretManager:  s.secrets,
+	}
 	s.addTool(remember.Tool(), remember.Handle)
 
 	recall := &tools.Recall{DB: s.store, Embedder: s.embedder, DefaultProject: s.project}
@@ -223,6 +279,26 @@ func (s *Server) registerTools() {
 
 	syncNow := &tools.SyncNow{DB: s.store, Project: s.project, Tracker: s.syncTracker}
 	s.addTool(syncNow.Tool(), syncNow.Handle)
+
+	if taskStore, ok := s.dbClient.(db.TaskQueueStore); ok {
+		createTask := &tools.CreateTask{Tasks: taskStore, DefaultProject: s.project}
+		s.addTool(createTask.Tool(), createTask.Handle)
+
+		listTasks := &tools.ListTasks{Tasks: taskStore, DefaultProject: s.project}
+		s.addTool(listTasks.Tool(), listTasks.Handle)
+
+		getTask := &tools.GetTask{Tasks: taskStore}
+		s.addTool(getTask.Tool(), getTask.Handle)
+
+		updateTask := &tools.UpdateTask{Tasks: taskStore}
+		s.addTool(updateTask.Tool(), updateTask.Handle)
+
+		addTaskEvent := &tools.AddTaskEvent{Tasks: taskStore, DB: s.store}
+		s.addTool(addTaskEvent.Tool(), addTaskEvent.Handle)
+
+		listTaskEvents := &tools.ListTaskEvents{Tasks: taskStore}
+		s.addTool(listTaskEvents.Tool(), listTaskEvents.Handle)
+	}
 }
 
 func (s *Server) registerResources() {
@@ -434,7 +510,13 @@ func (s *Server) Close() {
 		s.gitRepo.Close()
 	}
 	if s.embedder != nil {
-		s.embedder.Destroy()
+		if managed, ok := s.embedder.(embeddings.ManagedProvider); ok {
+			managed.Destroy()
+		}
+	}
+	if s.store != nil {
+		s.store.Close()
+		return
 	}
 	if s.dbClient != nil {
 		s.dbClient.Close()

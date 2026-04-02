@@ -12,6 +12,7 @@ import (
 	"github.com/j33pguy/magi/internal/contradiction"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/j33pguy/magi/internal/secretstore"
 )
 
 // TagMode controls how tag write failures are handled.
@@ -42,6 +43,7 @@ type Options struct {
 	ContradictionThreshold float64
 	TagMode                TagMode
 	Logger                 *slog.Logger
+	SecretManager          secretstore.Manager
 }
 
 // Result captures the outcome of remember enrichment.
@@ -87,7 +89,21 @@ func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider,
 	}
 
 	if warning := DetectSecrets(input.Content); warning != "" {
-		return nil, &SecretError{Warning: warning}
+		if opts.SecretManager != nil {
+			externalized, err := opts.SecretManager.Externalize(ctx, input.Project, input.Content)
+			if err != nil {
+				return nil, &SecretError{Warning: warning}
+			}
+			input.Content = externalized.RedactedContent
+			for _, ref := range externalized.Refs {
+				input.Tags = append(input.Tags,
+					"secret_backend:"+ref.Backend,
+					"secret_ref:"+ref.Path+"#"+ref.Key,
+				)
+			}
+		} else {
+			return nil, &SecretError{Warning: warning}
+		}
 	}
 
 	logger := opts.Logger

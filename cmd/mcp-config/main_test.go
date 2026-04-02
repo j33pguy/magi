@@ -21,8 +21,12 @@ func TestGenerateConfig(t *testing.T) {
 		t.Errorf("command = %q, want %q", magi.Command, "magi")
 	}
 
-	if magi.Env["MAGI_GRPC_PORT"] != "8300" {
-		t.Errorf("MAGI_GRPC_PORT = %q, want %q", magi.Env["MAGI_GRPC_PORT"], "8300")
+	if len(magi.Args) != 1 || magi.Args[0] != "--mcp-only" {
+		t.Errorf("args = %#v, want [--mcp-only]", magi.Args)
+	}
+
+	if magi.Env["MAGI_CACHE_ENABLED"] != "true" {
+		t.Errorf("MAGI_CACHE_ENABLED = %q, want %q", magi.Env["MAGI_CACHE_ENABLED"], "true")
 	}
 
 	// Verify it produces valid JSON.
@@ -46,13 +50,18 @@ func TestGenerateConfigEnvVars(t *testing.T) {
 	magi := cfg.MCPServers["magi"]
 
 	requiredEnvVars := []string{
-		"MAGI_DB_URL",
-		"MAGI_AUTH_TOKEN",
+		"MEMORY_BACKEND",
+		"SQLITE_PATH",
+		"POSTGRES_URL",
+		"MYSQL_DSN",
+		"SQLSERVER_URL",
+		"TURSO_URL",
+		"TURSO_AUTH_TOKEN",
+		"MAGI_REPLICA_PATH",
 		"MAGI_API_TOKEN",
-		"MAGI_GRPC_PORT",
-		"MAGI_HTTP_PORT",
-		"MAGI_LEGACY_HTTP_PORT",
-		"MAGI_UI_PORT",
+		"MAGI_ASYNC_WRITES",
+		"MAGI_CACHE_ENABLED",
+		"MAGI_UI_ENABLED",
 	}
 
 	for _, env := range requiredEnvVars {

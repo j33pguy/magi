@@ -9,6 +9,7 @@ import (
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
 	"github.com/j33pguy/magi/internal/remember"
+	"github.com/j33pguy/magi/internal/secretstore"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -17,6 +18,7 @@ type Remember struct {
 	DB             db.Store
 	Embedder       embeddings.Provider
 	DefaultProject string
+	SecretManager  secretstore.Manager
 }
 
 // Tool returns the MCP tool definition for remember.
@@ -84,6 +86,7 @@ func (r *Remember) Handle(ctx context.Context, request mcp.CallToolRequest) (*mc
 		ContradictionThreshold: 0.85,
 		TagMode:                remember.TagModeFail,
 		Logger:                 slog.Default(),
+		SecretManager:          r.SecretManager,
 	})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil

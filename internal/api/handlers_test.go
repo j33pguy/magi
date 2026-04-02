@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/j33pguy/magi/internal/auth"
 	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/secretstore"
 )
 
 // mockEmbedder implements embeddings.Provider for tests.
@@ -55,9 +58,16 @@ func newTestServer(t *testing.T) *Server {
 
 	s := &Server{
 		db:       client.TursoClient,
+		tasks:    client.TursoClient,
 		embedder: &mockEmbedder{},
 		logger:   logger,
-		token:    "", // no auth in tests
+		auth:     &auth.Resolver{}, // no auth in tests
+	}
+	if machines, ok := any(client.TursoClient).(MachineRegistryStore); ok {
+		s.machines = machines
+	}
+	if lookup, ok := any(client.TursoClient).(auth.MachineLookup); ok {
+		s.auth.SetMachineLookup(lookup)
 	}
 	return s
 }
@@ -253,6 +263,144 @@ func TestHandleRememberDefaults(t *testing.T) {
 	}
 }
 
+func TestHandleRecallAcceptsLimitAlias(t *testing.T) {
+	s := newTestServer(t)
+	seedMemory(t, s, "API changes from v3 rollout", "proj", "decision")
+
+	body := `{"query":"API changes","limit":1}`
+	req := httptest.NewRequest("POST", "/recall", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.handleRecall(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp struct {
+		Results []json.RawMessage `json:"results"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.Results) != 1 {
+		t.Fatalf("expected exactly 1 result with limit alias, got %d", len(resp.Results))
+	}
+}
+
+func TestTaskQueueLifecycle(t *testing.T) {
+	s := newTestServer(t)
+	memory := seedMemory(t, s, "worker found a deployment pitfall", "proj", "lesson")
+
+	createBody := `{
+		"title":"Build task queue",
+		"project":"proj",
+		"queue":"agents",
+		"status":"queued",
+		"priority":"high",
+		"orchestrator":"claude-main",
+		"worker":"codex-worker",
+		"metadata":{"epic":"task-queue"}
+	}`
+	createReq := httptest.NewRequest("POST", "/tasks", strings.NewReader(createBody))
+	createReq.Header.Set("Content-Type", "application/json")
+	createW := httptest.NewRecorder()
+	s.handleCreateTask(createW, createReq)
+	if createW.Code != http.StatusCreated {
+		t.Fatalf("create task status = %d, want %d; body=%s", createW.Code, http.StatusCreated, createW.Body.String())
+	}
+
+	var created db.Task
+	if err := json.NewDecoder(createW.Body).Decode(&created); err != nil {
+		t.Fatalf("decode created task: %v", err)
+	}
+	if created.ID == "" || created.Status != db.TaskStatusQueued {
+		t.Fatalf("unexpected created task: %+v", created)
+	}
+
+	updateBody := `{"status":"started","status_comment":"worker picked it up"}`
+	updateReq := httptest.NewRequest("PATCH", "/tasks/"+created.ID, strings.NewReader(updateBody))
+	updateReq.Header.Set("Content-Type", "application/json")
+	updateReq.SetPathValue("id", created.ID)
+	updateW := httptest.NewRecorder()
+	s.handleUpdateTask(updateW, updateReq)
+	if updateW.Code != http.StatusOK {
+		t.Fatalf("update task status = %d, want %d; body=%s", updateW.Code, http.StatusOK, updateW.Body.String())
+	}
+
+	eventBody := fmt.Sprintf(`{
+		"event_type":"memory_ref",
+		"summary":"linked worker lesson",
+		"memory_id":"%s",
+		"actor_role":"worker"
+	}`, memory.ID)
+	eventReq := httptest.NewRequest("POST", "/tasks/"+created.ID+"/events", strings.NewReader(eventBody))
+	eventReq.Header.Set("Content-Type", "application/json")
+	eventReq.SetPathValue("id", created.ID)
+	eventW := httptest.NewRecorder()
+	s.handleCreateTaskEvent(eventW, eventReq)
+	if eventW.Code != http.StatusCreated {
+		t.Fatalf("create task event status = %d, want %d; body=%s", eventW.Code, http.StatusCreated, eventW.Body.String())
+	}
+
+	commReq := httptest.NewRequest("POST", "/tasks/"+created.ID+"/events", strings.NewReader(`{
+		"event_type":"communication",
+		"summary":"worker update",
+		"content":"embedding cache is wired, moving to queue API",
+		"actor_role":"worker",
+		"actor_name":"codex-worker"
+	}`))
+	commReq.Header.Set("Content-Type", "application/json")
+	commReq.SetPathValue("id", created.ID)
+	commW := httptest.NewRecorder()
+	s.handleCreateTaskEvent(commW, commReq)
+	if commW.Code != http.StatusCreated {
+		t.Fatalf("create communication event status = %d, want %d; body=%s", commW.Code, http.StatusCreated, commW.Body.String())
+	}
+
+	listReq := httptest.NewRequest("GET", "/tasks?project=proj&status=started", nil)
+	listW := httptest.NewRecorder()
+	s.handleListTasks(listW, listReq)
+	if listW.Code != http.StatusOK {
+		t.Fatalf("list tasks status = %d, want %d", listW.Code, http.StatusOK)
+	}
+	var tasks []*db.Task
+	if err := json.NewDecoder(listW.Body).Decode(&tasks); err != nil {
+		t.Fatalf("decode task list: %v", err)
+	}
+	if len(tasks) != 1 || tasks[0].ID != created.ID {
+		t.Fatalf("unexpected task list: %+v", tasks)
+	}
+
+	eventsReq := httptest.NewRequest("GET", "/tasks/"+created.ID+"/events", nil)
+	eventsReq.SetPathValue("id", created.ID)
+	eventsW := httptest.NewRecorder()
+	s.handleListTaskEvents(eventsW, eventsReq)
+	if eventsW.Code != http.StatusOK {
+		t.Fatalf("list task events status = %d, want %d", eventsW.Code, http.StatusOK)
+	}
+	var events []*db.TaskEvent
+	if err := json.NewDecoder(eventsW.Body).Decode(&events); err != nil {
+		t.Fatalf("decode task events: %v", err)
+	}
+	if len(events) != 4 {
+		t.Fatalf("expected 4 task events, got %d", len(events))
+	}
+	foundMemoryRef := false
+	foundCommunication := false
+	for _, event := range events {
+		if event.EventType == db.TaskEventMemoryRef && event.MemoryID == memory.ID {
+			foundMemoryRef = true
+		}
+		if event.EventType == db.TaskEventCommunication && event.ActorRole == "worker" {
+			foundCommunication = true
+		}
+	}
+	if !foundMemoryRef || !foundCommunication {
+		t.Fatalf("missing expected task events: %+v", events)
+	}
+}
+
 // ---------- List Memories ----------
 
 func TestHandleListMemories(t *testing.T) {
@@ -312,6 +460,7 @@ func TestHandleDeleteMemory(t *testing.T) {
 
 	req := httptest.NewRequest("DELETE", "/memories/"+m.ID, nil)
 	req.SetPathValue("id", m.ID)
+	req = req.WithContext(auth.NewContext(req.Context(), &auth.Identity{Kind: "admin"}))
 	w := httptest.NewRecorder()
 	s.handleDeleteMemory(w, req)
 
@@ -592,7 +741,7 @@ func TestRequireAuthNoToken(t *testing.T) {
 
 func TestRequireAuthValidToken(t *testing.T) {
 	s := newTestServer(t)
-	s.token = "test-secret"
+	s.auth = mustResolver(t, "test-secret", "")
 
 	handler := s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -610,7 +759,7 @@ func TestRequireAuthValidToken(t *testing.T) {
 
 func TestRequireAuthInvalidToken(t *testing.T) {
 	s := newTestServer(t)
-	s.token = "test-secret"
+	s.auth = mustResolver(t, "test-secret", "")
 
 	handler := s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -628,7 +777,7 @@ func TestRequireAuthInvalidToken(t *testing.T) {
 
 func TestRequireAuthMissingBearer(t *testing.T) {
 	s := newTestServer(t)
-	s.token = "test-secret"
+	s.auth = mustResolver(t, "test-secret", "")
 
 	handler := s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -642,6 +791,398 @@ func TestRequireAuthMissingBearer(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("missing bearer: status = %d, want %d", w.Code, http.StatusUnauthorized)
 	}
+}
+
+func TestRequireAuthValidMachineToken(t *testing.T) {
+	s := newTestServer(t)
+	s.auth = mustResolver(t, "", `[{"token":"machine-secret","user":"UserA","machine_id":"MachineA","groups":["platform"]}]`)
+
+	handler := s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-MAGI-Auth-User"); got != "UserA" {
+			t.Fatalf("X-MAGI-Auth-User=%q want UserA", got)
+		}
+		if got := r.Header.Get("X-MAGI-Auth-Machine"); got != "MachineA" {
+			t.Fatalf("X-MAGI-Auth-Machine=%q want MachineA", got)
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Authorization", "Bearer machine-secret")
+	w := httptest.NewRecorder()
+	handler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("machine token: status = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
+func TestMachineEnrollmentAndRevocationFlow(t *testing.T) {
+	s := newTestServer(t)
+	s.auth = mustResolver(t, "admin-secret", "")
+	if lookup, ok := s.db.(auth.MachineLookup); ok {
+		s.auth.SetMachineLookup(lookup)
+	}
+
+	enroll := s.requireAuth(s.handleEnrollMachine)
+	body := `{"user":"UserA","machine_id":"MachineA","agent_name":"claude-main","agent_type":"claude","groups":["platform"]}`
+	req := httptest.NewRequest("POST", "/auth/machines/enroll", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer admin-secret")
+	w := httptest.NewRecorder()
+	enroll(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("enroll status = %d, want %d; body: %s", w.Code, http.StatusCreated, w.Body.String())
+	}
+
+	var enrollResp struct {
+		OK     bool                 `json:"ok"`
+		Token  string               `json:"token"`
+		Record db.MachineCredential `json:"record"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&enrollResp); err != nil {
+		t.Fatalf("decode enroll response: %v", err)
+	}
+	if !enrollResp.OK || enrollResp.Token == "" || enrollResp.Record.ID == "" {
+		t.Fatalf("unexpected enroll response: %+v", enrollResp)
+	}
+
+	authd := s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-MAGI-Auth-User"); got != "UserA" {
+			t.Fatalf("X-MAGI-Auth-User=%q want UserA", got)
+		}
+		if got := r.Header.Get("X-MAGI-Auth-Machine"); got != "MachineA" {
+			t.Fatalf("X-MAGI-Auth-Machine=%q want MachineA", got)
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+
+	req2 := httptest.NewRequest("GET", "/", nil)
+	req2.Header.Set("Authorization", "Bearer "+enrollResp.Token)
+	w2 := httptest.NewRecorder()
+	authd(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("machine auth status = %d, want %d; body: %s", w2.Code, http.StatusOK, w2.Body.String())
+	}
+
+	revoke := s.requireAuth(s.handleRevokeMachineCredential)
+	req3 := httptest.NewRequest("POST", "/auth/machines/"+enrollResp.Record.ID+"/revoke", nil)
+	req3.SetPathValue("id", enrollResp.Record.ID)
+	req3.Header.Set("Authorization", "Bearer admin-secret")
+	w3 := httptest.NewRecorder()
+	revoke(w3, req3)
+	if w3.Code != http.StatusOK {
+		t.Fatalf("revoke status = %d, want %d; body: %s", w3.Code, http.StatusOK, w3.Body.String())
+	}
+
+	req4 := httptest.NewRequest("GET", "/", nil)
+	req4.Header.Set("Authorization", "Bearer "+enrollResp.Token)
+	w4 := httptest.NewRecorder()
+	authd(w4, req4)
+	if w4.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked machine token status = %d, want %d", w4.Code, http.StatusUnauthorized)
+	}
+}
+
+type apiSecretManager struct{}
+
+func (a *apiSecretManager) BackendName() string { return "vault" }
+
+func (a *apiSecretManager) Externalize(_ context.Context, _ string, content string) (*secretstore.ExternalizeResult, error) {
+	return &secretstore.ExternalizeResult{RedactedContent: content}, nil
+}
+
+func (a *apiSecretManager) Resolve(_ context.Context, path, key string) (string, error) {
+	return "resolved:" + path + "#" + key, nil
+}
+
+func TestHandleResolveSecret(t *testing.T) {
+	s := newTestServer(t)
+	s.auth = mustResolver(t, "admin-secret", "")
+	s.secrets = &apiSecretManager{}
+
+	handler := s.requireAuth(s.handleResolveSecret)
+	req := httptest.NewRequest("POST", "/auth/secrets/resolve", strings.NewReader(`{"path":"magi/proj/1","key":"api_key"}`))
+	req.Header.Set("Authorization", "Bearer admin-secret")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	if resp["backend"] != "vault" {
+		t.Fatalf("backend = %v want vault", resp["backend"])
+	}
+	if resp["value"] != "resolved:magi/proj/1#api_key" {
+		t.Fatalf("value = %v", resp["value"])
+	}
+}
+
+func TestHandleSyncRememberWithMachineToken(t *testing.T) {
+	s := newTestServer(t)
+	s.auth = mustResolver(t, "", `[{"token":"machine-secret","user":"UserA","machine_id":"MachineA","groups":["platform"]}]`)
+
+	handler := s.requireAuth(s.handleSyncRemember)
+	req := httptest.NewRequest("POST", "/sync/memories", strings.NewReader(`{"content":"synced memory","project":"proj-sync"}`))
+	req.Header.Set("Authorization", "Bearer machine-secret")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	handler(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusCreated, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	id, _ := resp["id"].(string)
+	if id == "" {
+		t.Fatal("expected id")
+	}
+	mem, err := s.db.GetMemory(id)
+	if err != nil {
+		t.Fatalf("GetMemory: %v", err)
+	}
+	if mem.Source != "magi-sync" {
+		t.Fatalf("source = %q want magi-sync", mem.Source)
+	}
+}
+
+func TestHandleConversationsAreScopedToOwner(t *testing.T) {
+	s := newTestServer(t)
+	s.auth = mustResolver(t, "", `[{"token":"token-a","user":"UserA","machine_id":"MachineA"},{"token":"token-b","user":"UserB","machine_id":"MachineB"}]`)
+
+	create := s.requireAuth(s.handleCreateConversation)
+	createReq := httptest.NewRequest("POST", "/conversations", strings.NewReader(`{"channel":"discord","summary":"deployment planning discussion"}`))
+	createReq.Header.Set("Authorization", "Bearer token-a")
+	createReq.Header.Set("Content-Type", "application/json")
+	createW := httptest.NewRecorder()
+	create(createW, createReq)
+	if createW.Code != http.StatusCreated {
+		t.Fatalf("create status = %d, want %d; body: %s", createW.Code, http.StatusCreated, createW.Body.String())
+	}
+
+	var createResp map[string]any
+	if err := json.NewDecoder(createW.Body).Decode(&createResp); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	id, _ := createResp["id"].(string)
+	if id == "" {
+		t.Fatal("expected created conversation id")
+	}
+
+	list := s.requireAuth(s.handleListConversations)
+	listReqB := httptest.NewRequest("GET", "/conversations", nil)
+	listReqB.Header.Set("Authorization", "Bearer token-b")
+	listWB := httptest.NewRecorder()
+	list(listWB, listReqB)
+	if listWB.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want %d", listWB.Code, http.StatusOK)
+	}
+	var listRespB []*db.Memory
+	if err := json.NewDecoder(listWB.Body).Decode(&listRespB); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	if len(listRespB) != 0 {
+		t.Fatalf("expected no conversations for UserB, got %d", len(listRespB))
+	}
+
+	get := s.requireAuth(s.handleGetConversation)
+	getReqB := httptest.NewRequest("GET", "/conversations/"+id, nil)
+	getReqB.SetPathValue("id", id)
+	getReqB.Header.Set("Authorization", "Bearer token-b")
+	getWB := httptest.NewRecorder()
+	get(getWB, getReqB)
+	if getWB.Code != http.StatusForbidden {
+		t.Fatalf("get status = %d, want %d", getWB.Code, http.StatusForbidden)
+	}
+
+	searchHandler := s.requireAuth(s.handleSearchConversations)
+	searchReqB := httptest.NewRequest("POST", "/conversations/search", strings.NewReader(`{"query":"deployment planning","limit":5}`))
+	searchReqB.Header.Set("Authorization", "Bearer token-b")
+	searchReqB.Header.Set("Content-Type", "application/json")
+	searchWB := httptest.NewRecorder()
+	searchHandler(searchWB, searchReqB)
+	if searchWB.Code != http.StatusOK {
+		t.Fatalf("search status = %d, want %d", searchWB.Code, http.StatusOK)
+	}
+	var searchRespB struct {
+		Results []any `json:"results"`
+	}
+	if err := json.NewDecoder(searchWB.Body).Decode(&searchRespB); err != nil {
+		t.Fatalf("decode search response: %v", err)
+	}
+	if len(searchRespB.Results) != 0 {
+		t.Fatalf("expected no search results for UserB, got %d", len(searchRespB.Results))
+	}
+
+	listReqA := httptest.NewRequest("GET", "/conversations", nil)
+	listReqA.Header.Set("Authorization", "Bearer token-a")
+	listWA := httptest.NewRecorder()
+	list(listWA, listReqA)
+	if listWA.Code != http.StatusOK {
+		t.Fatalf("owner list status = %d, want %d", listWA.Code, http.StatusOK)
+	}
+	var listRespA []*db.Memory
+	if err := json.NewDecoder(listWA.Body).Decode(&listRespA); err != nil {
+		t.Fatalf("decode owner list response: %v", err)
+	}
+	if len(listRespA) != 1 {
+		t.Fatalf("expected one conversation for owner, got %d", len(listRespA))
+	}
+}
+
+func TestHandleLegacyPrivateConversationHiddenFromMachine(t *testing.T) {
+	s := newTestServer(t)
+	s.auth = mustResolver(t, "", `[{"token":"token-b","user":"UserB","machine_id":"MachineB"}]`)
+
+	emb, _ := s.embedder.Embed(context.Background(), "legacy private conversation")
+	mem, err := s.db.SaveMemory(&db.Memory{
+		Content:    "legacy private conversation",
+		Summary:    "legacy",
+		Embedding:  emb,
+		Type:       "conversation",
+		Visibility: "private",
+		Source:     "discord",
+	})
+	if err != nil {
+		t.Fatalf("SaveMemory: %v", err)
+	}
+	if err := s.db.SetTags(mem.ID, []string{"conversation", "channel:discord"}); err != nil {
+		t.Fatalf("SetTags: %v", err)
+	}
+
+	list := s.requireAuth(s.handleListConversations)
+	listReq := httptest.NewRequest("GET", "/conversations", nil)
+	listReq.Header.Set("Authorization", "Bearer token-b")
+	listW := httptest.NewRecorder()
+	list(listW, listReq)
+	if listW.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want %d", listW.Code, http.StatusOK)
+	}
+	var listResp []*db.Memory
+	if err := json.NewDecoder(listW.Body).Decode(&listResp); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	if len(listResp) != 0 {
+		t.Fatalf("expected no visible legacy private conversations, got %d", len(listResp))
+	}
+
+	get := s.requireAuth(s.handleGetConversation)
+	getReq := httptest.NewRequest("GET", "/conversations/"+mem.ID, nil)
+	getReq.SetPathValue("id", mem.ID)
+	getReq.Header.Set("Authorization", "Bearer token-b")
+	getW := httptest.NewRecorder()
+	get(getW, getReq)
+	if getW.Code != http.StatusForbidden {
+		t.Fatalf("get status = %d, want %d", getW.Code, http.StatusForbidden)
+	}
+}
+
+func TestHandleDeleteMemoryRequiresOwnerForMachine(t *testing.T) {
+	s := newTestServer(t)
+	s.auth = mustResolver(t, "admin-secret", `[{"token":"token-a","user":"UserA","machine_id":"MachineA"},{"token":"token-b","user":"UserB","machine_id":"MachineB"}]`)
+
+	mem := seedMemory(t, s, "delete me", "proj", "memory")
+	if err := s.db.SetTags(mem.ID, []string{"owner:UserA"}); err != nil {
+		t.Fatalf("SetTags: %v", err)
+	}
+
+	handler := s.requireAuth(s.handleDeleteMemory)
+	reqB := httptest.NewRequest("DELETE", "/memories/"+mem.ID, nil)
+	reqB.SetPathValue("id", mem.ID)
+	reqB.Header.Set("Authorization", "Bearer token-b")
+	wB := httptest.NewRecorder()
+	handler(wB, reqB)
+	if wB.Code != http.StatusForbidden {
+		t.Fatalf("machine delete status = %d, want %d", wB.Code, http.StatusForbidden)
+	}
+
+	reqAdmin := httptest.NewRequest("DELETE", "/memories/"+mem.ID, nil)
+	reqAdmin.SetPathValue("id", mem.ID)
+	reqAdmin.Header.Set("Authorization", "Bearer admin-secret")
+	wAdmin := httptest.NewRecorder()
+	handler(wAdmin, reqAdmin)
+	if wAdmin.Code != http.StatusOK {
+		t.Fatalf("admin delete status = %d, want %d", wAdmin.Code, http.StatusOK)
+	}
+}
+
+func TestHandleSearchDoesNotRewriteWithPrivateParent(t *testing.T) {
+	s := newTestServer(t)
+	s.auth = mustResolver(t, "", `[{"token":"token-b","user":"UserB","machine_id":"MachineB"}]`)
+
+	parentEmb, _ := s.embedder.Embed(context.Background(), "TOP SECRET parent content")
+	parent, err := s.db.SaveMemory(&db.Memory{
+		Content:    "TOP SECRET parent content",
+		Summary:    "secret parent",
+		Embedding:  parentEmb,
+		Project:    "proj",
+		Type:       "memory",
+		Visibility: "private",
+	})
+	if err != nil {
+		t.Fatalf("SaveMemory parent: %v", err)
+	}
+	if err := s.db.SetTags(parent.ID, []string{"owner:UserA"}); err != nil {
+		t.Fatalf("SetTags parent: %v", err)
+	}
+
+	childEmb, _ := s.embedder.Embed(context.Background(), "child-query-marker visible child")
+	child, err := s.db.SaveMemory(&db.Memory{
+		Content:    "child-query-marker visible child",
+		Summary:    "child",
+		Embedding:  childEmb,
+		Project:    "proj",
+		Type:       "memory",
+		Visibility: "internal",
+		ParentID:   parent.ID,
+	})
+	if err != nil {
+		t.Fatalf("SaveMemory child: %v", err)
+	}
+	if err := s.db.SetTags(child.ID, []string{"child"}); err != nil {
+		t.Fatalf("SetTags child: %v", err)
+	}
+
+	handler := s.requireAuth(s.handleSearch)
+	req := httptest.NewRequest("GET", "/search?q=child-query-marker", nil)
+	req.Header.Set("Authorization", "Bearer token-b")
+	w := httptest.NewRecorder()
+	handler(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("search status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var resp []*db.HybridResult
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp) == 0 || resp[0].Memory == nil {
+		t.Fatal("expected at least one search result")
+	}
+	if resp[0].Memory.Content == "TOP SECRET parent content" {
+		t.Fatalf("expected parent content to remain hidden, got %q", resp[0].Memory.Content)
+	}
+}
+
+func mustResolver(t *testing.T, adminToken, machineJSON string) *auth.Resolver {
+	t.Helper()
+	t.Setenv("MAGI_API_TOKEN", adminToken)
+	t.Setenv("MAGI_MACHINE_TOKENS_JSON", machineJSON)
+	t.Setenv("MAGI_MACHINE_TOKENS_FILE", "")
+	resolver, err := auth.LoadResolverFromEnv()
+	if err != nil {
+		t.Fatalf("LoadResolverFromEnv: %v", err)
+	}
+	return resolver
 }
 
 // ---------- writeJSON ----------

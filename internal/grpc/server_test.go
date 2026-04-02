@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/j33pguy/magi/internal/auth"
 	memgrpc "github.com/j33pguy/magi/internal/grpc"
 	pb "github.com/j33pguy/magi/proto/memory/v1"
 )
@@ -42,7 +43,7 @@ func newTestServer(t *testing.T, token string) (pb.MemoryServiceClient, func()) 
 
 	lis := bufconn.Listen(bufSize)
 	s := grpc.NewServer(grpc.ChainUnaryInterceptor(
-		memgrpc.AuthInterceptor(token),
+		memgrpc.AuthInterceptor(testResolver(t, token, "")),
 		recoveryInterceptor(),
 	))
 	pb.RegisterMemoryServiceServer(s, svc)
@@ -70,6 +71,18 @@ func newTestServer(t *testing.T, token string) (pb.MemoryServiceClient, func()) 
 		lis.Close()
 	}
 	return client, cleanup
+}
+
+func testResolver(t *testing.T, adminToken, machineJSON string) *auth.Resolver {
+	t.Helper()
+	t.Setenv("MAGI_API_TOKEN", adminToken)
+	t.Setenv("MAGI_MACHINE_TOKENS_JSON", machineJSON)
+	t.Setenv("MAGI_MACHINE_TOKENS_FILE", "")
+	resolver, err := auth.LoadResolverFromEnv()
+	if err != nil {
+		t.Fatalf("LoadResolverFromEnv: %v", err)
+	}
+	return resolver
 }
 
 func TestHealth(t *testing.T) {
