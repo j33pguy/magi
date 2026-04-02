@@ -13,6 +13,20 @@
 </p>
 
 ---
+## Why MAGI?
+
+- **Git-Versioned Memory** — Every mutation is a git commit. Full history, diffs, and rollback for every memory. The database is a derived index; the git repo is the source of truth. No other AI memory system has this.
+- **Distributed Node Mesh** — Writer/Reader/Index/Coordinator pools with session affinity. Zero-overhead embedded mode, ready for multi-node in Phase 2.
+- **Semantic Search** — Hybrid vector + BM25 with local ONNX embeddings
+- **Knowledge Graph** — Auto-linked memories with D3.js visualization
+- **Pattern Detection** — Surfaces behavioral insights across all agents
+- **Async Write Pipeline** — Returns 202 Accepted in <10ms. Worker pool with batch INSERT for throughput.
+- **Metrics Endpoint** — Write/search latency, queue depth, cache stats, embedding duration. Scrape `/metrics`.
+- **Health Probes** — `/readyz`, `/livez`, expanded `/health`. Kubernetes-ready.
+- **Multi-Protocol** — MCP · gRPC · REST · Web UI
+- **Multi-Backend** — SQLite · Turso · PostgreSQL (pgvector) · MySQL/MariaDB · SQL Server/Azure SQL
+- **Self-Hosted** — Your data, your hardware. Zero cloud dependencies.
+- **Agent-Agnostic** — Works with any agent that speaks HTTP, gRPC, or MCP
 
 ## What's New in v0.2.0
 
@@ -90,20 +104,6 @@ graph TB
 
 Route work however you want — [OpenClaw](https://github.com/openclaw/openclaw), LangChain, CrewAI, a bash script, or direct API calls. MAGI doesn't care how agents get their tasks. It just makes sure every agent has access to what every other agent has done.
 
-## Why MAGI?
-
-- **Git-Versioned Memory** — Every mutation is a git commit. Full history, diffs, and rollback for every memory. The database is a derived index; the git repo is the source of truth. No other AI memory system has this.
-- **Distributed Node Mesh** — Writer/Reader/Index/Coordinator pools with session affinity. Zero-overhead embedded mode, ready for multi-node in Phase 2.
-- **Semantic Search** — Hybrid vector + BM25 with local ONNX embeddings
-- **Knowledge Graph** — Auto-linked memories with D3.js visualization
-- **Pattern Detection** — Surfaces behavioral insights across all agents
-- **Async Write Pipeline** — Returns 202 Accepted in <10ms. Worker pool with batch INSERT for throughput.
-- **Metrics Endpoint** — Write/search latency, queue depth, cache stats, embedding duration. Scrape `/metrics`.
-- **Health Probes** — `/readyz`, `/livez`, expanded `/health`. Kubernetes-ready.
-- **Multi-Protocol** — MCP · gRPC · REST · Web UI
-- **Multi-Backend** — SQLite · Turso · PostgreSQL (pgvector) · MySQL/MariaDB · SQL Server/Azure SQL
-- **Self-Hosted** — Your data, your hardware. Zero cloud dependencies.
-- **Agent-Agnostic** — Works with any agent that speaks HTTP, gRPC, or MCP
 
 ## Quick Start
 
