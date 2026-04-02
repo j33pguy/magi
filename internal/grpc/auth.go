@@ -2,8 +2,8 @@ package grpc
 
 import (
 	"context"
-	"crypto/subtle"
 
+	"github.com/j33pguy/magi/internal/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -21,10 +21,10 @@ var grpcReadOnlyMethods = map[string]bool{
 
 // AuthInterceptor returns a unary server interceptor that checks for a bearer
 // token in the "authorization" gRPC metadata. The Health RPC is exempt.
-// If token is empty, only read-only RPCs are allowed.
-func AuthInterceptor(token string) grpc.UnaryServerInterceptor {
+// If no auth is configured, only read-only RPCs are allowed.
+func AuthInterceptor(resolver *auth.Resolver) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if token == "" {
+		if resolver == nil || !resolver.Enabled() {
 			if grpcReadOnlyMethods[info.FullMethod] {
 				return handler(ctx, req)
 			}
@@ -52,10 +52,11 @@ func AuthInterceptor(token string) grpc.UnaryServerInterceptor {
 			return nil, status.Error(codes.Unauthenticated, "invalid authorization format")
 		}
 
-		if subtle.ConstantTimeCompare([]byte(provided[len(prefix):]), []byte(token)) != 1 {
+		identity, ok := resolver.ResolveBearer(provided[len(prefix):])
+		if !ok {
 			return nil, status.Error(codes.Unauthenticated, "invalid token")
 		}
 
-		return handler(ctx, req)
+		return handler(auth.NewContext(ctx, identity), req)
 	}
 }

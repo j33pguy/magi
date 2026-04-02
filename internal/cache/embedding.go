@@ -38,7 +38,7 @@ func (ec *EmbeddingCache) Get(content string) []float32 {
 
 	if el, ok := ec.items[key]; ok {
 		ec.eviction.MoveToFront(el)
-		return el.Value.(*embeddingCacheEntry).embedding
+		return cloneFloat32s(el.Value.(*embeddingCacheEntry).embedding)
 	}
 	return nil
 }
@@ -51,7 +51,7 @@ func (ec *EmbeddingCache) Set(content string, embedding []float32) {
 
 	if el, ok := ec.items[key]; ok {
 		ec.eviction.MoveToFront(el)
-		el.Value.(*embeddingCacheEntry).embedding = embedding
+		el.Value.(*embeddingCacheEntry).embedding = cloneFloat32s(embedding)
 		return
 	}
 
@@ -63,7 +63,7 @@ func (ec *EmbeddingCache) Set(content string, embedding []float32) {
 		}
 	}
 
-	el := ec.eviction.PushFront(&embeddingCacheEntry{key: key, embedding: embedding})
+	el := ec.eviction.PushFront(&embeddingCacheEntry{key: key, embedding: cloneFloat32s(embedding)})
 	ec.items[key] = el
 }
 

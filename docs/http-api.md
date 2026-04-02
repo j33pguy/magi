@@ -5,7 +5,15 @@ magi exposes two HTTP APIs:
 - **grpc-gateway** on `:8301` — auto-generated JSON proxy from the gRPC service definition
 - **Legacy HTTP API** on `:8302` — hand-written REST handlers (will be removed once grpc-gateway is proven)
 
-Both use Bearer token auth via the `Authorization` header. Set `MAGI_API_TOKEN` to enable authentication. If unset, all requests are allowed (dev mode).
+Both use Bearer token auth via the `Authorization` header.
+
+- `MAGI_API_TOKEN` enables the admin bearer token
+- enrolled machine credentials can also authenticate through the same bearer header
+- if no explicit auth is configured, MAGI stays in read-only dev mode for `GET` requests and blocks writes
+
+For a clean public URL shape, prefer resource-style paths under `/memory` and `/task`.
+
+Legacy routes like `/remember`, `/recall`, `/memories`, and `/tasks` are still supported for compatibility.
 
 ## Authentication
 
@@ -99,6 +107,12 @@ Metrics endpoint (Prometheus-compatible format): `GET /metrics`
 POST /remember
 ```
 
+Preferred alias:
+
+```
+POST /memory
+```
+
 ```bash
 curl -X POST http://localhost:8302/remember \
   -H "Authorization: Bearer $TOKEN" \
@@ -136,12 +150,192 @@ curl -X POST http://localhost:8302/remember \
 
 If tags failed to save: `{"id": "...", "ok": true, "tag_warning": "failed to set tags: ..."}`
 
+Authenticated owner/viewer/viewer_group metadata is used later to filter recall, search, list, and conversation access.
+
+---
+
+### Machine Sync Write
+
+```
+POST /sync/memories
+```
+
+Preferred alias:
+
+```
+POST /memory/sync
+```
+
+Same request body as `POST /remember`, but intended for enrolled machine credentials such as `magi-sync`. Newer edge clients use this route first and fall back to `/remember` when talking to older MAGI servers.
+
+```bash
+curl -X POST http://localhost:8302/sync/memories \
+  -H "Authorization: Bearer $MACHINE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "[assistant] Added machine enrollment flow",
+    "summary": "Claude session summary",
+    "project": "github.com/j33pguy/magi",
+    "type": "conversation_summary",
+    "visibility": "team",
+    "tags": ["owner:UserA", "machine:laptop", "agent:claude"],
+    "source": "claude-jsonl",
+    "speaker": "assistant"
+}'
+```
+
+---
+
+### Task Queue
+
+Tasks are stored separately from memories. Use them for shared work tracking between orchestrators and workers without polluting long-term recall.
+
+#### Create Task
+
+```
+POST /tasks
+```
+
+Preferred alias: `POST /task`
+
+```bash
+curl -X POST http://localhost:8302/tasks \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project": "github.com/j33pguy/magi",
+    "queue": "default",
+    "title": "Wire queue-backed tasks into MCP",
+    "summary": "Keep active coordination out of the memory stack",
+    "status": "queued",
+    "priority": "high",
+    "orchestrator": "claude-orchestrator",
+    "worker": "codex-worker"
+  }'
+```
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | yes | Task title |
+| `project` | string | no | Project namespace |
+| `queue` | string | no | Queue name (default `default`) |
+| `summary` | string | no | Short summary |
+| `description` | string | no | Detailed task description |
+| `status` | string | no | `queued`, `started`, `done`, `failed`, `blocked`, `canceled` |
+| `priority` | string | no | `low`, `normal`, `high`, `urgent` |
+| `created_by` | string | no | Creator identity |
+| `orchestrator` | string | no | Orchestrator assignment |
+| `worker` | string | no | Worker assignment |
+| `parent_task_id` | string | no | Parent task reference |
+| `metadata` | object | no | Free-form metadata |
+
+**Response (201):** full task JSON
+
+#### List Tasks
+
+```
+GET /tasks
+```
+
+Preferred alias: `GET /task`
+
+Query params:
+
+- `project`
+- `queue`
+- `status`
+- `worker`
+- `orchestrator`
+- `limit`
+
+#### Get Task
+
+```
+GET /tasks/{id}
+```
+
+Preferred alias: `GET /task/{id}`
+
+Returns the task record as JSON.
+
+#### Update Task
+
+```
+PATCH /tasks/{id}
+```
+
+Preferred alias: `PATCH /task/{id}`
+
+Use this to change status, assignment, or task details. Status changes automatically create a `status` task event.
+
+#### Add Task Event
+
+```
+POST /tasks/{id}/events
+```
+
+Preferred aliases:
+
+- `POST /task/{id}/event`
+- `POST /task/{id}/events`
+
+Task events hold the coordination history for a task:
+
+- `status`
+- `communication`
+- `issue`
+- `lesson`
+- `pitfall`
+- `success`
+- `memory_ref`
+- `note`
+
+```bash
+curl -X POST http://localhost:8302/tasks/TASK_ID/events \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_type": "communication",
+    "actor_role": "worker",
+    "actor_name": "codex-worker",
+    "summary": "Progress update",
+    "content": "Queue-backed MCP tools are wired and tested."
+  }'
+```
+
+For durable findings, store a memory separately and attach it back to the task with a `memory_ref` event using `memory_id`.
+
+#### List Task Events
+
+```
+GET /tasks/{id}/events
+```
+
+Preferred aliases:
+
+- `GET /task/{id}/event`
+- `GET /task/{id}/events`
+
+Query params:
+
+- `limit`
+
+Returns the chronological event log for that task.
+
 ---
 
 ### Semantic Search
 
 ```
 POST /recall
+```
+
+Preferred alias:
+
+```
+POST /memory/recall
 ```
 
 ```bash
@@ -166,6 +360,7 @@ curl -X POST http://localhost:8302/recall \
 | `type` | string | no | Filter by type |
 | `tags` | string[] | no | Filter by tags |
 | `top_k` | number | no | Max results (default 5) |
+| `limit` | number | no | Backwards-compatible alias for `top_k` |
 | `min_relevance` | number | no | Min score 0.0–1.0 |
 | `recency_decay` | number | no | Recency weighting (0.01 recommended) |
 | `speaker` | string | no | Filter by speaker |
@@ -182,6 +377,12 @@ curl -X POST http://localhost:8302/recall \
 
 ```
 GET /search?q=<query>
+```
+
+Preferred alias:
+
+```
+GET /memory/search?q=<query>
 ```
 
 ```bash
@@ -206,6 +407,12 @@ curl "http://localhost:8302/search?q=reverse-proxy+config&top_k=3" \
 
 ```
 GET /memories
+```
+
+Preferred alias:
+
+```
+GET /memory
 ```
 
 ```bash
@@ -236,6 +443,12 @@ curl "http://localhost:8302/memories?area=infrastructure&type=decision&limit=10"
 DELETE /memories/{id}
 ```
 
+Preferred alias:
+
+```
+DELETE /memory/{id}
+```
+
 Archives (soft-deletes) the memory.
 
 ```bash
@@ -247,6 +460,8 @@ curl -X DELETE http://localhost:8302/memories/a1b2c3d4e5f6 \
 ```json
 {"id": "a1b2c3d4e5f6", "ok": true}
 ```
+
+Delete is authorization-aware: admins can archive any memory, and machine callers can archive only memories they own.
 
 ---
 
@@ -288,6 +503,8 @@ curl -X POST http://localhost:8302/conversations \
 ```json
 {"id": "...", "ok": true}
 ```
+
+Private conversations are automatically stamped with an owner tag from the authenticated caller so they stay scoped on later reads.
 
 ---
 
@@ -550,6 +767,55 @@ curl http://localhost:8302/pipeline/stats \
 | `failed` | Total items that failed processing |
 
 Returns 501 if async writes are not enabled.
+
+---
+
+### Machine Enrollment
+
+```
+POST /auth/machines/enroll
+GET /auth/machines
+POST /auth/machines/{id}/revoke
+```
+
+These admin-only endpoints manage machine credentials for `magi-sync` and other non-browser clients.
+
+Example enrollment:
+
+```bash
+curl -X POST http://localhost:8302/auth/machines/enroll \
+  -H "Authorization: Bearer $MAGI_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user": "UserA",
+    "machine_id": "laptop-macbook",
+    "agent_name": "magi-sync",
+    "agent_type": "syncagent",
+    "groups": ["platform"]
+  }'
+```
+
+Response returns the one-time machine token and stored machine record.
+
+---
+
+### Secret Resolution
+
+```
+POST /auth/secrets/resolve
+```
+
+Admin-only route for resolving secret references previously externalized into the configured KV backend.
+
+```bash
+curl -X POST http://localhost:8302/auth/secrets/resolve \
+  -H "Authorization: Bearer $MAGI_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "magi/my-project/1712012345-abcd1234",
+    "key": "api_key"
+  }'
+```
 
 ---
 

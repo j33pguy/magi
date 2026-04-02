@@ -178,6 +178,19 @@ func TestSQLServerAppendVisibilityCondition(t *testing.T) {
 	if conds[0] != "m.visibility != 'private'" {
 		t.Errorf("condition = %q", conds[0])
 	}
+
+	// access-scoped lookup should append ACL clause and args
+	conds = nil
+	args = nil
+	f = &MemoryFilter{
+		RequestUser:   "UserA",
+		RequestGroups: []string{"platform"},
+		EnforceAccess: true,
+	}
+	sqlserverAppendVisibilityCondition(f, &conds, &args)
+	if len(conds) != 2 || len(args) != 3 {
+		t.Fatalf("access scope should add ACL clause and args, got conds=%d args=%d", len(conds), len(args))
+	}
 }
 
 // ---------------------------------------------------------------------------

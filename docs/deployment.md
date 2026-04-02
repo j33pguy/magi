@@ -1,10 +1,34 @@
 # Deployment Guide
 
+## Production Notice
+
+MAGI is still a work in progress.
+
+It is usable today, but it should not be treated as a finished, production-ready stable product yet. Real-world usage and bug reports are part of how it will get there, and that means some behavior may still change or break under load or in edge cases.
+
+If you deploy MAGI in production, do it with clear eyes: test it first, understand the risks, keep backups, and plan for rollback and recovery.
+
+## Upgrade Safety
+
+Schema migrations run automatically on startup, which is fine for additive changes and small backend-specific DDL updates.
+
+For larger releases that reshape how memories are stored or interpreted, operators should assume a safer upgrade posture:
+
+1. back up the database first
+2. preserve git-backed memory history if enabled
+3. read the release notes for any required backfill or operator-managed migration step
+4. test the upgrade in a staging or lab environment before production
+
+The longer-term migration policy is documented in [migration-strategy.md](migration-strategy.md).
+
 ## Prerequisites
 
 - Go 1.25+ with CGO enabled
 - ONNX Runtime shared library installed
-- A [Turso](https://turso.tech) database (free tier works)
+- A supported backend:
+  - SQLite for the simplest self-hosted setup
+  - PostgreSQL for scaled/containerized deployments
+  - Turso for sync-oriented multi-device setups
 
 ### Installing ONNX Runtime
 
@@ -56,6 +80,14 @@ sudo make install   # copies to /usr/local/bin/
 | `SQLITE_PATH` | `~/.magi/memory-local.db` | SQLite file path |
 | `MAGI_REPLICA_PATH` | `~/.magi/memory.db` | Local replica path for sync-backed stores |
 | `MAGI_API_TOKEN` | empty | Bearer token for API/UI auth (unset = no auth) |
+| `MAGI_MACHINE_TOKENS_JSON` | empty | Optional bootstrap machine tokens as JSON array for `magi-sync` and workers |
+| `MAGI_MACHINE_TOKENS_FILE` | empty | Optional path to bootstrap machine token JSON file |
+| `MAGI_SECRET_MODE` | `reject` | Secret handling mode: `reject` or `externalize` |
+| `MAGI_SECRET_BACKEND` | empty | Secret backend when externalizing. Current implementation: `vault` |
+| `MAGI_VAULT_ADDR` | empty | HashiCorp Vault base URL for secret externalization |
+| `MAGI_VAULT_TOKEN` | empty | Vault token used by MAGI to write and resolve secrets |
+| `MAGI_VAULT_MOUNT` | `secret` | Vault KV v2 mount for MAGI-managed secrets |
+| `MAGI_VAULT_NAMESPACE` | empty | Optional Vault Enterprise namespace |
 | `MAGI_TRUSTED_PROXY_AUTH` | `false` | Trust reverse proxy auth header for web UI (`true`/`1` to enable; still requires Bearer for `/api/*`) |
 | `MAGI_UI_ENABLED` | `true` | Enable or disable the web UI server |
 | `MAGI_GRPC_PORT` | `8300` | gRPC server port |
@@ -63,6 +95,191 @@ sudo make install   # copies to /usr/local/bin/
 | `MAGI_LEGACY_HTTP_PORT` | `8302` | Legacy REST API port |
 | `MAGI_UI_PORT` | `8080` | Web UI port |
 | `MAGI_ASYNC_WRITES` | `false` | Enable async write pipeline (`true`/`false`) |
+| `MAGI_CACHE_ENABLED` | `false` | Enable hot query, memory, and embedding caches |
+| `MAGI_CACHE_QUERY_TTL` | `60s` | TTL for cached recall/search results |
+| `MAGI_CACHE_MEMORY_SIZE` | `1000` | Max number of memories to keep in the hot LRU cache |
+| `MAGI_CACHE_EMBEDDING_SIZE` | `5000` | Max number of embeddings to keep in the LRU cache |
+
+## Onboarding Defaults
+
+If your goal is the easiest first useful experience, start here:
+
+```bash
+export MEMORY_BACKEND=sqlite
+export MAGI_ASYNC_WRITES=true
+export MAGI_CACHE_ENABLED=true
+```
+
+That gives you the smoothest path from installation to "the second recall already feels faster."
+
+Why these defaults:
+
+- SQLite keeps the first run simple
+- async writes keep remember flows snappy
+- cache keeps recent recall, frequent memory fetches, and repeated embeddings hot
+
+## Recommended Deployment Tiers
+
+### Tier 1 — Quickstart
+
+- One container
+- `MEMORY_BACKEND=sqlite`
+- `MAGI_ASYNC_WRITES=true`
+- `MAGI_COORDINATOR_ENABLED=true`
+- Mounted volume for `/data`
+
+Best for solo users, homelabs, and local multi-agent setups.
+
+### Tier 2 — Standard Production
+
+- One MAGI container plus PostgreSQL
+- `MEMORY_BACKEND=postgres`
+- `MAGI_ASYNC_WRITES=true`
+- `MAGI_CACHE_ENABLED=true`
+- Reverse proxy in front of web/API
+
+Best for small teams and always-on deployments.
+
+### Tier 3 — Stress / Scale-Out
+
+- Role-separated containers
+- PostgreSQL as the primary backend
+- Dedicated API, writer, reader, and embedder capacity
+- Autoscaling based on queue depth and latency
+
+Best for bursty workloads, many concurrent agents, or heavy embedding throughput.
+
+## Machine Enrollment And Registry
+
+MAGI now supports a first machine-registry path for `magi-sync` and other non-browser clients.
+
+Current flow:
+
+1. authenticate with the admin token
+2. enroll a machine credential
+3. receive a one-time machine bearer token
+4. use that token for future sync/API calls
+
+Available endpoints on the legacy HTTP API port:
+
+- `POST /auth/machines/enroll`
+- `GET /auth/machines`
+- `POST /auth/machines/{id}/revoke`
+
+Example enrollment request:
+
+```bash
+curl -X POST http://localhost:8302/auth/machines/enroll \
+  -H "Authorization: Bearer $MAGI_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user": "UserA",
+    "machine_id": "MachineA",
+    "agent_name": "claude-main",
+    "agent_type": "claude",
+    "groups": ["platform"]
+  }'
+```
+
+The response returns a one-time machine token plus the stored registry record.
+
+For `magi-sync`, the preferred flow is now:
+
+1. set `server.enroll_token` or `server.enroll_token_env` in the local config
+2. run `magi-sync enroll`
+3. let `magi-sync` persist the returned machine token into its config
+4. let future sync traffic use `POST /sync/memories` with that machine credential
+
+Bootstrap alternatives:
+
+- `MAGI_MACHINE_TOKENS_JSON`
+- `MAGI_MACHINE_TOKENS_FILE`
+
+These env-based machine tokens remain useful for bootstrapping, but the registry endpoint is the preferred direction going forward.
+
+## Secret Externalization
+
+MAGI can reject secrets by default or externalize them into a KV-style backend before saving the memory content.
+
+Current behavior:
+
+- `MAGI_SECRET_MODE=reject`
+  Keeps the existing safe default. If a write appears to contain a secret, MAGI rejects it.
+- `MAGI_SECRET_MODE=externalize`
+  MAGI extracts supported key/value secrets, stores them in the configured backend, and replaces the raw value in memory content with a stored reference.
+
+Current backend:
+
+- `vault`
+  HashiCorp Vault KV v2
+
+This keeps the stored memory useful for continuity while avoiding raw secret values in the memory database.
+
+Example:
+
+```text
+before: api_key=abc123
+after:  api_key=[stored:vault://magi/my-project/1712012345-abcd1234#api_key]
+```
+
+MAGI also tags the memory with:
+
+- `secret_backend:vault`
+- `secret_ref:<path>#<key>`
+
+Admins can resolve a stored reference through the legacy HTTP API:
+
+- `POST /auth/secrets/resolve`
+
+Example:
+
+```bash
+curl -X POST http://localhost:8302/auth/secrets/resolve \
+  -H "Authorization: Bearer $MAGI_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "magi/my-project/1712012345-abcd1234",
+    "key": "api_key"
+  }'
+```
+
+Example configuration:
+
+```bash
+export MAGI_SECRET_MODE=externalize
+export MAGI_SECRET_BACKEND=vault
+export MAGI_VAULT_ADDR=http://vault.service.consul:8200
+export MAGI_VAULT_TOKEN=...
+export MAGI_VAULT_MOUNT=secret
+```
+
+The backend interface is intentionally pluggable so additional enterprise secret stores and automation-friendly backends can be added later without changing the write API.
+
+## Remote Access Recommendation
+
+If you want to reach your main MAGI server while away from home, away from the office, or outside your local LAN, the recommended approach is:
+
+1. run the main MAGI server on a stable machine or container
+2. join that machine to Tailscale
+3. join laptops, workstations, and edge sync agents to the same tailnet
+4. point `magi-sync` or remote clients at the MAGI server's Tailscale hostname
+
+Why this is the preferred default:
+
+- avoids exposing MAGI directly to the public internet
+- makes "phone home for memories" easy from anywhere
+- works well for personal setups and internal team deployments
+- pairs naturally with a local edge sync agent model
+
+Example shape:
+
+```mermaid
+graph LR
+    A["Laptop"] --> T["Tailscale tailnet"]
+    B["Remote workstation"] --> T
+    C["CI / container"] --> T
+    T --> M["MAGI server"]
+```
 
 ## Storage Backends
 
@@ -146,11 +363,11 @@ journalctl -u magi -f
 
 ## Node Mesh Configuration
 
-The distributed node mesh (PR #74) routes reads and writes through goroutine pools managed by a Coordinator. In embedded mode (Phase 1), all pools run in-process with zero serialization overhead.
+The node mesh routes reads and writes through worker pools managed by a Coordinator. In embedded mode, all pools run in-process with zero serialization overhead. For container scale-out, keep the same logical roles but move inter-node communication to an explicit network transport.
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `MAGI_NODE_MODE` | `embedded` | Communication mode. Phase 1 supports `embedded` only. |
+| `MAGI_NODE_MODE` | `embedded` | Communication mode. `embedded` is the fast default; distributed transport is the scale-out path. |
 | `MAGI_WRITER_POOL_SIZE` | `4` | Number of writer goroutines. Increase for write-heavy workloads. |
 | `MAGI_READER_POOL_SIZE` | `8` | Number of reader goroutines. Increase for search-heavy workloads. |
 | `MAGI_COORDINATOR_ENABLED` | `true` | Set to `false` to bypass the coordinator and use direct store access. |
@@ -170,6 +387,25 @@ Environment=MAGI_COORDINATOR_ENABLED=false
 ```
 
 Metrics endpoint (Prometheus-compatible format): `GET /metrics` on the legacy HTTP port (default 8302).
+
+## Container Scaling Strategy
+
+When a single MAGI container is no longer fast enough, scale by role:
+
+1. Add embedder capacity first if `magi_embedding_duration_seconds` is the bottleneck.
+2. Add writer capacity next if queue depth and write latency grow.
+3. Add reader capacity if recall/search latency grows under concurrency.
+4. Scale API ingress separately from worker roles.
+
+Recommended shape:
+
+- `magi-api`
+- `magi-writer`
+- `magi-reader`
+- `magi-index`
+- `magi-embedder`
+
+Use PostgreSQL for this tier. SQLite remains the best single-container default, but PostgreSQL is the better operational fit once multiple containers are sharing the same system of record.
 
 ## Kubernetes Health Probes
 

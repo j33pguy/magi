@@ -39,6 +39,13 @@ func (p *CompressedProvider) Dimensions() int {
 	return p.inner.Dimensions()
 }
 
+// Destroy releases any resources owned by the wrapped provider.
+func (p *CompressedProvider) Destroy() {
+	if managed, ok := p.inner.(ManagedProvider); ok {
+		managed.Destroy()
+	}
+}
+
 // CompressedEmbed returns both full and compressed forms.
 func (p *CompressedProvider) CompressedEmbed(ctx context.Context, text string) (full []float32, compressed []byte, err error) {
 	full, err = p.inner.Embed(ctx, text)

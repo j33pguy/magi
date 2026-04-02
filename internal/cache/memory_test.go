@@ -87,3 +87,27 @@ func TestMemoryCacheUpdate(t *testing.T) {
 		t.Errorf("expected 1 entry after update, got %d", mc.Len())
 	}
 }
+
+func TestMemoryCacheReturnsCopies(t *testing.T) {
+	mc := NewMemoryCache(10)
+
+	mc.Set("mem-1", &db.Memory{ID: "mem-1", Content: "hello", Tags: []string{"tag-1"}})
+
+	first := mc.Get("mem-1")
+	if first == nil {
+		t.Fatal("expected cached memory")
+	}
+	first.Content = "changed"
+	first.Tags[0] = "mutated"
+
+	second := mc.Get("mem-1")
+	if second == nil {
+		t.Fatal("expected cached memory")
+	}
+	if second.Content != "hello" {
+		t.Fatalf("expected cached copy to remain unchanged, got %q", second.Content)
+	}
+	if len(second.Tags) != 1 || second.Tags[0] != "tag-1" {
+		t.Fatalf("expected cached tags to remain unchanged, got %#v", second.Tags)
+	}
+}

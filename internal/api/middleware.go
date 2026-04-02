@@ -1,9 +1,10 @@
 package api
 
 import (
-	"crypto/subtle"
 	"net/http"
 	"strings"
+
+	"github.com/j33pguy/magi/internal/auth"
 )
 
 // requireAuth wraps a handler with bearer token authentication.
@@ -11,8 +12,37 @@ import (
 // When MAGI_API_TOKEN is not set, only read-only (GET) requests are allowed.
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.token == "" {
-			// No token configured: read-only mode — block writes
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") && s.auth != nil {
+			provided := authHeader[7:]
+			identity, ok := s.auth.ResolveBearer(provided)
+			if !ok {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+				return
+			}
+
+			if identity != nil {
+				if identity.User != "" {
+					r.Header.Set("X-MAGI-Auth-User", identity.User)
+				}
+				if len(identity.Groups) > 0 {
+					r.Header.Set("X-MAGI-Auth-Groups", strings.Join(identity.Groups, ","))
+				}
+				if identity.MachineID != "" {
+					r.Header.Set("X-MAGI-Auth-Machine", identity.MachineID)
+				}
+				if identity.AgentName != "" {
+					r.Header.Set("X-MAGI-Auth-Agent", identity.AgentName)
+				}
+				r.Header.Set("X-MAGI-Auth-Kind", identity.Kind)
+			}
+
+			next(w, r.WithContext(auth.NewContext(r.Context(), identity)))
+			return
+		}
+
+		if s.auth == nil || !s.auth.Enabled() {
+			// No explicit auth configured: read-only mode — block writes.
 			if r.Method != http.MethodGet {
 				writeJSON(w, http.StatusForbidden, map[string]string{
 					"error": "write operations require MAGI_API_TOKEN to be set",
@@ -23,18 +53,6 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		auth := r.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
-			return
-		}
-
-		provided := auth[7:]
-		if subtle.ConstantTimeCompare([]byte(provided), []byte(s.token)) != 1 {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
-			return
-		}
-
-		next(w, r)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 	}
 }

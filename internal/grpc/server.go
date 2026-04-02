@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/j33pguy/magi/internal/auth"
+	"github.com/j33pguy/magi/internal/secretstore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -23,10 +25,11 @@ import (
 // Server implements the MemoryService gRPC service.
 type Server struct {
 	pb.UnimplementedMemoryServiceServer
-	db       db.Store
-	embedder embeddings.Provider
-	logger   *slog.Logger
-	gitRepo  *vcs.Repo // optional — nil if git versioning is disabled
+	db            db.Store
+	embedder      embeddings.Provider
+	logger        *slog.Logger
+	gitRepo       *vcs.Repo // optional — nil if git versioning is disabled
+	secretManager secretstore.Manager
 }
 
 // NewServer creates a new gRPC MemoryService server.
@@ -64,8 +67,9 @@ func (s *Server) Remember(ctx context.Context, req *pb.RememberRequest) (*pb.Rem
 		Tags:       req.Tags,
 	}
 	result, err := remember.Remember(ctx, s.db, s.embedder, input, remember.Options{
-		TagMode: remember.TagModeWarn,
-		Logger:  s.logger,
+		TagMode:       remember.TagModeWarn,
+		Logger:        s.logger,
+		SecretManager: s.secretManager,
 	})
 	if err != nil {
 		var secretErr *remember.SecretError
@@ -122,6 +126,7 @@ func (s *Server) Recall(ctx context.Context, req *pb.RecallRequest) (*pb.RecallR
 		AfterTime:  afterTime,
 		BeforeTime: beforeTime,
 	}
+	auth.ApplyToFilter(ctx, filter)
 
 	resp, err := search.Adaptive(ctx, s.db, s.embedder.Embed, req.Query, filter, topK, req.MinRelevance, req.RecencyDecay)
 	if err != nil {
@@ -137,13 +142,22 @@ func (s *Server) Recall(ctx context.Context, req *pb.RecallRequest) (*pb.RecallR
 	}, nil
 }
 
-func (s *Server) Forget(_ context.Context, req *pb.ForgetRequest) (*pb.ForgetResponse, error) {
+func (s *Server) Forget(ctx context.Context, req *pb.ForgetRequest) (*pb.ForgetResponse, error) {
 	if req.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "id is required")
 	}
 
 	if _, err := s.db.GetMemory(req.Id); err != nil {
 		return nil, status.Errorf(codes.NotFound, "memory not found: %v", err)
+	}
+	tags, err := s.db.GetTags(req.Id)
+	if err != nil {
+		s.logger.Error("getting memory tags", "error", err, "id", req.Id)
+		return nil, status.Errorf(codes.Internal, "getting memory tags: %v", err)
+	}
+	identity, _ := auth.FromContext(ctx)
+	if !auth.CanModifyTags(identity, tags) {
+		return nil, status.Error(codes.PermissionDenied, "forbidden")
 	}
 
 	if err := s.db.ArchiveMemory(req.Id); err != nil {
@@ -154,7 +168,7 @@ func (s *Server) Forget(_ context.Context, req *pb.ForgetRequest) (*pb.ForgetRes
 	return &pb.ForgetResponse{Id: req.Id, Ok: true}, nil
 }
 
-func (s *Server) List(_ context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
+func (s *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 20
@@ -187,6 +201,7 @@ func (s *Server) List(_ context.Context, req *pb.ListRequest) (*pb.ListResponse,
 		AfterTime:  afterTime,
 		BeforeTime: beforeTime,
 	}
+	auth.ApplyToFilter(ctx, filter)
 
 	memories, err := s.db.ListMemories(filter)
 	if err != nil {
@@ -239,6 +254,11 @@ func (s *Server) CreateConversation(ctx context.Context, req *pb.CreateConversat
 	}
 
 	tags := []string{"channel:" + req.Channel, "conversation"}
+	if identity, ok := auth.FromContext(ctx); ok {
+		if ownerTag := auth.OwnerTag(identity); ownerTag != "" {
+			tags = append(tags, ownerTag)
+		}
+	}
 	for _, topic := range req.Topics {
 		tags = append(tags, "topic:"+topic)
 	}
@@ -276,6 +296,7 @@ func (s *Server) SearchConversations(ctx context.Context, req *pb.SearchConversa
 		Tags:       tags,
 		Visibility: "all",
 	}
+	auth.ApplyToFilter(ctx, filter)
 
 	resp, err := search.Adaptive(ctx, s.db, s.embedder.Embed, req.Query, filter, limit, req.MinRelevance, req.RecencyDecay)
 	if err != nil {

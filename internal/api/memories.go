@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/j33pguy/magi/internal/auth"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/tools"
 )
@@ -48,6 +49,7 @@ func (s *Server) handleListMemories(w http.ResponseWriter, r *http.Request) {
 		AfterTime:  afterTime,
 		BeforeTime: beforeTime,
 	}
+	applyRequestAccessScope(r, filter)
 
 	memories, err := s.db.ListMemories(filter)
 	if err != nil {
@@ -80,6 +82,17 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 	// Verify memory exists
 	if _, err := s.db.GetMemory(id); err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": fmt.Sprintf("memory not found: %v", err)})
+		return
+	}
+	tags, err := s.db.GetTags(id)
+	if err != nil {
+		s.logger.Error("getting memory tags", "error", err, "id", id)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	identity, _ := auth.FromContext(r.Context())
+	if !auth.CanModifyTags(identity, tags) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 		return
 	}
 

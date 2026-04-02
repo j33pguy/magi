@@ -33,6 +33,8 @@ func (s *SQLServerSchema) run() error {
 		{5, s.migrationV5},
 		{6, s.migrationV6},
 		{7, s.migrationV7},
+		{8, s.migrationV8},
+		{9, s.migrationV9},
 	}
 
 	for _, m := range migrations {
@@ -248,5 +250,102 @@ func (s *SQLServerSchema) migrationV7() error {
 
 		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_memory_links_to')
 		CREATE INDEX idx_memory_links_to ON memory_links(to_id)`,
+	})
+}
+
+func (s *SQLServerSchema) migrationV8() error {
+	return s.execStatements([]string{
+		`IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'machine_credentials')
+		CREATE TABLE machine_credentials (
+			id NVARCHAR(32) NOT NULL PRIMARY KEY DEFAULT LOWER(REPLACE(NEWID(), '-', '')),
+			token_hash NVARCHAR(128) NOT NULL UNIQUE,
+			user_name NVARCHAR(255) NOT NULL,
+			machine_id NVARCHAR(255) NOT NULL,
+			agent_name NVARCHAR(255) NOT NULL DEFAULT '',
+			agent_type NVARCHAR(255) NOT NULL DEFAULT '',
+			groups_json NVARCHAR(MAX) NOT NULL DEFAULT '[]',
+			display_name NVARCHAR(255) NOT NULL DEFAULT '',
+			description NVARCHAR(MAX) NOT NULL DEFAULT '',
+			created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+			last_seen_at DATETIME2 NULL,
+			revoked_at DATETIME2 NULL
+		)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_machine_credentials_machine')
+		CREATE INDEX idx_machine_credentials_machine ON machine_credentials(machine_id)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_machine_credentials_user')
+		CREATE INDEX idx_machine_credentials_user ON machine_credentials(user_name)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_machine_credentials_revoked')
+		CREATE INDEX idx_machine_credentials_revoked ON machine_credentials(revoked_at)`,
+	})
+}
+
+func (s *SQLServerSchema) migrationV9() error {
+	return s.execStatements([]string{
+		`IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tasks')
+		CREATE TABLE tasks (
+			id NVARCHAR(32) NOT NULL PRIMARY KEY DEFAULT LOWER(REPLACE(NEWID(), '-', '')),
+			project NVARCHAR(255) NOT NULL DEFAULT '',
+			queue_name NVARCHAR(255) NOT NULL DEFAULT 'default',
+			title NVARCHAR(255) NOT NULL,
+			summary NVARCHAR(MAX) NOT NULL DEFAULT '',
+			description NVARCHAR(MAX) NOT NULL DEFAULT '',
+			status NVARCHAR(32) NOT NULL DEFAULT 'queued',
+			priority NVARCHAR(32) NOT NULL DEFAULT 'normal',
+			created_by NVARCHAR(255) NOT NULL DEFAULT '',
+			orchestrator NVARCHAR(255) NOT NULL DEFAULT '',
+			worker NVARCHAR(255) NOT NULL DEFAULT '',
+			parent_task_id NVARCHAR(32) NULL REFERENCES tasks(id),
+			metadata_json NVARCHAR(MAX) NOT NULL DEFAULT '{}',
+			created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+			updated_at DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+			started_at DATETIME2 NULL,
+			completed_at DATETIME2 NULL,
+			failed_at DATETIME2 NULL,
+			blocked_at DATETIME2 NULL
+		)`,
+		`IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK_tasks_status')
+		ALTER TABLE tasks ADD CONSTRAINT CK_tasks_status
+			CHECK (status IN ('queued','started','done','failed','blocked','canceled'))`,
+		`IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK_tasks_priority')
+		ALTER TABLE tasks ADD CONSTRAINT CK_tasks_priority
+			CHECK (priority IN ('low','normal','high','urgent'))`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_tasks_status_created')
+		CREATE INDEX idx_tasks_status_created ON tasks(status, created_at)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_tasks_project_status')
+		CREATE INDEX idx_tasks_project_status ON tasks(project, status)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_tasks_queue_status')
+		CREATE INDEX idx_tasks_queue_status ON tasks(queue_name, status)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_tasks_worker_status')
+		CREATE INDEX idx_tasks_worker_status ON tasks(worker, status)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_tasks_orchestrator_status')
+		CREATE INDEX idx_tasks_orchestrator_status ON tasks(orchestrator, status)`,
+
+		`IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'task_events')
+		CREATE TABLE task_events (
+			id NVARCHAR(32) NOT NULL PRIMARY KEY DEFAULT LOWER(REPLACE(NEWID(), '-', '')),
+			task_id NVARCHAR(32) NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+			event_type NVARCHAR(32) NOT NULL,
+			actor_role NVARCHAR(64) NOT NULL DEFAULT '',
+			actor_name NVARCHAR(255) NOT NULL DEFAULT '',
+			actor_user NVARCHAR(255) NOT NULL DEFAULT '',
+			actor_machine NVARCHAR(255) NOT NULL DEFAULT '',
+			actor_agent NVARCHAR(255) NOT NULL DEFAULT '',
+			summary NVARCHAR(MAX) NOT NULL DEFAULT '',
+			content NVARCHAR(MAX) NOT NULL DEFAULT '',
+			status NVARCHAR(32) NOT NULL DEFAULT '',
+			memory_id NVARCHAR(32) NULL REFERENCES memories(id) ON DELETE SET NULL,
+			source NVARCHAR(255) NOT NULL DEFAULT '',
+			metadata_json NVARCHAR(MAX) NOT NULL DEFAULT '{}',
+			created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+		)`,
+		`IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK_task_events_type')
+		ALTER TABLE task_events ADD CONSTRAINT CK_task_events_type
+			CHECK (event_type IN ('status','communication','issue','lesson','pitfall','success','memory_ref','note'))`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_task_events_task_created')
+		CREATE INDEX idx_task_events_task_created ON task_events(task_id, created_at)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_task_events_type_created')
+		CREATE INDEX idx_task_events_type_created ON task_events(event_type, created_at)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_task_events_memory')
+		CREATE INDEX idx_task_events_memory ON task_events(memory_id)`,
 	})
 }
