@@ -135,13 +135,43 @@ func appendPgTimeConditions(filter *MemoryFilter, b *pgBuilder) {
 // appendPgVisibilityCondition adds visibility filtering.
 func appendPgVisibilityCondition(filter *MemoryFilter, b *pgBuilder) {
 	if filter.Visibility == "all" {
-		return
-	}
-	if filter.Visibility != "" {
+	} else if filter.Visibility != "" {
 		b.add("m.visibility = $?", filter.Visibility)
 	} else {
 		b.addRaw("m.visibility != 'private'")
 	}
+	appendPgAccessCondition(filter, b)
+}
+
+func appendPgAccessCondition(filter *MemoryFilter, b *pgBuilder) {
+	if filter == nil || !filter.EnforceAccess {
+		return
+	}
+
+	parts := []string{
+		"(m.visibility != 'private' AND NOT EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND (acl.tag LIKE 'owner:%' OR acl.tag LIKE 'viewer:%' OR acl.tag LIKE 'viewer_group:%')))",
+	}
+
+	if filter.RequestUser != "" {
+		b.n++
+		parts = append(parts, fmt.Sprintf("EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND acl.tag = $%d)", b.n))
+		b.args = append(b.args, "owner:"+filter.RequestUser)
+		b.n++
+		parts = append(parts, fmt.Sprintf("EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND acl.tag = $%d)", b.n))
+		b.args = append(b.args, "viewer:"+filter.RequestUser)
+	}
+
+	for _, group := range filter.RequestGroups {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		b.n++
+		parts = append(parts, fmt.Sprintf("EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND acl.tag = $%d)", b.n))
+		b.args = append(b.args, "viewer_group:"+group)
+	}
+
+	b.conditions = append(b.conditions, "("+strings.Join(parts, " OR ")+")")
 }
 
 // appendPgTagCondition adds tag IN filtering.
@@ -203,6 +233,8 @@ func (c *PostgresClient) Migrate() error {
 		{5, pgMigrationV5},
 		{6, pgMigrationV6},
 		{7, pgMigrationV7},
+		{8, pgMigrationV8},
+		{9, pgMigrationV9},
 	}
 
 	for _, m := range migrations {

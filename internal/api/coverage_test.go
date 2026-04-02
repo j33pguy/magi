@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/j33pguy/magi/internal/auth"
 	"github.com/j33pguy/magi/internal/db"
 )
 
@@ -51,7 +52,7 @@ func newTestServerWithFailingEmbedder(t *testing.T) *Server {
 		db:       client.TursoClient,
 		embedder: &failingEmbedder{},
 		logger:   logger,
-		token:    "",
+		auth:     &auth.Resolver{},
 	}
 }
 
@@ -123,8 +124,71 @@ func TestNewServerWithToken(t *testing.T) {
 
 	t.Setenv("MAGI_API_TOKEN", "secret-token-123")
 	s := NewServer(client.TursoClient, &mockEmbedder{}, logger)
-	if s.token != "secret-token-123" {
-		t.Errorf("token = %q, want %q", s.token, "secret-token-123")
+	if s.auth == nil || s.auth.AdminToken() != "secret-token-123" {
+		t.Errorf("admin token = %q, want %q", s.auth.AdminToken(), "secret-token-123")
+	}
+}
+
+func TestResourceStyleRouteAliases(t *testing.T) {
+	tmp := t.TempDir()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	client, err := db.NewSQLiteClient(filepath.Join(tmp, "test.db"), logger)
+	if err != nil {
+		t.Fatalf("NewSQLiteClient: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+
+	if err := client.Migrate(); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+
+	t.Setenv("MAGI_API_TOKEN", "test-token")
+	s := NewServer(client.TursoClient, &mockEmbedder{}, logger)
+	s.SetTaskStore(client.TursoClient)
+
+	memoryReq := httptest.NewRequest("POST", "/memory", strings.NewReader(`{"content":"alias memory","project":"proj"}`))
+	memoryReq.Header.Set("Authorization", "Bearer test-token")
+	memoryReq.Header.Set("Content-Type", "application/json")
+	memoryW := httptest.NewRecorder()
+	s.httpServer.Handler.ServeHTTP(memoryW, memoryReq)
+	if memoryW.Code != http.StatusCreated {
+		t.Fatalf("POST /memory status = %d, want %d; body=%s", memoryW.Code, http.StatusCreated, memoryW.Body.String())
+	}
+
+	recallReq := httptest.NewRequest("POST", "/memory/recall", strings.NewReader(`{"query":"alias memory","project":"proj","top_k":1}`))
+	recallReq.Header.Set("Authorization", "Bearer test-token")
+	recallReq.Header.Set("Content-Type", "application/json")
+	recallW := httptest.NewRecorder()
+	s.httpServer.Handler.ServeHTTP(recallW, recallReq)
+	if recallW.Code != http.StatusOK {
+		t.Fatalf("POST /memory/recall status = %d, want %d; body=%s", recallW.Code, http.StatusOK, recallW.Body.String())
+	}
+
+	taskReq := httptest.NewRequest("POST", "/task", strings.NewReader(`{"title":"alias task","project":"proj","status":"queued"}`))
+	taskReq.Header.Set("Authorization", "Bearer test-token")
+	taskReq.Header.Set("Content-Type", "application/json")
+	taskW := httptest.NewRecorder()
+	s.httpServer.Handler.ServeHTTP(taskW, taskReq)
+	if taskW.Code != http.StatusCreated {
+		t.Fatalf("POST /task status = %d, want %d; body=%s", taskW.Code, http.StatusCreated, taskW.Body.String())
+	}
+
+	var createdTask db.Task
+	if err := json.NewDecoder(taskW.Body).Decode(&createdTask); err != nil {
+		t.Fatalf("decode task: %v", err)
+	}
+	if createdTask.ID == "" {
+		t.Fatal("expected task id from /task alias")
+	}
+
+	taskEventReq := httptest.NewRequest("POST", "/task/"+createdTask.ID+"/event", strings.NewReader(`{"event_type":"communication","summary":"alias event","content":"worker update"}`))
+	taskEventReq.Header.Set("Authorization", "Bearer test-token")
+	taskEventReq.Header.Set("Content-Type", "application/json")
+	taskEventW := httptest.NewRecorder()
+	s.httpServer.Handler.ServeHTTP(taskEventW, taskEventReq)
+	if taskEventW.Code != http.StatusCreated {
+		t.Fatalf("POST /task/{id}/event status = %d, want %d; body=%s", taskEventW.Code, http.StatusCreated, taskEventW.Body.String())
 	}
 }
 
@@ -917,7 +981,7 @@ func TestStartPortInUse(t *testing.T) {
 	}
 
 	// Start a listener on a specific port to block it
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", ":0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}

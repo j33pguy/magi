@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 
+	"github.com/j33pguy/magi/internal/auth"
 	"github.com/j33pguy/magi/internal/db"
 	pb "github.com/j33pguy/magi/proto/memory/v1"
 )
@@ -219,7 +220,7 @@ func TestRecall_ResultFields(t *testing.T) {
 
 func TestForget_ArchiveDBError(t *testing.T) {
 	srv, _, dbClient := newTestGRPCServerWithDB(t)
-	ctx := context.Background()
+	ctx := auth.NewContext(context.Background(), &auth.Identity{Kind: "admin"})
 
 	// Create a memory first
 	rem, err := srv.Remember(ctx, &pb.RememberRequest{Content: "to archive fail"})

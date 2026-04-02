@@ -749,6 +749,23 @@ func TestCov_AppendVisibilityCondition(t *testing.T) {
 	}
 }
 
+func TestCov_AppendVisibilityConditionWithAccessScope(t *testing.T) {
+	var conds []string
+	var args []any
+	appendVisibilityCondition(&MemoryFilter{
+		RequestUser:   "UserA",
+		RequestGroups: []string{"platform"},
+		EnforceAccess: true,
+	}, &conds, &args)
+
+	if len(conds) != 2 {
+		t.Fatalf("got %d conditions, want 2: %v", len(conds), conds)
+	}
+	if len(args) != 3 {
+		t.Fatalf("got %d args, want 3: %v", len(args), args)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // appendProjectCondition with Projects slice
 // ---------------------------------------------------------------------------
@@ -1238,10 +1255,10 @@ func TestCov_NewStoreTursoFails(t *testing.T) {
 
 	// Empty config defaults to "turso" backend, which needs a valid URL
 	_, err := NewStore(&Config{
-		Backend:     "",
-		TursoURL:    "libsql://nonexistent.example.com",
+		Backend:        "",
+		TursoURL:       "libsql://nonexistent.example.com",
 		TursoAuthToken: "fake",
-		ReplicaPath: t.TempDir() + "/rep.db",
+		ReplicaPath:    t.TempDir() + "/rep.db",
 	}, logger)
 	// This should fail (can't connect), which exercises the turso case in NewStore
 	if err == nil {
@@ -1724,7 +1741,6 @@ func TestCov_ErrorPath_ScanMemoriesError(t *testing.T) {
 		t.Error("expected error with corrupted memories schema")
 	}
 }
-
 
 // Schema migration error: isApplied failure
 func TestCov_ErrorPath_SchemaIsAppliedError(t *testing.T) {

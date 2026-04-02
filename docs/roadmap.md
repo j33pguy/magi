@@ -51,17 +51,37 @@
 
 ---
 
-## v0.3.1 — Distributed Node Mesh Phase 2 (next)
+## Cross-Cutting Priorities
+
+These themes now cut across multiple releases and should stay visible in planning:
+
+- shared memory and continuity across machines, sessions, and agents
+- speed-first single-node performance
+- role-separated container scale-out
+- `magi-sync` as the edge bridge from isolated machines into MAGI
+- authenticated user, machine, and agent identity
+- owner/viewer/group-aware access control
+- safe schema and data migration for major DB evolution
+
+See also:
+
+- `docs/strategy-rollup.md`
+- `docs/magi-sync-design.md`
+- `docs/auth-architecture.md`
+- `docs/migration-strategy.md`
+
+## v0.3.1 — Container-Ready Distributed Node Mesh (next)
 
 ### The pattern
-Move from in-process goroutine pools to gRPC-based inter-node communication. Multiple MAGI instances form a mesh for horizontal scaling.
+Keep the in-process fast path for single-node deployments, but add a distributed transport so MAGI roles can run in separate LXC/Docker containers and scale independently.
 
 ### Features
 
 #### gRPC node transport
-- Replace Go channel communication with gRPC streams between nodes
+- Keep Go channels for embedded mode
+- Add gRPC streams between node roles in distributed mode
 - Node discovery via registry (mDNS or static config)
-- Writer/Reader/Index nodes can run as separate processes
+- Writer/Reader/Index/Embedder nodes can run as separate processes or containers
 
 #### Partition-aware routing
 - Coordinator routes writes by project hash to specific Writer nodes
@@ -73,45 +93,108 @@ Move from in-process goroutine pools to gRPC-based inter-node communication. Mul
 - Automatic rebalancing when nodes join/leave
 - Metrics per-node for capacity planning
 
+#### Speed-first autoscaling signals
+- Scale on queue depth, embedding duration, write latency, and search latency
+- Split embedder capacity from API capacity
+- Preserve read-your-writes guarantees per session where possible
+
 ---
 
-## v0.3.2 — Distributed Node Mesh Phase 3
+## v0.3.2 — Dedicated Worker Containers
 
 ### The pattern
-Replicated reads with write-ahead log replication. Strong consistency for writes, eventual consistency for reads.
+Specialize containers by role so the hot path can be scaled without cloning the entire application.
 
 ### Features
 
-#### WAL replication
-- Writer nodes stream WAL entries to Reader nodes
-- Readers apply WAL for near-real-time consistency
-- Configurable replication lag tolerance
+#### Role-separated containers
+- `magi-api` for ingress, auth, and orchestration
+- `magi-writer` for write enrichment and persistence
+- `magi-reader` for search and recall
+- `magi-index` for background maintenance
+- `magi-embedder` for CPU-bound embedding work
+
+#### Queue-aware backpressure
+- Writers stop accepting unbounded work under sustained overload
+- Embedders expose queue depth and saturation explicitly
+- Graceful degradation to BM25-first recall when embedding capacity is constrained
+
+---
+
+## v0.3.3 — Replication and Read Scaling
+
+### The pattern
+Replicated reads with strong primary writes and scalable read capacity.
+
+### Features
 
 #### Read replicas
-- Dedicated read-only nodes that receive WAL streams
+- Dedicated read-focused nodes or services
 - Auto-scaling read capacity without affecting write path
-- Stale-read option for lower latency
+- Configurable stale-read tolerance for lower latency
+
+#### Replication-aware routing
+- Prefer local readers when replicas are healthy
+- Protect primary writer latency under heavy recall traffic
+- Track replication lag and expose it in health/metrics
 
 ---
 
-## v0.3.3 — Distributed Node Mesh Phase 4
+## v0.3.4 — Auth And Identity Foundation
 
 ### The pattern
-Full multi-region deployment with cross-datacenter replication.
+
+Authenticate humans and machines separately, then derive trusted user, machine, and agent identity inside MAGI.
 
 ### Features
 
-#### Multi-region coordination
-- Region-aware routing (prefer local reads)
-- Cross-region write forwarding to primary
-- Conflict resolution for concurrent cross-region writes
+#### Human auth lane
 
-#### Sharded storage
-- Memories partitioned across storage nodes by project
-- Cross-shard queries via scatter-gather
-- Shard rebalancing on topology changes
+- OIDC-backed UI and human API access
+- Auth proxy support for self-hosted and enterprise deployments
+- group-aware identity mapping
+
+#### Machine auth lane
+
+- per-machine tokens for `magi-sync`
+- machine identity registry
+- machine revocation and rotation path
+- dedicated sync/API endpoint for non-browser clients
+
+#### Access model
+
+- owner/viewer/viewer_group semantics documented and enforced
+- query filtering across HTTP, MCP, and web surfaces
+- visibility levels expanded to support team/shared workflows
 
 ---
+
+## v0.3.5 — Schema And Data Migration Framework
+
+### The pattern
+
+Keep startup schema migrations for additive DDL, but add a first-class path for major memory-model changes, backfills, and safe operator-managed upgrades.
+
+### Features
+
+#### Data migration tracking
+
+- add `data_migrations` alongside `schema_migrations`
+- make backfills idempotent and resumable
+- track status for long-running migration work
+
+#### Expand-and-contract rollout
+
+- add new structures first
+- backfill old memories in batches
+- switch reads and writes after validation
+- remove legacy structures in a later release
+
+#### Recovery and safety
+
+- clearer backup requirements before major upgrades
+- export/import fallback for operator-managed changes
+- tighter alignment with git-backed rebuild paths
 
 ## v0.4 — Project-Scoped Memory
 
@@ -152,7 +235,7 @@ The agent reads this before starting work. If `stale` or `syncing`, waits.
 #### New MCP tool: `sync_now`
 Force a sync immediately. Returns when complete.
 ```json
-{"synced_at": "...", "records_pulled": 12, "project": "..."}
+{"synced_at": "...", "records_synced": 12, "project": "..."}
 ```
 
 #### New env var: `MAGI_SYNC_MAX_AGE`
@@ -201,20 +284,25 @@ The agent injects these at the top of context automatically.
 ## v0.5 — Cross-Machine Identity
 
 ### The pattern
-Multiple machines (server-01, laptop, future machines) all write to the same Turso DB.
-Each machine has its own local replica. Writes sync up, reads pull down.
+Multiple machines (server-01, laptop, future machines) all write to the same MAGI server through authenticated edge sync and agent connections.
 
 ### Features
 
 #### Machine identity tag
-- Each binary instance has a `MAGI_MACHINE_ID` (e.g. `server-01`, `laptop`, `work-laptop`)
-- Stored on every memory: `source_machine: server-01`
+- Each enrolled machine has a stable identity (e.g. `server-01`, `laptop`, `work-laptop`)
+- Stored on synced records as identity tags like `machine:server-01`
 - Useful for: "what did I work on from my laptop last week?"
 
-#### Conflict resolution
-- Turso handles this via its distributed write protocol
-- Local replica is read-heavy, writes go to cloud then propagate
-- No special handling needed for most cases
+#### User and agent identity
+- Support `UserA.MachineA.AgentX` identity chains
+- Store `owner`, `viewer`, and `viewer_group` metadata alongside memories
+- Enable per-user and per-team filtering for recall and search
+
+#### Auth and access
+- per-machine token enrollment first
+- dedicated sync write endpoint for `magi-sync`
+- owner/viewer/viewer_group-aware filtering on authenticated query paths
+- OIDC / Authentik path for humans later
 
 #### New MCP resource: `memory://machines`
 Shows which machines have written recently, last seen timestamps.
@@ -224,16 +312,16 @@ Shows which machines have written recently, last seen timestamps.
 ## v0.5 — Ingestion Pipeline
 
 ### The pattern
-Work offline on laptop → Agent session logs captured → ingested into Turso → the server agent has full context on next session.
+Work offline on laptop → Agent session logs captured → ingested into MAGI → the server agent has full context on next session.
 
 ### Features
 
-#### Session log watcher service
-- Separate binary: `magi-watcher`
-- Watches `~/.magi/projects/*/` for new session log files
+#### Edge sync service
+- Separate binary: `magi-sync`
+- Scans local agent/project artifacts and uploads approved context
 - Parses JSONL session logs
-- Extracts: decisions made, code written, errors hit, solutions found
-- Calls `remember` API to store with project tag + `source: magi_session`
+- Stores session summaries, per-turn conversation memories, and project context
+- Uses machine enrollment plus `POST /sync/memories`
 
 #### Import sources
 - Session logs (`~/.magi/projects/**/*.jsonl`)
@@ -241,15 +329,38 @@ Work offline on laptop → Agent session logs captured → ingested into Turso �
 - Markdown notes (manual, existing `cmd/import`)
 - Future: VS Code history, terminal history
 
-#### Watcher config (`~/.magi-watcher.yaml`)
+#### Sync config (`~/.config/magi-sync/config.yaml`)
 ```yaml
-watch_paths:
-  - ~/.magi/projects
-  - ~/Projects
-import_on_startup: true
-sync_interval: 60
-min_session_length: 5  # min turns before importing a session
+server:
+  url: https://sync.memory.example.com
+  enroll_token_env: MAGI_ADMIN_TOKEN
+machine:
+  id: laptop
+  user: UserA
+  groups:
+    - platform
+agents:
+  - type: claude
+    name: claude-main
+    enabled: true
+    owner: UserA
+    viewer_groups:
+      - platform
+    paths:
+      - ~/.claude
+    include:
+      - "**/projects/**/*.jsonl"
+      - "**/CLAUDE.md"
+    exclude:
+      - "**/cache/**"
 ```
+
+#### Packaging and rollout
+
+- Homebrew formula for macOS
+- `deb`, `rpm`, and `apk` artifacts for Linux
+- `winget` package for Windows
+- Tailscale-friendly deployment guidance for remote sync
 
 ---
 
@@ -300,8 +411,8 @@ More storage, more writes → dramatically better recall precision. Verbatim quo
 |---|---|---|
 | your-server | Server — HTTP API + MCP | magi (HTTP mode) |
 | Local Agent | MCP client | magi (stdio MCP) |
-| Laptop | MCP client + watcher | magi + magi-watcher |
-| Future machines | MCP client + watcher | same |
+| Laptop | MCP client + edge sync | magi + magi-sync |
+| Future machines | MCP client + edge sync | same |
 
 ## Environment variables (full set)
 

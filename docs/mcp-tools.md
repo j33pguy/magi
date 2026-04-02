@@ -10,28 +10,35 @@ Generate a ready-to-paste MCP configuration block for any MCP-compatible client:
 magi mcp-config
 ```
 
+For the easiest onboarding path, start MAGI with `MAGI_CACHE_ENABLED=true`, paste this config into Claude Code or Codex, and let the agent use `recall` before it starts work on a project.
+
 **Output:**
 ```json
 {
   "mcpServers": {
     "magi": {
       "command": "magi",
-      "args": [],
+      "args": ["--mcp-only"],
       "env": {
-        "MAGI_DB_URL": "${MAGI_DB_URL}",
-        "MAGI_AUTH_TOKEN": "${MAGI_AUTH_TOKEN}",
+        "MEMORY_BACKEND": "${MEMORY_BACKEND}",
+        "SQLITE_PATH": "${SQLITE_PATH}",
+        "POSTGRES_URL": "${POSTGRES_URL}",
+        "MYSQL_DSN": "${MYSQL_DSN}",
+        "SQLSERVER_URL": "${SQLSERVER_URL}",
+        "TURSO_URL": "${TURSO_URL}",
+        "TURSO_AUTH_TOKEN": "${TURSO_AUTH_TOKEN}",
+        "MAGI_REPLICA_PATH": "${MAGI_REPLICA_PATH}",
         "MAGI_API_TOKEN": "${MAGI_API_TOKEN}",
-        "MAGI_GRPC_PORT": "8300",
-        "MAGI_HTTP_PORT": "8301",
-        "MAGI_LEGACY_HTTP_PORT": "8302",
-        "MAGI_UI_PORT": "8080"
+        "MAGI_ASYNC_WRITES": "true",
+        "MAGI_CACHE_ENABLED": "true",
+        "MAGI_UI_ENABLED": "false"
       }
     }
   }
 }
 ```
 
-Copy the output into your agent's MCP configuration file. Replace the `${...}` placeholders with your actual values.
+Copy the output into your agent's MCP configuration file. Replace only the backend and token placeholders you actually use.
 
 ---
 
@@ -110,6 +117,105 @@ Update an existing memory. Re-embeds automatically if content changes.
 | `summary` | string | no | New summary |
 | `type` | string | no | Memory type: `memory`, `incident`, `lesson`, `decision`, `project_context`, `conversation`, `audit`, `runbook`, `preference`, `context`, `security` |
 | `tags` | string[] | no | Replace all tags with these |
+
+---
+
+## Task Queue
+
+Tasks are separate from memories. Use them for active coordination and shared progress between orchestrators and workers.
+
+### create_task
+
+Create a task in the shared task queue.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `title` | string | yes | Short task title |
+| `project` | string | no | Project/namespace |
+| `queue` | string | no | Queue name (default `default`) |
+| `summary` | string | no | Short summary |
+| `description` | string | no | Detailed description |
+| `status` | string | no | `queued`, `started`, `done`, `failed`, `blocked`, `canceled` |
+| `priority` | string | no | `low`, `normal`, `high`, `urgent` |
+| `created_by` | string | no | Creator identity |
+| `orchestrator` | string | no | Orchestrator assignment |
+| `worker` | string | no | Worker assignment |
+| `parent_task_id` | string | no | Parent task |
+| `actor_role` | string | no | Initial event actor role |
+| `actor_name` | string | no | Initial event actor name |
+| `actor_agent` | string | no | Initial event agent name |
+| `metadata_json` | string | no | JSON object with metadata |
+
+### list_tasks
+
+List tasks so agents can see each other’s progress.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `project` | string | no | Filter by project |
+| `queue` | string | no | Filter by queue |
+| `status` | string | no | Filter by task status |
+| `worker` | string | no | Filter by worker |
+| `orchestrator` | string | no | Filter by orchestrator |
+| `limit` | number | no | Max results (default 25) |
+
+### get_task
+
+Fetch a single task.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Task ID |
+
+### update_task
+
+Update task status, assignment, or details.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | yes | Task ID |
+| `project` | string | no | Project |
+| `queue` | string | no | Queue |
+| `title` | string | no | Title |
+| `summary` | string | no | Summary |
+| `description` | string | no | Description |
+| `status` | string | no | `queued`, `started`, `done`, `failed`, `blocked`, `canceled` |
+| `priority` | string | no | `low`, `normal`, `high`, `urgent` |
+| `created_by` | string | no | Creator |
+| `orchestrator` | string | no | Orchestrator |
+| `worker` | string | no | Worker |
+| `parent_task_id` | string | no | Parent task |
+| `status_summary` | string | no | Summary for the generated status event |
+| `metadata_json` | string | no | JSON object with metadata |
+
+### add_task_event
+
+Append comms, issues, lessons, pitfalls, successes, or memory references to a task.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `task_id` | string | yes | Task ID |
+| `event_type` | string | yes | `status`, `communication`, `issue`, `lesson`, `pitfall`, `success`, `memory_ref`, `note` |
+| `actor_role` | string | no | Actor role |
+| `actor_name` | string | no | Actor display name |
+| `actor_user` | string | no | Actor user |
+| `actor_machine` | string | no | Actor machine |
+| `actor_agent` | string | no | Actor agent |
+| `summary` | string | no | Short summary |
+| `content` | string | no | Detailed content or communication text |
+| `status` | string | no | Required for `status` events |
+| `memory_id` | string | no | Linked memory ID |
+| `source` | string | no | Source system |
+| `metadata_json` | string | no | JSON object with metadata |
+
+### list_task_events
+
+List the activity log for a task.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `task_id` | string | yes | Task ID |
+| `limit` | number | no | Max results (default 100) |
 
 ---
 

@@ -1013,12 +1013,39 @@ func sqlserverAppendTimeConditions(filter *MemoryFilter, conditions *[]string, a
 
 func sqlserverAppendVisibilityCondition(filter *MemoryFilter, conditions *[]string, args *[]any) {
 	if filter.Visibility == "all" {
-		return
-	}
-	if filter.Visibility != "" {
+	} else if filter.Visibility != "" {
 		*args = append(*args, filter.Visibility)
 		*conditions = append(*conditions, fmt.Sprintf("m.visibility = @p%d", len(*args)))
 	} else {
 		*conditions = append(*conditions, "m.visibility != 'private'")
 	}
+	sqlserverAppendAccessCondition(filter, conditions, args)
+}
+
+func sqlserverAppendAccessCondition(filter *MemoryFilter, conditions *[]string, args *[]any) {
+	if filter == nil || !filter.EnforceAccess {
+		return
+	}
+
+	parts := []string{
+		"(m.visibility != 'private' AND NOT EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND (acl.tag LIKE 'owner:%' OR acl.tag LIKE 'viewer:%' OR acl.tag LIKE 'viewer_group:%')))",
+	}
+
+	if filter.RequestUser != "" {
+		*args = append(*args, "owner:"+filter.RequestUser)
+		parts = append(parts, fmt.Sprintf("EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND acl.tag = @p%d)", len(*args)))
+		*args = append(*args, "viewer:"+filter.RequestUser)
+		parts = append(parts, fmt.Sprintf("EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND acl.tag = @p%d)", len(*args)))
+	}
+
+	for _, group := range filter.RequestGroups {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		*args = append(*args, "viewer_group:"+group)
+		parts = append(parts, fmt.Sprintf("EXISTS (SELECT 1 FROM memory_tags acl WHERE acl.memory_id = m.id AND acl.tag = @p%d)", len(*args)))
+	}
+
+	*conditions = append(*conditions, "("+strings.Join(parts, " OR ")+")")
 }

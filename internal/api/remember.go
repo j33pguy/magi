@@ -24,6 +24,17 @@ type rememberRequest struct {
 }
 
 func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
+	s.handleRememberWithDefaultSource(w, r, "api")
+}
+
+func (s *Server) handleSyncRemember(w http.ResponseWriter, r *http.Request) {
+	if !requireMachineOrAdminIdentity(w, r) {
+		return
+	}
+	s.handleRememberWithDefaultSource(w, r, "magi-sync")
+}
+
+func (s *Server) handleRememberWithDefaultSource(w http.ResponseWriter, r *http.Request, defaultSource string) {
 	var req rememberRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
@@ -39,7 +50,7 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 		req.Type = "memory"
 	}
 	if req.Source == "" {
-		req.Source = "api"
+		req.Source = defaultSource
 	}
 	input := remember.Input{
 		Content:    req.Content,
@@ -54,8 +65,9 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 		Tags:       req.Tags,
 	}
 	result, err := remember.Remember(r.Context(), s.db, s.embedder, input, remember.Options{
-		TagMode: remember.TagModeWarn,
-		Logger:  s.logger,
+		TagMode:       remember.TagModeWarn,
+		Logger:        s.logger,
+		SecretManager: s.secrets,
 	})
 	if err != nil {
 		var secretErr *remember.SecretError
@@ -63,7 +75,6 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": secretErr.Error()})
 			return
 		}
-		s.logger.Error("remember failed", "error", err)
 		s.logger.Error("remember failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return

@@ -2,7 +2,13 @@
 
 ## Overview
 
-magi is a single Go binary that runs four server interfaces concurrently, all backed by the same database and embedding engine.
+MAGI is designed to be fast on one box first, then scale out cleanly when one box is no longer enough.
+
+- **Single-node fast path**: one Go process, in-process goroutine pools, local caches, async writes, and a local embedding runtime
+- **Container scale path**: role-separated API, writer, reader, index, and embedder containers connected over the network
+- **Broad backend support**: SQLite for simple self-hosting, PostgreSQL for scaled deployments, Turso for sync-oriented setups, with MySQL and SQL Server available for compatibility
+
+Today, MAGI runs as a single Go binary with four server interfaces backed by the same database and embedding engine.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -57,7 +63,14 @@ magi is a single Go binary that runs four server interfaces concurrently, all ba
 
 ## Distributed Node Mesh
 
-Located in `internal/node/`. The node mesh introduces a coordination layer between protocol handlers and the database, routing reads and writes through typed goroutine pools.
+Located in `internal/node/`. The node mesh introduces a coordination layer between protocol handlers and the database, routing reads and writes through typed worker pools.
+
+The key architectural rule is:
+
+- **Inside one process**: use goroutines and channels for minimum latency
+- **Across containers**: use explicit network transport between nodes, not cross-container "threads"
+
+That keeps the default deployment extremely fast while preserving a clean path to horizontal scaling in LXC and Docker environments.
 
 ### Node Types
 
@@ -117,16 +130,58 @@ The Router tracks a monotonic write sequence per session. After a write complete
 
 `local.CoordinatedStore` implements the `db.Store` interface by delegating core operations (Save, Get, Update, Archive, Delete, List, Search) through the Coordinator pools. Operations not yet routed through pools (links, graph traversal, tags) pass through to the underlying store directly. This makes the node mesh a **drop-in replacement** — all existing API/gRPC/MCP endpoints work unchanged.
 
+### Deployment Modes
+
+#### Mode 1 — Embedded Fast Path
+
+This is the default and recommended starting point.
+
+- Single MAGI container or binary
+- Coordinator enabled
+- Writer/reader pools run in-process
+- Async write pipeline absorbs bursts
+- Caches reduce repeated DB and embedding work
+- Best paired with SQLite for solo/local use, or PostgreSQL for a single production container
+
+Why this mode is fast:
+
+- no network hops between protocol handlers and workers
+- no serialization overhead between coordinator and store
+- local embedding execution
+- WAL mode and connection pooling for concurrent read-heavy workloads
+
+#### Mode 2 — Distributed Container Path
+
+When one MAGI instance becomes CPU-bound or embedding-bound, scale by separating roles into containers:
+
+- `magi-api`: protocol ingress, auth, recall orchestration
+- `magi-writer`: write enrichment and persistence
+- `magi-reader`: recall/search fan-out and reranking
+- `magi-index`: background indexing and maintenance tasks
+- `magi-embedder`: dedicated embedding workers for CPU-heavy vector generation
+
+In this mode, goroutines still exist inside each container, but communication between containers should happen over gRPC or another explicit transport.
+
 ### Configuration
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `MAGI_NODE_MODE` | `embedded` | Node communication mode (Phase 1: embedded only) |
+| `MAGI_NODE_MODE` | `embedded` | Node communication mode. `embedded` is the current fast path; distributed transport is the scale-out direction |
 | `MAGI_WRITER_POOL_SIZE` | `4` | Number of writer goroutines |
 | `MAGI_READER_POOL_SIZE` | `8` | Number of reader goroutines |
 | `MAGI_COORDINATOR_ENABLED` | `true` | Enable the coordinator (set `false` for direct store access) |
 
 In embedded mode, all pools run as in-process goroutines communicating via Go channels. Zero serialization overhead — the same `*db.Memory` pointers pass through the pools.
+
+### Speed-First Scaling Strategy
+
+MAGI should scale in this order:
+
+1. **Turn on fast defaults**: async writes, coordinator, caches, WAL-friendly backend settings
+2. **Separate bottlenecks by role**: first embedders, then writers/readers, then API ingress
+3. **Scale on queue depth and latency**, not CPU alone
+
+The first bottleneck in real workloads is usually embedding generation, not CRUD. That makes dedicated embedder capacity more valuable than cloning full all-in-one containers too early.
 
 ## Data Flow
 
@@ -204,6 +259,8 @@ Located in `internal/pipeline/`. When `MAGI_ASYNC_WRITES=true`, writes are dispa
 - API: `GET /memories/:id/status` returns write state (pending, processing, complete, failed)
 - API: `GET /pipeline/stats` returns queue depth, batch pending, worker count, totals
 
+This pipeline is the main burst absorber for container deployments. In embedded mode it protects request latency from slow embedding work; in distributed mode the same queue/worker pattern becomes the basis for scaling writer and embedder containers independently.
+
 ### Sync Path
 
 ```
@@ -243,6 +300,14 @@ Located in `internal/cache/`. Three independent caches reduce latency for repeat
 
 Metrics endpoint (Prometheus-compatible format): `GET /metrics`
 
+For autoscaling and stress tuning, the most important signals are:
+
+- `magi_queue_depth`
+- `magi_write_latency_seconds`
+- `magi_search_latency_seconds`
+- `magi_embedding_duration_seconds`
+- active session count and per-role saturation
+
 ### Health Probes
 
 | Endpoint | Auth | Checks | Success | Failure |
@@ -265,6 +330,36 @@ Located in `internal/tracking/`. Convenience helpers for production dogfooding �
 
 All tracking writes use `speaker: "system"` and `source: "tracking"`.
 
+`TrackTask` is now considered a legacy compatibility helper. New orchestrator/worker coordination should use the dedicated task queue (`tasks` + `task_events`) instead of writing task progress into the main memory stack.
+
+### Shared Task Queue
+
+MAGI now includes a task queue separate from long-term memory.
+
+- `tasks` track in-flight work, assignment, and current status
+- `task_events` capture the coordination log for a task
+- linked `memory_id` references let durable lessons, incidents, and decisions stay in memory while still being attached to the task that produced them
+
+Current task statuses:
+
+- `queued`
+- `started`
+- `done`
+- `failed`
+- `blocked`
+- `canceled`
+
+Current task event types:
+
+- `status`
+- `communication`
+- `issue`
+- `lesson`
+- `pitfall`
+- `success`
+- `memory_ref`
+- `note`
+
 ## Pluggable SQL Backends
 
 A factory pattern in `internal/db/factory.go` selects the database backend at startup. All backends implement the `db.Store` interface.
@@ -277,11 +372,11 @@ A factory pattern in `internal/db/factory.go` selects the database backend at st
 | MySQL | `MEMORY_BACKEND=mysql` | App-side reranking | App-side | Vector reranking in Go |
 | SQL Server | `MEMORY_BACKEND=sqlserver` | App-side reranking | App-side | Vector reranking in Go |
 
-Selected via the `MEMORY_BACKEND` environment variable. Each backend handles its own migrations.
+Selected via the `MEMORY_BACKEND` environment variable. Each backend handles its own DDL migrations today, and MAGI's longer-term migration policy is documented in [migration-strategy.md](migration-strategy.md).
 
 ## Database Schema
 
-Seven incremental migrations:
+Current startup schema migrations:
 
 | Version | Description |
 |---------|-------------|
@@ -292,6 +387,16 @@ Seven incremental migrations:
 | V5 | Structured taxonomy: `speaker`, `area`, `sub_area` columns with indexes |
 | V6 | Temporal index on `created_at` for time-range queries |
 | V7 | Memory links table: `memory_links` with directed relationships and graph traversal |
+| V8 | Machine credential registry for enrolled non-browser clients like `magi-sync` |
+
+For major shape changes, MAGI should not rely only on startup SQL migrations. The intended direction is:
+
+- `schema_migrations` for backend-specific DDL
+- `data_migrations` for backfills and semantic rewrites
+- expand-and-contract for breaking shape changes
+- rebuild/export paths as the safety net
+
+See [migration-strategy.md](migration-strategy.md) for the full policy.
 
 ### Key Tables
 

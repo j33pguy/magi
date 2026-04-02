@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/j33pguy/magi/internal/auth"
 	"github.com/j33pguy/magi/internal/db"
 	pb "github.com/j33pguy/magi/proto/memory/v1"
 )
@@ -334,7 +335,7 @@ func TestRecall_WithRelativeTime(t *testing.T) {
 
 func TestForget_Success(t *testing.T) {
 	srv, _ := newTestGRPCServer(t)
-	ctx := context.Background()
+	ctx := auth.NewContext(context.Background(), &auth.Identity{Kind: "admin"})
 
 	rem, err := srv.Remember(ctx, &pb.RememberRequest{Content: "to be forgotten"})
 	if err != nil {
@@ -671,6 +672,76 @@ func TestSearchConversations_NoChannel(t *testing.T) {
 	}
 }
 
+func TestSearchConversations_PrivateConversationScopedToOwner(t *testing.T) {
+	srv, _ := newTestGRPCServer(t)
+	ctxA := auth.NewContext(context.Background(), &auth.Identity{Kind: "machine", User: "UserA", MachineID: "MachineA"})
+	ctxB := auth.NewContext(context.Background(), &auth.Identity{Kind: "machine", User: "UserB", MachineID: "MachineB"})
+
+	_, err := srv.CreateConversation(ctxA, &pb.CreateConversationRequest{
+		Channel: "slack-general",
+		Summary: "Owner-only deployment conversation",
+	})
+	if err != nil {
+		t.Fatalf("CreateConversation: %v", err)
+	}
+
+	respA, err := srv.SearchConversations(ctxA, &pb.SearchConversationsRequest{
+		Query: "deployment conversation",
+	})
+	if err != nil {
+		t.Fatalf("SearchConversations owner: %v", err)
+	}
+	if len(respA.Results) == 0 {
+		t.Fatal("expected owner to see private conversation")
+	}
+
+	respB, err := srv.SearchConversations(ctxB, &pb.SearchConversationsRequest{
+		Query: "deployment conversation",
+	})
+	if err != nil {
+		t.Fatalf("SearchConversations other user: %v", err)
+	}
+	if len(respB.Results) != 0 {
+		t.Fatalf("expected other user to see 0 results, got %d", len(respB.Results))
+	}
+}
+
+func TestForgetRequiresOwnerForMachine(t *testing.T) {
+	srv, emb := newTestGRPCServer(t)
+	content := "protected memory"
+	vector, err := emb.Embed(context.Background(), content)
+	if err != nil {
+		t.Fatalf("Embed: %v", err)
+	}
+
+	mem, err := srv.db.SaveMemory(&db.Memory{
+		Content:    content,
+		Embedding:  vector,
+		Project:    "proj",
+		Type:       "memory",
+		Visibility: "internal",
+	})
+	if err != nil {
+		t.Fatalf("SaveMemory: %v", err)
+	}
+	if err := srv.db.SetTags(mem.ID, []string{"owner:UserA"}); err != nil {
+		t.Fatalf("SetTags: %v", err)
+	}
+
+	ctxB := auth.NewContext(context.Background(), &auth.Identity{Kind: "machine", User: "UserB", MachineID: "MachineB"})
+	_, err = srv.Forget(ctxB, &pb.ForgetRequest{Id: mem.ID})
+	assertGRPCCode(t, err, codes.PermissionDenied)
+
+	ctxA := auth.NewContext(context.Background(), &auth.Identity{Kind: "machine", User: "UserA", MachineID: "MachineA"})
+	resp, err := srv.Forget(ctxA, &pb.ForgetRequest{Id: mem.ID})
+	if err != nil {
+		t.Fatalf("Forget owner: %v", err)
+	}
+	if !resp.Ok {
+		t.Fatal("expected ok=true")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Conversion helpers
 // ---------------------------------------------------------------------------
@@ -912,7 +983,7 @@ func TestFormatConversationContent_PartialTime(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestAuthInterceptor_MissingMetadata(t *testing.T) {
-	interceptor := AuthInterceptor("secret")
+	interceptor := AuthInterceptor(grpcTestResolver(t, "secret", ""))
 	handler := func(_ context.Context, _ any) (any, error) {
 		return "ok", nil
 	}
@@ -923,7 +994,7 @@ func TestAuthInterceptor_MissingMetadata(t *testing.T) {
 }
 
 func TestAuthInterceptor_InvalidFormat(t *testing.T) {
-	interceptor := AuthInterceptor("secret")
+	interceptor := AuthInterceptor(grpcTestResolver(t, "secret", ""))
 	handler := func(_ context.Context, _ any) (any, error) {
 		return "ok", nil
 	}
@@ -936,7 +1007,7 @@ func TestAuthInterceptor_InvalidFormat(t *testing.T) {
 }
 
 func TestAuthInterceptor_EmptyToken_ReadOnly(t *testing.T) {
-	interceptor := AuthInterceptor("") // no token = read-only mode
+	interceptor := AuthInterceptor(grpcTestResolver(t, "", "")) // no auth = read-only mode
 
 	// Read-only methods should be allowed
 	called := false
@@ -958,7 +1029,7 @@ func TestAuthInterceptor_EmptyToken_ReadOnly(t *testing.T) {
 }
 
 func TestAuthInterceptor_HealthBypass(t *testing.T) {
-	interceptor := AuthInterceptor("secret")
+	interceptor := AuthInterceptor(grpcTestResolver(t, "secret", ""))
 	called := false
 	handler := func(_ context.Context, _ any) (any, error) {
 		called = true
@@ -975,7 +1046,7 @@ func TestAuthInterceptor_HealthBypass(t *testing.T) {
 }
 
 func TestAuthInterceptor_ValidToken(t *testing.T) {
-	interceptor := AuthInterceptor("my-secret")
+	interceptor := AuthInterceptor(grpcTestResolver(t, "my-secret", ""))
 	called := false
 	handler := func(_ context.Context, _ any) (any, error) {
 		called = true
@@ -994,7 +1065,7 @@ func TestAuthInterceptor_ValidToken(t *testing.T) {
 }
 
 func TestAuthInterceptor_WrongToken(t *testing.T) {
-	interceptor := AuthInterceptor("correct-token")
+	interceptor := AuthInterceptor(grpcTestResolver(t, "correct-token", ""))
 	handler := func(_ context.Context, _ any) (any, error) {
 		return "ok", nil
 	}
@@ -1006,7 +1077,7 @@ func TestAuthInterceptor_WrongToken(t *testing.T) {
 }
 
 func TestAuthInterceptor_MissingAuthHeader(t *testing.T) {
-	interceptor := AuthInterceptor("secret")
+	interceptor := AuthInterceptor(grpcTestResolver(t, "secret", ""))
 	handler := func(_ context.Context, _ any) (any, error) {
 		return "ok", nil
 	}
@@ -1015,6 +1086,18 @@ func TestAuthInterceptor_MissingAuthHeader(t *testing.T) {
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.New(map[string]string{"other": "value"}))
 	_, err := interceptor(ctx, nil, &ggrpc.UnaryServerInfo{FullMethod: "/memory.v1.MemoryService/Remember"}, handler)
 	assertGRPCCode(t, err, codes.Unauthenticated)
+}
+
+func grpcTestResolver(t *testing.T, adminToken, machineJSON string) *auth.Resolver {
+	t.Helper()
+	t.Setenv("MAGI_API_TOKEN", adminToken)
+	t.Setenv("MAGI_MACHINE_TOKENS_JSON", machineJSON)
+	t.Setenv("MAGI_MACHINE_TOKENS_FILE", "")
+	resolver, err := auth.LoadResolverFromEnv()
+	if err != nil {
+		t.Fatalf("LoadResolverFromEnv: %v", err)
+	}
+	return resolver
 }
 
 // ---------------------------------------------------------------------------
@@ -1051,7 +1134,8 @@ func TestRememberListForgetRoundTrip(t *testing.T) {
 	}
 
 	// Forget
-	_, err = srv.Forget(ctx, &pb.ForgetRequest{Id: rem.Id})
+	adminCtx := auth.NewContext(ctx, &auth.Identity{Kind: "admin"})
+	_, err = srv.Forget(adminCtx, &pb.ForgetRequest{Id: rem.Id})
 	if err != nil {
 		t.Fatalf("Forget: %v", err)
 	}

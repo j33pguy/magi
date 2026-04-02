@@ -960,6 +960,8 @@ func (c *MySQLClient) Migrate() error {
 		{5, mysqlMigrationV5},
 		{6, mysqlMigrationV6},
 		{7, mysqlMigrationV7},
+		{8, mysqlMigrationV8},
+		{9, mysqlMigrationV9},
 	}
 
 	for _, m := range migrations {
