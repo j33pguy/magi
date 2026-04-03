@@ -6,6 +6,7 @@
 <p align="center">Shared memory and continuity for isolated AI agents. Self-hosted. Multi-protocol. Model-agnostic.</p>
 
 <p align="center">
+  <img alt="Version" src="https://img.shields.io/badge/version-v0.3.5-informational">
   <img alt="License" src="https://img.shields.io/badge/License-ELv2-blue">
   <img alt="Self-Hosted" src="https://img.shields.io/badge/Self--Hosted-Yes-success">
   <img alt="Model Agnostic" src="https://img.shields.io/badge/Model--Agnostic-Yes-success">
@@ -31,7 +32,7 @@ Agents are powerful, but their memory is fragile and fragmented. MAGI gives any 
 
 - **Model-agnostic memory** — switch providers or local models without losing history or decisions.
 - **Self-hosted** — your data stays on your hardware with zero cloud dependency.
-- **Multi-protocol** — MCP (stdio), gRPC, REST API, and Web UI.
+- **Multi-protocol** — MCP (stdio), gRPC, REST API, and Web UI — 24 MCP tools.
 - **Shared memory for isolated agents** — research, architecture, and coding agents all read and write to the same context.
 - **Session resilience** — recover after provider outages or context resets.
 - **Cross-machine continuity** — laptop to desktop to server without losing state.
