@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -33,10 +34,15 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 		logger.Warn("MAGI_API_TOKEN not set — web UI running in read-only mode")
 	}
 	trustProxyAuth := parseTrustedProxyAuth()
+	trustedCIDRs := parseTrustedProxyIPs()
 	if trustProxyAuth {
-		logger.Info("Trusting proxy authentication headers for web UI")
+		if len(trustedCIDRs) > 0 {
+			logger.Info("Trusting proxy authentication headers for web UI", "trusted_cidrs", len(trustedCIDRs))
+		} else {
+			logger.Info("Trusting proxy authentication headers for web UI (any source IP)")
+		}
 	}
-	auth := authMiddleware(token, trustProxyAuth)
+	auth := authMiddleware(token, trustProxyAuth, trustedCIDRs)
 	handle := func(pattern string, handler http.Handler) {
 		mux.Handle(pattern, auth(handler))
 	}
@@ -78,14 +84,14 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	handleFunc("POST /api/analyze-patterns", h.apiAnalyzePatterns)
 }
 
-func authMiddleware(token string, trustProxyAuth bool) func(http.Handler) http.Handler {
+func authMiddleware(token string, trustProxyAuth bool, trustedCIDRs []*net.IPNet) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if token == "" {
 			return next
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if trustProxyAuth && !strings.HasPrefix(r.URL.Path, "/api/") {
-				if strings.TrimSpace(r.Header.Get("X-Authentik-Username")) != "" {
+				if strings.TrimSpace(r.Header.Get("X-Authentik-Username")) != "" && isIPTrusted(r.RemoteAddr, trustedCIDRs) {
 					next.ServeHTTP(w, r)
 					return
 				}
@@ -108,6 +114,58 @@ func authMiddleware(token string, trustProxyAuth bool) func(http.Handler) http.H
 func parseTrustedProxyAuth() bool {
 	val := strings.TrimSpace(strings.ToLower(os.Getenv("MAGI_TRUSTED_PROXY_AUTH")))
 	return val == "true" || val == "1"
+}
+
+// parseTrustedProxyIPs parses MAGI_TRUSTED_PROXY_IPS (comma-separated CIDRs).
+// When non-empty, proxy auth headers are only trusted from these source IPs.
+func parseTrustedProxyIPs() []*net.IPNet {
+	raw := strings.TrimSpace(os.Getenv("MAGI_TRUSTED_PROXY_IPS"))
+	if raw == "" {
+		return nil
+	}
+	var nets []*net.IPNet
+	for _, cidr := range strings.Split(raw, ",") {
+		cidr = strings.TrimSpace(cidr)
+		if cidr == "" {
+			continue
+		}
+		// Allow bare IPs by appending /32 or /128.
+		if !strings.Contains(cidr, "/") {
+			if strings.Contains(cidr, ":") {
+				cidr += "/128"
+			} else {
+				cidr += "/32"
+			}
+		}
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
+		nets = append(nets, ipNet)
+	}
+	return nets
+}
+
+// isIPTrusted returns true if trustedCIDRs is empty (trust all) or if the
+// remote address falls within one of the configured CIDRs.
+func isIPTrusted(remoteAddr string, trustedCIDRs []*net.IPNet) bool {
+	if len(trustedCIDRs) == 0 {
+		return true
+	}
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	for _, cidr := range trustedCIDRs {
+		if cidr.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func writeUnauthorized(w http.ResponseWriter, r *http.Request) {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/j33pguy/magi/internal/auth"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/search"
 )
@@ -413,6 +414,9 @@ func TestHandleSearchAccessScope(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/search?q=deployment+notes", nil)
 	req.Header.Set("X-MAGI-User", "UserA")
+	// Simulate an authenticated request so X-MAGI-User is trusted.
+	ctx := auth.NewContext(req.Context(), &auth.Identity{Kind: "admin"})
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 	s.handleSearch(w, req)
 
@@ -429,6 +433,59 @@ func TestHandleSearchAccessScope(t *testing.T) {
 			if tag == "owner:UserB" {
 				t.Fatalf("unexpected UserB-owned memory in results: %+v", r.Memory)
 			}
+		}
+	}
+}
+
+// TestHandleSearchAccessScopeIgnoredWithoutAuth verifies that without an
+// authenticated identity in context, spoofed X-MAGI-User / X-MAGI-Groups
+// headers are ignored and cannot be used to access private owner-tagged
+// memories.
+func TestHandleSearchAccessScopeIgnoredWithoutAuth(t *testing.T) {
+	s := newTestServer(t)
+
+	// Seed a private memory owned by UserA — only accessible if the caller
+	// proves their identity as UserA through a valid auth token.
+	emb, _ := s.embedder.Embed(context.Background(), "secret UserA deployment notes")
+	priv, err := s.db.SaveMemory(&db.Memory{
+		Content:    "secret UserA deployment notes",
+		Embedding:  emb,
+		Project:    "proj",
+		Type:       "memory",
+		Visibility: "private",
+		Speaker:    "user",
+		Source:     "api",
+	})
+	if err != nil {
+		t.Fatalf("SaveMemory: %v", err)
+	}
+	if err := s.db.SetTags(priv.ID, []string{"owner:UserA"}); err != nil {
+		t.Fatalf("SetTags: %v", err)
+	}
+
+	seedMemoryFull(t, s, "public deployment info", "proj", "memory", "user", "", "", "api", nil)
+
+	// Unauthenticated request with spoofed headers.
+	// Before the fix, spoofed X-MAGI-User triggered EnforceAccess with the
+	// attacker's chosen identity, letting them see private owner-tagged memories.
+	req := httptest.NewRequest("GET", "/search?q=deployment", nil)
+	req.Header.Set("X-MAGI-User", "UserA")
+	req.Header.Set("X-MAGI-Groups", "admin-group")
+	// No auth identity in context — simulates read-only (no MAGI_API_TOKEN) mode.
+	w := httptest.NewRecorder()
+	s.handleSearch(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var results []*db.HybridResult
+	if err := json.NewDecoder(w.Body).Decode(&results); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	for _, r := range results {
+		if r.Memory.Visibility == "private" {
+			t.Fatalf("unauthenticated request with spoofed headers should NOT see private memory, got: %+v", r.Memory)
 		}
 	}
 }
@@ -459,6 +516,8 @@ func TestHandleRecallAccessScope(t *testing.T) {
 	body := `{"query":"incident write-up","project":"proj","top_k":5}`
 	req := httptest.NewRequest("POST", "/recall", strings.NewReader(body))
 	req.Header.Set("X-MAGI-User", "UserA")
+	ctx := auth.NewContext(req.Context(), &auth.Identity{Kind: "admin"})
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 	s.handleRecall(w, req)
 
