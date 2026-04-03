@@ -1,12 +1,14 @@
 # Task Queue
 
-MAGI now has a task queue that is separate from the main memory stack.
+MAGI is model- and agent-agnostic, self-hosted, and has zero cloud dependency by default.
+
+MAGI includes a task queue separate from the memory stack.
 
 That separation is intentional:
 
-- tasks track shared work and current progress
+- tasks track active coordination and progress
 - memories capture durable context, lessons, incidents, decisions, and history
-- task updates should not pollute recall results for long-term memory
+- task updates should not pollute long-term recall
 
 ## Why Separate Tasks From Memory
 
@@ -16,28 +18,14 @@ Tasks are active coordination.
 
 When an orchestrator assigns work to a worker, the system needs a shared place to answer questions like:
 
-- what is queued right now
-- what already started
+- what is queued
+- what is in progress
 - what is blocked
 - what failed
-- what did the worker report back
-- which lessons or incidents came out of this task
+- what the worker reported
+- which lessons or incidents came out of the task
 
 That is better modeled as a queue plus an event log than as generic memories.
-
-```mermaid
-graph TD
-    O["Orchestrator"] --> T["Task Queue"]
-    W["Worker"] --> T
-    T --> E["Task Events"]
-    E --> M["Linked Memories"]
-
-    E --> C["Comms"]
-    E --> I["Issues"]
-    E --> L["Lessons"]
-    E --> P["Pitfalls"]
-    E --> S["Successes"]
-```
 
 ## Task Model
 
@@ -97,8 +85,6 @@ Each event can include:
 - source
 - metadata
 
-That lets a task collect the actual working conversation between orchestrator and worker while still linking out to durable memories when something should live beyond the task itself.
-
 ## How Tasks And Memories Work Together
 
 Use the task queue for:
@@ -117,22 +103,7 @@ Use memories for:
 - project context
 - conversation summaries with lasting value
 
-When a task uncovers something durable, store that as memory and then attach it back to the task with a `memory_ref` event.
-
-```mermaid
-sequenceDiagram
-    participant O as Orchestrator
-    participant Q as Task Queue
-    participant W as Worker
-    participant M as Memory
-
-    O->>Q: create task
-    W->>Q: status = started
-    W->>Q: communication / issue / progress events
-    W->>M: store lesson or incident
-    W->>Q: memory_ref event -> memory_id
-    O->>Q: review final status
-```
+When a task uncovers something durable, store that as a memory and attach it back to the task with a `memory_ref` event.
 
 ## Interfaces
 
@@ -159,4 +130,4 @@ MCP tools:
 - use the task queue for active coordination
 - use the memory system for durable recall
 - link the two with `memory_ref` task events
-- treat `TrackTask` in `internal/tracking` as legacy compatibility, not the preferred path
+- treat `TrackTask` in `internal/tracking` as a legacy compatibility helper, not the preferred path

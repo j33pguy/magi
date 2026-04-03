@@ -1,5 +1,7 @@
 # Database Migration Strategy
 
+MAGI is model- and agent-agnostic, self-hosted, and has zero cloud dependency by default.
+
 MAGI needs a migration story that stays safe even as the memory model keeps evolving.
 
 Simple additive schema migrations are easy. The dangerous cases are:
@@ -169,7 +171,7 @@ MAGI supports multiple backends, so the migration policy should be:
 
 Why:
 
-- SQL DDL differs across SQLite, Turso, PostgreSQL, MySQL, and SQL Server
+- SQL DDL differs across SQLite, remote sync services, PostgreSQL, MySQL, and SQL Server
 - semantic rewrites of memories should not be implemented five different ways
 
 So:
