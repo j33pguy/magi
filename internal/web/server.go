@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -36,7 +37,8 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	if trustProxyAuth {
 		logger.Info("Trusting proxy authentication headers for web UI")
 	}
-	auth := authMiddleware(token, trustProxyAuth)
+	trustedProxyNets := parseTrustedProxyIPs()
+	auth := authMiddleware(token, trustProxyAuth, trustedProxyNets)
 	handle := func(pattern string, handler http.Handler) {
 		mux.Handle(pattern, auth(handler))
 	}
@@ -78,7 +80,7 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	handleFunc("POST /api/analyze-patterns", h.apiAnalyzePatterns)
 }
 
-func authMiddleware(token string, trustProxyAuth bool) func(http.Handler) http.Handler {
+func authMiddleware(token string, trustProxyAuth bool, trustedProxyNets []*net.IPNet) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if token == "" {
 			return next
@@ -86,17 +88,13 @@ func authMiddleware(token string, trustProxyAuth bool) func(http.Handler) http.H
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if trustProxyAuth && !strings.HasPrefix(r.URL.Path, "/api/") {
 				if strings.TrimSpace(r.Header.Get("X-Authentik-Username")) != "" {
-					next.ServeHTTP(w, r)
-					return
+					if isTrustedProxyIP(r.RemoteAddr, trustedProxyNets) {
+						next.ServeHTTP(w, r)
+						return
+					}
 				}
 			}
-			auth := r.Header.Get("Authorization")
-			if !strings.HasPrefix(auth, "Bearer ") {
-				writeUnauthorized(w, r)
-				return
-			}
-			provided := auth[7:]
-			if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) != 1 {
+			if !validBearer(token, r) {
 				writeUnauthorized(w, r)
 				return
 			}
@@ -108,6 +106,68 @@ func authMiddleware(token string, trustProxyAuth bool) func(http.Handler) http.H
 func parseTrustedProxyAuth() bool {
 	val := strings.TrimSpace(strings.ToLower(os.Getenv("MAGI_TRUSTED_PROXY_AUTH")))
 	return val == "true" || val == "1"
+}
+
+func parseTrustedProxyIPs() []*net.IPNet {
+	raw := strings.TrimSpace(os.Getenv("MAGI_TRUSTED_PROXY_IPS"))
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]*net.IPNet, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if strings.Contains(part, "/") {
+			_, cidr, err := net.ParseCIDR(part)
+			if err != nil {
+				continue
+			}
+			out = append(out, cidr)
+			continue
+		}
+		ip := net.ParseIP(part)
+		if ip == nil {
+			continue
+		}
+		bits := 32
+		if ip.To4() == nil {
+			bits = 128
+		}
+		out = append(out, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+	}
+	return out
+}
+
+func isTrustedProxyIP(remoteAddr string, trustedProxyNets []*net.IPNet) bool {
+	if len(trustedProxyNets) == 0 {
+		return false
+	}
+	host := remoteAddr
+	if parsedHost, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		host = parsedHost
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	for _, cidr := range trustedProxyNets {
+		if cidr.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func validBearer(token string, r *http.Request) bool {
+	auth := r.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, "Bearer ") {
+		return false
+	}
+	provided := auth[7:]
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1
 }
 
 func writeUnauthorized(w http.ResponseWriter, r *http.Request) {

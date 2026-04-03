@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/j33pguy/magi/internal/auth"
 	"github.com/j33pguy/magi/internal/db"
 )
 
@@ -40,6 +41,9 @@ func splitCSV(raw string) []string {
 
 func requestAccessScope(r *http.Request) (string, []string, bool) {
 	if r == nil {
+		return "", nil, false
+	}
+	if _, ok := auth.FromContext(r.Context()); !ok {
 		return "", nil, false
 	}
 	user := strings.TrimSpace(r.Header.Get("X-MAGI-Auth-User"))

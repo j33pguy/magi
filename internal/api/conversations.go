@@ -209,7 +209,6 @@ func (s *Server) handleSearchConversations(w http.ResponseWriter, r *http.Reques
 	resp, err := search.Adaptive(r.Context(), s.db, s.embedder.Embed, req.Query, filter, req.Limit, req.MinRelevance, req.RecencyDecay)
 	if err != nil {
 		s.logger.Error("searching conversations", "error", err)
-		s.logger.Error("search failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}

@@ -408,13 +408,16 @@ func TestHandleSearchDefaultTopK(t *testing.T) {
 
 func TestHandleSearchAccessScope(t *testing.T) {
 	s := newTestServer(t)
+	s.auth = mustResolver(t, "admin-secret", "")
 	seedMemoryFull(t, s, "UserA deployment notes", "proj", "memory", "user", "", "", "api", []string{"owner:UserA"})
 	seedMemoryFull(t, s, "UserB deployment notes", "proj", "memory", "user", "", "", "api", []string{"owner:UserB"})
 
+	handler := s.requireAuth(s.handleSearch)
 	req := httptest.NewRequest("GET", "/search?q=deployment+notes", nil)
+	req.Header.Set("Authorization", "Bearer admin-secret")
 	req.Header.Set("X-MAGI-User", "UserA")
 	w := httptest.NewRecorder()
-	s.handleSearch(w, req)
+	handler(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
@@ -453,14 +456,17 @@ func TestHandleRecallWithProject(t *testing.T) {
 
 func TestHandleRecallAccessScope(t *testing.T) {
 	s := newTestServer(t)
+	s.auth = mustResolver(t, "admin-secret", "")
 	seedMemoryFull(t, s, "UserA incident write-up", "proj", "incident", "user", "", "", "api", []string{"owner:UserA"})
 	seedMemoryFull(t, s, "UserB incident write-up", "proj", "incident", "user", "", "", "api", []string{"owner:UserB"})
 
 	body := `{"query":"incident write-up","project":"proj","top_k":5}`
+	handler := s.requireAuth(s.handleRecall)
 	req := httptest.NewRequest("POST", "/recall", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer admin-secret")
 	req.Header.Set("X-MAGI-User", "UserA")
 	w := httptest.NewRecorder()
-	s.handleRecall(w, req)
+	handler(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
@@ -476,6 +482,40 @@ func TestHandleRecallAccessScope(t *testing.T) {
 				t.Fatalf("unexpected UserB-owned memory in recall results: %+v", r.Memory)
 			}
 		}
+	}
+}
+
+func TestHandleSearchAccessScopeIgnoredWithoutAuth(t *testing.T) {
+	s := newTestServer(t)
+	seedMemoryFull(t, s, "UserA deployment notes", "proj", "memory", "user", "", "", "api", []string{"owner:UserA"})
+	seedMemoryFull(t, s, "UserB deployment notes", "proj", "memory", "user", "", "", "api", []string{"owner:UserB"})
+
+	req := httptest.NewRequest("GET", "/search?q=deployment+notes&user=UserA&groups=platform", nil)
+	req.Header.Set("X-MAGI-User", "UserA")
+	w := httptest.NewRecorder()
+	s.handleSearch(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var results []*db.HybridResult
+	if err := json.NewDecoder(w.Body).Decode(&results); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	foundUserB := false
+	for _, r := range results {
+		for _, tag := range r.Memory.Tags {
+			if tag == "owner:UserB" {
+				foundUserB = true
+				break
+			}
+		}
+	}
+
+	if !foundUserB {
+		t.Fatalf("expected UserB-owned memory to remain visible without auth")
 	}
 }
 
