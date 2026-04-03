@@ -7,16 +7,26 @@ Go codebase, SQLite/Turso/Postgres backends, local ONNX embeddings.
 ## Architecture
 - `internal/api/` — REST API handlers
 - `internal/grpc/` — gRPC server
-- `internal/tools/` — MCP tool implementations (20 tools)
+- `internal/tools/` — MCP tool implementations (24 tools)
 - `internal/db/` — Database layer (pluggable backends)
 - `internal/embeddings/` — ONNX all-MiniLM-L6-v2 embeddings
 - `internal/classify/` — Auto-classification engine
 - `internal/contradiction/` — Contradiction detection
 - `internal/patterns/` — Behavioral pattern analysis
 - `internal/search/` — Semantic + FTS5 hybrid search
+- `internal/remember/` — Centralized write enrichment pipeline
 - `internal/web/` — Web UI
 - `internal/node/` — Distributed node mesh
 - `internal/vcs/` — Git-backed versioning
+- `internal/auth/` — Authentication and identity
+- `internal/cache/` — Hot caches for memories, embeddings, queries
+- `internal/pipeline/` — Async write pipeline
+- `internal/secretstore/` — Secret detection and externalization
+- `internal/ingest/` — Conversation ingestion
+- `internal/metrics/` — Prometheus metrics
+- `internal/rewrite/` — Query rewriting
+- `internal/syncagent/` — Sync agent support
+- `internal/server/` — Server initialization and wiring
 
 ## Rules
 1. **No personal infrastructure references.** All examples must be 100% generic.

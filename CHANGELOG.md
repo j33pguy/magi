@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.5
+
+- **Documentation refresh** — all docs current with codebase, removed stale draft docs for unimplemented features
+- **Multi-stage Dockerfile** (PR #110) — smaller images, faster builds
+- **Auth header spoofing fix** (PR #111) — server-set identity headers cannot be spoofed by clients
+- **Dependabot security updates** — dependency patches for reported vulnerabilities
+- **24 MCP tools** — updated tool count across all documentation
+
 ## v0.3.0
 
 - **Separate Task Queue** — tasks now live outside the memory stack with explicit statuses, task events, and memory references for orchestrator/worker coordination
