@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/j33pguy/magi/internal/auth"
 	"github.com/j33pguy/magi/internal/db"
 )
 
@@ -42,6 +43,20 @@ func requestAccessScope(r *http.Request) (string, []string, bool) {
 	if r == nil {
 		return "", nil, false
 	}
+
+	// Only trust client-supplied identity headers (X-MAGI-User, X-MAGI-Groups,
+	// query params) when the request is actually authenticated.  Without this
+	// check, unauthenticated clients in read-only mode (no MAGI_API_TOKEN) can
+	// spoof these headers to access private owner-tagged memories.
+	_, authenticated := auth.FromContext(r.Context())
+
+	if !authenticated {
+		return "", nil, false
+	}
+
+	// X-MAGI-Auth-* headers are set server-side by requireAuth after
+	// successful bearer auth. Fall back to client-supplied headers and
+	// query params only for authenticated requests.
 	user := strings.TrimSpace(r.Header.Get("X-MAGI-Auth-User"))
 	if user == "" {
 		user = strings.TrimSpace(r.Header.Get("X-MAGI-User"))
@@ -56,6 +71,7 @@ func requestAccessScope(r *http.Request) (string, []string, bool) {
 	if groupsHeader == "" {
 		groupsHeader = r.URL.Query().Get("groups")
 	}
+
 	groups := splitCSV(groupsHeader)
 	return user, groups, user != "" || len(groups) > 0
 }
