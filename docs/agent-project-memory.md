@@ -1,6 +1,8 @@
-# CLAUDE.md Companion for MAGI
+# AGENT.md Companion for MAGI
 
-This document is meant to be copied into project-level `CLAUDE.md` files for isolated agents such as Claude Code. It tells the agent to treat MAGI as the durable memory system for the project.
+MAGI is model- and agent-agnostic, self-hosted, and has zero cloud dependency by default.
+
+This document is meant to be copied into project-level `AGENT.md` files. It tells an agent to treat MAGI as the durable memory system for the project.
 
 ## Purpose
 
@@ -10,7 +12,7 @@ Use MAGI as the shared memory and continuity layer for this project.
 - During work, store important findings and decisions in MAGI.
 - After interruptions, resets, or context loss, rehydrate from MAGI instead of starting from zero.
 
-## Suggested `CLAUDE.md` Block
+## Suggested `AGENT.md` Block
 
 ```markdown
 ## MAGI Memory Rules
@@ -60,22 +62,4 @@ While working:
 After interruption or reset:
 1. Re-read MAGI context and recent project memories.
 2. Reconstruct working state from MAGI before asking the user to restate everything.
-```
-
-## What This Helps With
-
-- fresh clones on another machine
-- switching between multiple computers
-- handoffs between Claude Code and other agents
-- recovery after overloads or session resets
-- keeping project decisions durable outside local hidden files
-
-```mermaid
-graph TB
-    A["Agent starts"] --> B["Check MAGI"]
-    B --> C["Recall project context"]
-    C --> D["Do work"]
-    D --> E["Store decisions and lessons"]
-    E --> F["Future sessions rehydrate from MAGI"]
-    style B fill:#6366f1,color:#fff,stroke:#818cf8,stroke-width:2px
 ```
