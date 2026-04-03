@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">MAGI</h1>
 <p align="center"><strong>Multi-Agent Graph Intelligence</strong></p>
-<p align="center">Shared memory and continuity for isolated AI agents. Self-hosted. Multi-protocol. Model-agnostic.</p>
+<p align="center">AI agents shouldn't work in isolation. With MAGI, <strong>nothing important gets forgotten</strong>.</p>
 
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-v0.3.5-informational">
@@ -24,26 +24,71 @@
 
 ---
 
-## Why MAGI?
+## The Problem
 
-Agents are powerful, but their memory is fragile and fragmented. MAGI gives any agent a durable, shared memory layer that survives model switches, provider outages, and shrinking context windows. Host it on your own hardware, point every agent at the same server, and your context persists across sessions and machines. No vendor lock-in, no rebuilds, no cold starts.
+AI agents are getting smarter every day — but they still suffer from a fundamental limitation: **they forget**.
 
-## Features
+Different agents working on the same problem rarely share context, history, or decisions. One agent discovers a breaking API change, another reviews code, a third generates documentation — and none of them know what the others have already learned.
 
-- **Model-agnostic memory** — switch providers or local models without losing history or decisions.
-- **Self-hosted** — your data stays on your hardware with zero cloud dependency.
-- **Multi-protocol** — MCP (stdio), gRPC, REST API, and Web UI — 24 MCP tools.
-- **Shared memory for isolated agents** — research, architecture, and coding agents all read and write to the same context.
-- **Session resilience** — recover after provider outages or context resets.
-- **Cross-machine continuity** — laptop to desktop to server without losing state.
-- **Backend-agnostic** — works with SQLite, Turso, PostgreSQL, MySQL/MariaDB, SQL Server.
-- **Git-backed history** — every mutation is a commit with diffs and rollback.
+Switch machines and your agent has amnesia. Switch providers and your context is gone. Every session starts cold.
 
-## What MAGI Solves
+## What Is MAGI?
 
-- **Cross-agent handoffs** — transfer context without copying giant prompts between tools.
-- **Cold-starts after resets** — resume after context loss or provider failure.
-- **Context trapped on one machine** — keep a single memory layer across laptops, desktops, and servers.
+MAGI is a **universal memory server for AI agents**. It acts as a shared, persistent brain that any agent can read from and write to — regardless of framework, language, or orchestration model.
+
+Host it on your own hardware, point every agent at the same server, and your context persists across sessions, machines, and providers. No vendor lock-in, no rebuilds, no cold starts.
+
+MAGI exposes memory through multiple protocols — **MCP (stdio)**, **gRPC**, **REST API**, and a **Web UI** — making it easy to integrate into existing workflows without forcing a specific toolchain.
+
+## Why MAGI Is Different
+
+MAGI isn't just another vector store or RAG backend.
+
+### Git-Backed Memory
+
+Every memory write is committed to a **Git repository** — full history, diffs, rollback, auditable changes. The database is a derived index, not the source of truth.
+
+### Distributed Node Mesh
+
+Dedicated **Writer, Reader, Index, and Coordinator** node pools with session affinity for read-your-writes consistency. Supports both embedded and multi-node deployments.
+
+### Hybrid Semantic Search
+
+Combines **vector embeddings and BM25** for accurate recall across structured and unstructured memories.
+
+### Knowledge Graph + Pattern Detection
+
+Automatically links memories into a **knowledge graph** and surfaces behavioral patterns — preferences, habits, recurring decisions — across agents.
+
+## Built for Production
+
+- **Async write pipeline** — returns `202 Accepted` in under 10ms
+- **Caching layers** — queries, embeddings, and hot memory
+- **Health probes** — `/readyz`, `/livez`, expanded `/health` for Kubernetes
+- **Metrics endpoint** — latency, queue depth, cache stats, and more
+- **Chaos tested** — concurrent writes, search-during-ingestion, kill recovery
+- **24 MCP tools** — full agent integration out of the box
+
+## Flexible Storage, Your Infrastructure
+
+MAGI is fully **self-hosted** and supports multiple backends:
+
+- **SQLite** — zero-config, single-file
+- **PostgreSQL** (pgvector)
+- **MySQL / MariaDB**
+- **SQL Server / Azure SQL**
+- **Turso** — embedded replicas with cloud sync
+
+No cloud lock-in. No hosted dependency. Your data stays on your infrastructure.
+
+## Who Is MAGI For?
+
+- Teams building **multi-agent systems**
+- Developers using **Claude, Codex, local LLMs, or custom agents**
+- Organizations that need **persistent, auditable AI memory**
+- Architects who want agent memory **without vendor lock-in**
+
+Works with — or without — popular orchestrators like LangChain, CrewAI, or custom pipelines.
 
 ## Quick Start
 
@@ -51,25 +96,35 @@ Agents are powerful, but their memory is fragile and fragmented. MAGI gives any 
 git clone https://github.com/j33pguy/magi.git
 cd magi
 docker compose up -d
-export MAGI_HTTP_URL=<MAGI_HTTP_URL>
-curl "$MAGI_HTTP_URL/health"
+curl http://localhost:8302/health
 ```
 
-## MCP Config
+### MCP Config
 
 ```bash
 magi mcp-config
 ```
 
-## Use It
+### Try It
 
 ```bash
-export MAGI_HTTP_URL=<MAGI_HTTP_URL>
-export MAGI_API_TOKEN=<MAGI_API_TOKEN>
-curl -X POST "$MAGI_HTTP_URL/remember" -H "Authorization: Bearer $MAGI_API_TOKEN" -d '{"content":"API v3 deprecates /users","project":"demo","type":"decision","speaker":"agent-a"}'
-curl -X POST "$MAGI_HTTP_URL/remember" -H "Authorization: Bearer $MAGI_API_TOKEN" -d '{"content":"Migrate clients before Q4","project":"demo","type":"lesson","speaker":"agent-b"}'
-curl -X POST "$MAGI_HTTP_URL/recall" -H "Authorization: Bearer $MAGI_API_TOKEN" -d '{"query":"API changes","top_k":5}'
-curl -X POST "$MAGI_HTTP_URL/recall" -H "Authorization: Bearer $MAGI_API_TOKEN" -d '{"query":"recent lessons","top_k":5}'
+export MAGI_HTTP_URL=http://localhost:8302
+export MAGI_API_TOKEN=your-token
+
+# Agent A stores a decision
+curl -X POST "$MAGI_HTTP_URL/remember" \
+  -H "Authorization: Bearer $MAGI_API_TOKEN" \
+  -d '{"content":"API v3 deprecates /users","type":"decision","speaker":"agent-a"}'
+
+# Agent B stores a lesson
+curl -X POST "$MAGI_HTTP_URL/remember" \
+  -H "Authorization: Bearer $MAGI_API_TOKEN" \
+  -d '{"content":"Migrate clients before Q4","type":"lesson","speaker":"agent-b"}'
+
+# Any agent recalls shared context
+curl -X POST "$MAGI_HTTP_URL/recall" \
+  -H "Authorization: Bearer $MAGI_API_TOKEN" \
+  -d '{"query":"API changes","top_k":5}'
 ```
 
 ## Architecture
