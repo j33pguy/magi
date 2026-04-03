@@ -55,6 +55,41 @@ service MemoryService {
       get: "/memories/{memory_id}/related"
     };
   }
+
+  // Task queue
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse) {
+    option (google.api.http) = {
+      post: "/tasks"
+      body: "*"
+    };
+  }
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse) {
+    option (google.api.http) = {
+      get: "/tasks"
+    };
+  }
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse) {
+    option (google.api.http) = {
+      get: "/tasks/{id}"
+    };
+  }
+  rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse) {
+    option (google.api.http) = {
+      patch: "/tasks/{id}"
+      body: "*"
+    };
+  }
+  rpc CreateTaskEvent(CreateTaskEventRequest) returns (CreateTaskEventResponse) {
+    option (google.api.http) = {
+      post: "/tasks/{task_id}/events"
+      body: "*"
+    };
+  }
+  rpc ListTaskEvents(ListTaskEventsRequest) returns (ListTaskEventsResponse) {
+    option (google.api.http) = {
+      get: "/tasks/{task_id}/events"
+    };
+  }
 }
 
 // Memory is the core memory record.
@@ -269,4 +304,141 @@ message SearchConversationsResponse {
   bool rewritten = 2;
   string rewritten_query = 3;
   int32 attempts = 4;
+}
+
+// Task is a queue item for tracking shared progress.
+message Task {
+  string id = 1;
+  string project = 2;
+  string queue = 3;
+  string title = 4;
+  string summary = 5;
+  string description = 6;
+  string status = 7;
+  string priority = 8;
+  string created_by = 9;
+  string orchestrator = 10;
+  string worker = 11;
+  string parent_task_id = 12;
+  map<string, string> metadata = 13;
+  string created_at = 14;
+  string updated_at = 15;
+  string started_at = 16;
+  string completed_at = 17;
+  string failed_at = 18;
+  string blocked_at = 19;
+}
+
+// TaskEvent is an append-only activity record inside a task.
+message TaskEvent {
+  string id = 1;
+  string task_id = 2;
+  string event_type = 3;
+  string actor_role = 4;
+  string actor_name = 5;
+  string actor_user = 6;
+  string actor_machine = 7;
+  string actor_agent = 8;
+  string summary = 9;
+  string content = 10;
+  string status = 11;
+  string memory_id = 12;
+  string source = 13;
+  map<string, string> metadata = 14;
+  string created_at = 15;
+}
+
+// CreateTask
+message CreateTaskRequest {
+  string project = 1;
+  string queue = 2;
+  string title = 3;
+  string summary = 4;
+  string description = 5;
+  string status = 6;
+  string priority = 7;
+  string created_by = 8;
+  string orchestrator = 9;
+  string worker = 10;
+  string parent_task_id = 11;
+  map<string, string> metadata = 12;
+}
+
+message CreateTaskResponse {
+  Task task = 1;
+}
+
+// ListTasks
+message ListTasksRequest {
+  string project = 1;
+  string queue = 2;
+  string status = 3;
+  string worker = 4;
+  string orchestrator = 5;
+  int32 limit = 6;
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+}
+
+// GetTask
+message GetTaskRequest {
+  string id = 1;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+}
+
+// UpdateTask
+message UpdateTaskRequest {
+  string id = 1;
+  string project = 2;
+  string queue = 3;
+  string title = 4;
+  string summary = 5;
+  string description = 6;
+  string status = 7;
+  string priority = 8;
+  string created_by = 9;
+  string orchestrator = 10;
+  string worker = 11;
+  string parent_task_id = 12;
+  map<string, string> metadata = 13;
+}
+
+message UpdateTaskResponse {
+  Task task = 1;
+}
+
+// CreateTaskEvent
+message CreateTaskEventRequest {
+  string task_id = 1;
+  string event_type = 2;
+  string actor_role = 3;
+  string actor_name = 4;
+  string actor_user = 5;
+  string actor_machine = 6;
+  string actor_agent = 7;
+  string summary = 8;
+  string content = 9;
+  string status = 10;
+  string memory_id = 11;
+  string source = 12;
+  map<string, string> metadata = 13;
+}
+
+message CreateTaskEventResponse {
+  TaskEvent event = 1;
+}
+
+// ListTaskEvents
+message ListTaskEventsRequest {
+  string task_id = 1;
+  int32 limit = 2;
+}
+
+message ListTaskEventsResponse {
+  repeated TaskEvent events = 1;
 }
