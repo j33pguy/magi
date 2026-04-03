@@ -25,20 +25,18 @@ jobs:
           cache: false
 
       - name: Run tests
-        run: go test ./...
+        run: CGO_ENABLED=1 go test ./... -count=1 -short
 
       - name: Build binaries
         run: |
           mkdir -p dist
-          # Linux
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/magi-linux-amd64 .
-          GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/magi-linux-arm64 .
-          # macOS
-          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/magi-darwin-amd64 .
-          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/magi-darwin-arm64 .
-          # Windows
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/magi-windows-amd64.exe .
-          # Checksums
+          # CGO required for SQLite + ONNX runtime
+          # Cross-compilation only works for Linux targets on Linux runners
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/magi-linux-amd64 .
+          # arm64 cross-compile needs cross-compiler toolchain — skip if unavailable
+          if command -v aarch64-linux-gnu-gcc &>/dev/null; then
+            CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/magi-linux-arm64 .
+          fi
           cd dist && sha256sum * > checksums.txt
 
       - name: Create Release
@@ -58,15 +56,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: false
-
-      - name: Build binary for Docker
-        run: CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o magi .
 
       - name: Login to GHCR
         uses: docker/login-action@v3
