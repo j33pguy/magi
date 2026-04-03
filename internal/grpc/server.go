@@ -26,6 +26,7 @@ import (
 type Server struct {
 	pb.UnimplementedMemoryServiceServer
 	db            db.Store
+	tasks         db.TaskQueueStore
 	embedder      embeddings.Provider
 	logger        *slog.Logger
 	gitRepo       *vcs.Repo // optional — nil if git versioning is disabled
