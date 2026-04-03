@@ -10,10 +10,9 @@ permissions:
   packages: write
 
 jobs:
-  build:
-    name: Build & Release
-    runs-on: [self-hosted, linux, x64, homelab]
-    if: github.actor == 'j33pguy'
+  release:
+    name: GoReleaser
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -27,47 +26,6 @@ jobs:
       - name: Run tests
         run: go test ./...
 
-      - name: Build binaries
-        run: |
-          mkdir -p dist
-          # Linux
-          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/magi-linux-amd64 .
-          GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/magi-linux-arm64 .
-          # macOS
-          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/magi-darwin-amd64 .
-          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/magi-darwin-arm64 .
-          # Windows
-          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/magi-windows-amd64.exe .
-          # Checksums
-          cd dist && sha256sum * > checksums.txt
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          generate_release_notes: true
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  docker:
-    name: Docker Image
-    runs-on: [self-hosted, linux, x64, homelab]
-    needs: build
-    if: github.actor == 'j33pguy'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: false
-
-      - name: Build binary for Docker
-        run: CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o magi .
-
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -75,9 +33,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
-        run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          docker build -t ghcr.io/j33pguy/magi:${TAG} -t ghcr.io/j33pguy/magi:latest .
-          docker push ghcr.io/j33pguy/magi:${TAG}
-          docker push ghcr.io/j33pguy/magi:latest
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

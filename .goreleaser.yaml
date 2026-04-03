@@ -1,0 +1,69 @@
+version: 2
+
+project_name: magi
+
+builds:
+  - id: magi
+    main: .
+    binary: magi
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+
+release:
+  github:
+    owner: j33pguy
+    name: magi
+  draft: false
+
+snapshot:
+  name_template: "{{ .Tag }}-snapshot"
+
+dockers:
+  - id: magi-linux-amd64
+    goos: linux
+    goarch: amd64
+    use: buildx
+    dockerfile: Dockerfile
+    image_templates:
+      - "ghcr.io/j33pguy/magi:{{ .Tag }}-amd64"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  - id: magi-linux-arm64
+    goos: linux
+    goarch: arm64
+    use: buildx
+    dockerfile: Dockerfile
+    image_templates:
+      - "ghcr.io/j33pguy/magi:{{ .Tag }}-arm64"
+    build_flag_templates:
+      - "--platform=linux/arm64"
+
+docker_manifests:
+  - name_template: "ghcr.io/j33pguy/magi:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/j33pguy/magi:{{ .Tag }}-amd64"
+      - "ghcr.io/j33pguy/magi:{{ .Tag }}-arm64"
+  - name_template: "ghcr.io/j33pguy/magi:latest"
+    image_templates:
+      - "ghcr.io/j33pguy/magi:{{ .Tag }}-amd64"
+      - "ghcr.io/j33pguy/magi:{{ .Tag }}-arm64"

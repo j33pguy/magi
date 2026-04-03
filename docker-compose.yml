@@ -21,7 +21,7 @@ services:
     volumes:
       - magi-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8302/health >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${MAGI_LEGACY_HTTP_PORT:-8302}/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
