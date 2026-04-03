@@ -24,14 +24,21 @@ MAGI runs multiple interfaces backed by the same core services:
 
 ## Core Services
 
-- embeddings via ONNX (all-MiniLM-L6-v2)
-- classification (area and sub-area inference)
-- contradiction detection (non-blocking)
-- hybrid search (BM25 + vector with RRF fusion)
-- async write pipeline (optional)
-- caching layer (optional)
+- embeddings via ONNX (all-MiniLM-L6-v2) — `internal/embeddings/`
+- classification (area and sub-area inference) — `internal/classify/`
+- contradiction detection (non-blocking) — `internal/contradiction/`
+- hybrid search (BM25 + vector with RRF fusion) — `internal/search/`
+- centralized write enrichment (remember pipeline) — `internal/remember/`
+- async write pipeline (optional) — `internal/pipeline/`
+- caching layer (optional) — `internal/cache/`
 - task queue and task event log
 - memory graph links
+- query rewriting — `internal/rewrite/`
+- secret detection and externalization — `internal/secretstore/`
+- authentication and identity — `internal/auth/`
+- Prometheus metrics — `internal/metrics/`
+- conversation ingestion — `internal/ingest/`
+- behavioral pattern analysis — `internal/patterns/`
 
 ## Data Layer
 
