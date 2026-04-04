@@ -1,0 +1,4 @@
+# Patterns that are allowed (false positives)
+# Example: documentation references to token formats
+MEMORY_API_TOKEN=your-token-here
+MEMORY_API_TOKEN=dev-token-123

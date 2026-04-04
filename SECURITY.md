@@ -50,6 +50,13 @@ MAGI handles sensitive data (AI agent memories, decisions, conversations). Key s
 - TLS termination expected at reverse proxy (Traefik, nginx, etc.)
 - No default external network calls except optional Turso sync
 
+### CI/CD Security
+- Self-hosted runners restricted to trusted actors only (`github.actor` allowlist)
+- `pull_request_target` trigger ensures workflow definitions come from `main`, not PR branches
+- PRs that modify `.github/workflows/` are automatically rejected in CI
+- Gitleaks secret scanning runs on every PR (GitHub-hosted runner, not self-hosted)
+- Pre-commit hooks available via `.pre-commit-config.yaml` (gitleaks)
+
 ## Scope
 
 The following are **in scope** for security reports:
