@@ -3,18 +3,45 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
+  # Use pull_request_target for fork PRs — workflow runs from BASE (main),
+  # not from the PR branch. This prevents malicious workflow modifications
+  # from executing on our self-hosted runner.
+  pull_request_target:
     branches: [main]
   workflow_dispatch:
 
+# Restrict permissions to minimum needed
+permissions:
+  contents: read
+  statuses: write
+
 jobs:
+  # Gate: only run on self-hosted runner for trusted actors
   build:
     name: Build & Test
     runs-on: [self-hosted, linux, x64]
-    if: github.actor == 'j33pguy' || github.actor == 'dependabot[bot]'
+    if: >
+      github.actor == 'j33pguy' ||
+      github.actor == 'dependabot[bot]'
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # For pull_request_target: checkout the PR head safely
+          # The workflow definition comes from main (trusted), only code is from PR
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Reject workflow changes in PRs
+        if: github.event_name == 'pull_request_target'
+        run: |
+          # Fail if the PR modifies any workflow files
+          CHANGED=$(git diff --name-only origin/main...HEAD -- .github/workflows/ || true)
+          if [ -n "$CHANGED" ]; then
+            echo "::error::PR modifies workflow files. These must be reviewed and merged by the repo owner."
+            echo "Changed workflow files:"
+            echo "$CHANGED"
+            exit 1
+          fi
 
       - name: Set up Go
         uses: actions/setup-go@v5
