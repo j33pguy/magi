@@ -12,7 +12,7 @@ require (
 	github.com/microsoft/go-mssqldb v1.9.8
 	github.com/prometheus/client_golang v1.23.2
 	github.com/tursodatabase/go-libsql v0.0.0-20251219133454-43644db490ff
-	github.com/yalue/onnxruntime_go v1.20.0
+	github.com/yalue/onnxruntime_go v1.17.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260319201613-d00831a3d3e7
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11
