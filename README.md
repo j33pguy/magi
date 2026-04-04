@@ -169,6 +169,7 @@ This project is dedicated to **Mary Margaret** — a dear friend who believed th
 ## ⚠️ Stability
 
 MAGI is not production-ready yet. It is useful today and improving fast, but expect breaking changes, rough edges, and the occasional surprise until a stable release is tagged. Back up your data, test in your own environment, and plan for things to break.
+SQLite is the most-tested backend; PostgreSQL, MySQL/MariaDB, and SQL Server backends exist but see less CI coverage. The distributed node mesh is architected but currently ships as a single-node embedded process. Git-backed history is optional and off by default.
 
 ## License
 
