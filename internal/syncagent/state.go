@@ -14,7 +14,8 @@ type State struct {
 }
 
 type FileState struct {
-	SHA256 string `json:"sha256"`
+	SHA256       string `json:"sha256"`
+	LastSyncHash string `json:"last_sync_hash,omitempty"`
 }
 
 func LoadState(path string) (*State, error) {

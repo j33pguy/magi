@@ -33,13 +33,23 @@ type MachineConfig struct {
 	Groups []string `yaml:"groups,omitempty"`
 }
 
+// ConflictStrategy determines how to resolve conflicting changes.
+type ConflictStrategy string
+
+const (
+	ConflictLastWriteWins ConflictStrategy = "last-write-wins"
+	ConflictNewest        ConflictStrategy = "newest"
+	ConflictManual        ConflictStrategy = "manual"
+)
+
 type SyncConfig struct {
-	Mode         string `yaml:"mode"`
-	Watch        bool   `yaml:"watch"`
-	Interval     string `yaml:"interval"`
-	RetryBackoff string `yaml:"retry_backoff"`
-	MaxBatchSize int    `yaml:"max_batch_size"`
-	StateFile    string `yaml:"state_file"`
+	Mode             string           `yaml:"mode"`
+	Watch            bool             `yaml:"watch"`
+	Interval         string           `yaml:"interval"`
+	RetryBackoff     string           `yaml:"retry_backoff"`
+	MaxBatchSize     int              `yaml:"max_batch_size"`
+	StateFile        string           `yaml:"state_file"`
+	ConflictStrategy ConflictStrategy `yaml:"conflict_strategy"`
 }
 
 type PrivacyConfig struct {
@@ -59,6 +69,7 @@ type AgentConfig struct {
 	Owner        string   `yaml:"owner"`
 	Viewers      []string `yaml:"viewers"`
 	ViewerGroups []string `yaml:"viewer_groups"`
+	SettingsPath string   `yaml:"settings_path,omitempty"`
 }
 
 // DefaultConfigPath returns the default config location.
@@ -129,6 +140,9 @@ func (c *Config) setDefaults() error {
 	if c.Privacy.MaxFileSizeKB <= 0 {
 		c.Privacy.MaxFileSizeKB = 512
 	}
+	if c.Sync.ConflictStrategy == "" {
+		c.Sync.ConflictStrategy = ConflictLastWriteWins
+	}
 	if c.Sync.StateFile == "" {
 		c.Sync.StateFile = "~/.config/magi-sync/state.json"
 	}
@@ -154,6 +168,12 @@ func (c *Config) setDefaults() error {
 		if c.Agents[i].Owner == "" {
 			c.Agents[i].Owner = c.Machine.User
 		}
+		if c.Agents[i].SettingsPath != "" {
+			c.Agents[i].SettingsPath, err = expandPath(c.Agents[i].SettingsPath)
+			if err != nil {
+				return fmt.Errorf("expanding settings_path: %w", err)
+			}
+		}
 	}
 	return nil
 }
@@ -166,6 +186,11 @@ func (c *Config) validate() error {
 	case "push":
 	default:
 		return fmt.Errorf("unsupported sync.mode %q (phase 1 supports only push)", c.Sync.Mode)
+	}
+	switch c.Sync.ConflictStrategy {
+	case ConflictLastWriteWins, ConflictNewest, ConflictManual:
+	default:
+		return fmt.Errorf("unsupported conflict_strategy %q", c.Sync.ConflictStrategy)
 	}
 	switch c.Privacy.Mode {
 	case "allowlist", "mixed", "denylist":
@@ -191,6 +216,9 @@ func (c *Config) validate() error {
 		}
 		if !validVisibility[agent.Visibility] {
 			return fmt.Errorf("unsupported visibility %q for agent %q", agent.Visibility, agent.Type)
+		}
+		if agent.Type == "settings" && agent.SettingsPath == "" {
+			return fmt.Errorf("settings agent %q requires settings_path", agent.Name)
 		}
 	}
 	return nil
