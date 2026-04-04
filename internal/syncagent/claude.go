@@ -38,7 +38,11 @@ type claudeTurn struct {
 
 func (claudeAdapter) Scan(cfg *Config, agent AgentConfig, privacy PrivacyConfig) ([]Payload, error) {
 	var payloads []Payload
-	maxBytes := privacy.MaxFileSizeKB * 1024
+	maxKB := privacy.MaxFileSizeKB
+	if maxKB <= 0 {
+		maxKB = 512 // default 512KB if unset
+	}
+	maxBytes := maxKB * 1024
 	for _, root := range agent.Paths {
 		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
