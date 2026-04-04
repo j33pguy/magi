@@ -27,6 +27,7 @@ models/
 
 # AI instruction files — keep out of repos
 CLAUDE.md
+AGENTS.md
 .claude/
 coverage.out
 partial.out
