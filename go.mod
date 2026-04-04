@@ -3,6 +3,7 @@ module github.com/j33pguy/magi
 go 1.25.7
 
 require (
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.17.1
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0

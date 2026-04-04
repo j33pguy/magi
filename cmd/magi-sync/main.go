@@ -20,6 +20,19 @@ func main() {
 		mode = syncagent.Mode(flag.Arg(0))
 	}
 
+	validModes := map[syncagent.Mode]bool{
+		syncagent.ModeEnroll: true,
+		syncagent.ModeCheck:  true,
+		syncagent.ModeDryRun: true,
+		syncagent.ModeOnce:   true,
+		syncagent.ModeRun:    true,
+		syncagent.ModeWatch:  true,
+	}
+	if !validModes[mode] {
+		fmt.Fprintf(os.Stderr, "unknown mode %q; valid modes: enroll, check, dry-run, once, run, watch\n", mode)
+		os.Exit(1)
+	}
+
 	cfgPath, err := syncagent.LoadConfigPath(*configPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config path error: %v\n", err)

@@ -6,7 +6,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 type Mode string
@@ -17,6 +20,7 @@ const (
 	ModeDryRun Mode = "dry-run"
 	ModeOnce   Mode = "once"
 	ModeRun    Mode = "run"
+	ModeWatch  Mode = "watch"
 )
 
 type App struct {
@@ -56,6 +60,8 @@ func (a *App) Run(ctx context.Context, mode Mode) error {
 		return a.sync(ctx, true, false)
 	case ModeRun:
 		return a.loop(ctx)
+	case ModeWatch:
+		return a.watch(ctx)
 	default:
 		return fmt.Errorf("unsupported mode %q", mode)
 	}
@@ -131,6 +137,113 @@ func (a *App) loop(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+func (a *App) watch(ctx context.Context) error {
+	// Initial sync on startup.
+	if err := a.sync(ctx, true, false); err != nil {
+		a.logger.Warn("initial sync failed", "error", err)
+	}
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("creating watcher: %w", err)
+	}
+	defer watcher.Close()
+
+	// Collect directories to watch from enabled agents.
+	for _, agent := range a.cfg.Agents {
+		if !agent.Enabled {
+			continue
+		}
+		for _, p := range agent.Paths {
+			if err := a.watchRecursive(watcher, p); err != nil {
+				a.logger.Warn("failed to watch path", "path", p, "error", err)
+			}
+		}
+	}
+
+	a.logger.Info("watch mode started, waiting for file changes")
+
+	const debounce = 500 * time.Millisecond
+	timer := time.NewTimer(debounce)
+	timer.Stop()
+	pending := false
+
+	for {
+		select {
+		case <-ctx.Done():
+			a.logger.Info("watch mode shutting down")
+			return ctx.Err()
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return nil
+			}
+			if event.Op&(fsnotify.Create|fsnotify.Write) == 0 {
+				continue
+			}
+			if !a.matchesAgent(event.Name) {
+				continue
+			}
+			a.logger.Info("file change detected", "path", event.Name, "op", event.Op.String())
+			// Watch new directories created under watched paths.
+			if event.Op&fsnotify.Create != 0 {
+				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
+					_ = a.watchRecursive(watcher, event.Name)
+				}
+			}
+			if !pending {
+				timer.Reset(debounce)
+				pending = true
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return nil
+			}
+			a.logger.Warn("watcher error", "error", err)
+		case <-timer.C:
+			pending = false
+			if err := a.sync(ctx, true, false); err != nil {
+				a.logger.Warn("sync failed", "error", err)
+			}
+		}
+	}
+}
+
+// watchRecursive adds a directory and all subdirectories to the watcher.
+func (a *App) watchRecursive(watcher *fsnotify.Watcher, root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // skip inaccessible paths
+		}
+		if info.IsDir() {
+			if err := watcher.Add(path); err != nil {
+				a.logger.Warn("failed to watch directory", "path", path, "error", err)
+				return nil
+			}
+			a.logger.Info("watching directory", "path", path)
+		}
+		return nil
+	})
+}
+
+// matchesAgent checks if a file path matches any enabled agent's patterns.
+func (a *App) matchesAgent(path string) bool {
+	for _, agent := range a.cfg.Agents {
+		if !agent.Enabled {
+			continue
+		}
+		for _, base := range agent.Paths {
+			rel, err := filepath.Rel(base, path)
+			if err != nil || strings.HasPrefix(rel, "..") {
+				continue
+			}
+			if shouldInclude(rel, agent.Include, agent.Exclude) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (a *App) scan() (int, error) {
