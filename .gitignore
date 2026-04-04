@@ -36,3 +36,6 @@ dist/
 magi.wiki/
 ._*
 **/.DS_Store
+
+# JS/TS
+node_modules/
