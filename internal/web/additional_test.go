@@ -364,7 +364,7 @@ func TestAPIAnalyzePatterns_Empty(t *testing.T) {
 		t.Errorf("POST /api/analyze-patterns status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
 	}
 
-	var result map[string]int
+	var result map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatalf("unmarshal analyze-patterns response: %v", err)
 	}

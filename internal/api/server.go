@@ -95,6 +95,8 @@ func NewServer(dbClient db.Store, embedder embeddings.Provider, logger *slog.Log
 	mux.HandleFunc("GET /memories", s.requireAuth(s.handleListMemories))
 	mux.HandleFunc("DELETE /memories/{id}", s.requireAuth(s.handleDeleteMemory))
 	mux.HandleFunc("GET /search", s.requireAuth(s.handleSearch))
+	mux.HandleFunc("GET /patterns", s.requireAuth(s.handleListPatterns))
+	mux.HandleFunc("GET /patterns/trending", s.requireAuth(s.handleListTrendingPatterns))
 	mux.HandleFunc("POST /conversations", s.requireAuth(s.handleCreateConversation))
 	mux.HandleFunc("GET /conversations", s.requireAuth(s.handleListConversations))
 	mux.HandleFunc("POST /conversations/search", s.requireAuth(s.handleSearchConversations))
