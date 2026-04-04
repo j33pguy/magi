@@ -156,6 +156,13 @@ func (a *App) watch(ctx context.Context) error {
 		if !agent.Enabled {
 			continue
 		}
+		if agent.Type == "settings" && agent.SettingsPath != "" {
+			dir := filepath.Dir(agent.SettingsPath)
+			if err := watcher.Add(dir); err != nil {
+				a.logger.Warn("failed to watch settings dir", "path", dir, "error", err)
+			}
+			continue
+		}
 		for _, p := range agent.Paths {
 			if err := a.watchRecursive(watcher, p); err != nil {
 				a.logger.Warn("failed to watch path", "path", p, "error", err)
@@ -233,6 +240,13 @@ func (a *App) matchesAgent(path string) bool {
 		if !agent.Enabled {
 			continue
 		}
+		// Settings agent watches its specific settings file.
+		if agent.Type == "settings" && agent.SettingsPath != "" {
+			if filepath.Clean(path) == filepath.Clean(agent.SettingsPath) {
+				return true
+			}
+			continue
+		}
 		for _, base := range agent.Paths {
 			rel, err := filepath.Rel(base, path)
 			if err != nil || strings.HasPrefix(rel, "..") {
@@ -270,7 +284,7 @@ func (a *App) sync(ctx context.Context, upload bool, dryRun bool) error {
 				a.logger.Warn("upload failed", "path", p.SourcePath, "error", err)
 				continue
 			}
-			a.state.Records[checkpointKey(p)] = FileState{SHA256: p.Hash}
+			a.state.Records[checkpointKey(p)] = FileState{SHA256: p.Hash, LastSyncHash: p.Hash}
 			uploaded++
 		}
 	}
@@ -289,20 +303,29 @@ func (a *App) collectPayloads() ([]Payload, error) {
 		if !agent.Enabled {
 			continue
 		}
+		var payloads []Payload
 		switch agent.Type {
 		case "claude":
-			payloads, err := (claudeAdapter{}).Scan(a.cfg, agent, a.cfg.Privacy)
+			var err error
+			payloads, err = (claudeAdapter{}).Scan(a.cfg, agent, a.cfg.Privacy)
 			if err != nil {
 				return nil, err
 			}
-			for _, p := range payloads {
-				if prev, ok := a.state.Records[checkpointKey(p)]; ok && prev.SHA256 == p.Hash {
-					continue
-				}
-				out = append(out, p)
+		case "settings":
+			var err error
+			payloads, err = (settingsAdapter{}).Scan(a.cfg, agent)
+			if err != nil {
+				return nil, err
 			}
 		default:
-			a.logger.Warn("unsupported agent type in phase 1", "agent", agent.Type)
+			a.logger.Warn("unsupported agent type", "agent", agent.Type)
+			continue
+		}
+		for _, p := range payloads {
+			if prev, ok := a.state.Records[checkpointKey(p)]; ok && prev.SHA256 == p.Hash {
+				continue
+			}
+			out = append(out, p)
 		}
 	}
 	return out, nil
