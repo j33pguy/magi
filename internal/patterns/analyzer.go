@@ -11,25 +11,6 @@ import (
 	"github.com/j33pguy/magi/internal/db"
 )
 
-// PatternType categorizes what kind of behavioral pattern was detected.
-type PatternType string
-
-const (
-	PatternPreference    PatternType = "preference"
-	PatternDecisionStyle PatternType = "decision_style"
-	PatternWorkPattern   PatternType = "work_pattern"
-	PatternCommsStyle    PatternType = "comms_style"
-)
-
-// Pattern is a detected behavioral insight.
-type Pattern struct {
-	Type        PatternType
-	Description string
-	Confidence  float64  // 0.0–1.0
-	Evidence    []string // memory IDs that support this pattern
-	Area        string   // which area this relates to
-}
-
 // Analyzer detects behavioral patterns from a corpus of memories.
 type Analyzer struct{}
 
@@ -44,6 +25,10 @@ func (a *Analyzer) Analyze(memories []*db.Memory) []Pattern {
 	patterns = append(patterns, a.detectDecisionPatterns(memories)...)
 	patterns = append(patterns, a.detectWorkTimingPatterns(memories)...)
 	patterns = append(patterns, a.detectCommsStyle(memories)...)
+	patterns = append(patterns, a.detectTopicBursts(memories)...)
+	patterns = append(patterns, a.detectRelationshipPatterns(memories)...)
+	patterns = applyTemporalTrends(patterns, memories)
+	patterns = applySourceCorrelation(patterns, memories)
 	return patterns
 }
 
@@ -223,9 +208,9 @@ func (a *Analyzer) detectWorkTimingPatterns(memories []*db.Memory) []Pattern {
 	var patterns []Pattern
 
 	// Group by day of week
-	weekdayArea := make(map[string]int)   // area counts on weekdays
-	weekendArea := make(map[string]int)   // area counts on weekends
-	hourCounts := make(map[int]int)       // activity by hour
+	weekdayArea := make(map[string]int) // area counts on weekdays
+	weekendArea := make(map[string]int) // area counts on weekends
+	hourCounts := make(map[int]int)     // activity by hour
 
 	for _, m := range memories {
 		t, err := parseTime(m.CreatedAt)
@@ -382,45 +367,4 @@ func (a *Analyzer) detectCommsStyle(memories []*db.Memory) []Pattern {
 	}
 
 	return patterns
-}
-
-// --- Helpers ---
-
-func parseTime(s string) (time.Time, error) {
-	for _, layout := range []string{time.DateTime, time.RFC3339} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t, nil
-		}
-	}
-	return time.Time{}, fmt.Errorf("cannot parse time: %s", s)
-}
-
-func clampConfidence(v float64) float64 {
-	if v < 0.1 {
-		return 0.1
-	}
-	if v > 0.95 {
-		return 0.95
-	}
-	return v
-}
-
-func uniqueIDs(ids []string) []string {
-	seen := make(map[string]bool, len(ids))
-	out := make([]string, 0, len(ids))
-	for _, id := range ids {
-		if !seen[id] {
-			seen[id] = true
-			out = append(out, id)
-		}
-	}
-	return out
-}
-
-func sumValues(m map[int]int) int {
-	total := 0
-	for _, v := range m {
-		total += v
-	}
-	return total
 }

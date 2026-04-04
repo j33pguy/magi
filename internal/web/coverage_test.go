@@ -652,7 +652,7 @@ func TestCov_APIAnalyzePatternsWithData(t *testing.T) {
 		t.Fatalf("status = %d; body: %s", w.Code, w.Body.String())
 	}
 
-	var result map[string]int
+	var result map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}

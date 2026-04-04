@@ -578,4 +578,3 @@ func TestSumValues_Empty(t *testing.T) {
 		t.Errorf("sumValues(nil) = %d, want 0", got)
 	}
 }
-
