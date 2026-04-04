@@ -25,7 +25,7 @@ jobs:
       github.actor == 'dependabot[bot]'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # For pull_request_target: checkout the PR head safely
           # The workflow definition comes from main (trusted), only code is from PR
