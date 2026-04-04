@@ -1,0 +1,29 @@
+services:
+  magi:
+    image: ghcr.io/j33pguy/magi:latest
+    env_file:
+      - .env
+    environment:
+      MEMORY_BACKEND: sqlite
+      MAGI_REPLICA_PATH: /data/memory.db
+      MAGI_MODEL_DIR: /data/models
+      MAGI_LEGACY_HTTP_PORT: 8302
+      MAGI_HTTP_PORT: 8301
+      MAGI_GRPC_PORT: 8300
+      MAGI_UI_PORT: 8080
+    ports:
+      - "8300:8300"
+      - "8301:8301"
+      - "8302:8302"
+      - "8080:8080"
+    volumes:
+      - magi-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8302/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  magi-data:
