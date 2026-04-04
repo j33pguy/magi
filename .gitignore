@@ -34,3 +34,5 @@ tools.out
 vcs.out
 dist/
 magi.wiki/
+._*
+**/.DS_Store
