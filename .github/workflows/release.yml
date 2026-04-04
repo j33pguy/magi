@@ -16,10 +16,10 @@ jobs:
     if: github.actor == 'j33pguy'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: false
@@ -55,7 +55,7 @@ jobs:
     if: github.actor == 'j33pguy'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Login to GHCR
         uses: docker/login-action@v4
