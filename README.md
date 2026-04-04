@@ -6,6 +6,7 @@
 <p align="center">AI agents shouldn't work in isolation. With MAGI, <strong>nothing important gets forgotten</strong>.</p>
 
 <p align="center">
+  <a href="https://github.com/j33pguy/magi/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/j33pguy/magi/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-v0.3.6-informational">
   <img alt="License" src="https://img.shields.io/badge/License-ELv2-blue">
   <img alt="Self-Hosted" src="https://img.shields.io/badge/Self--Hosted-Yes-success">
