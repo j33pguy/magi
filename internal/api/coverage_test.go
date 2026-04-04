@@ -195,6 +195,12 @@ func TestResourceStyleRouteAliases(t *testing.T) {
 // ---------- Start and Shutdown ----------
 
 func TestStartAndShutdown(t *testing.T) {
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Skip("socket not available:", err)
+	}
+	ln.Close()
+
 	tmp := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
@@ -968,6 +974,12 @@ func TestHandleCreateConversationWithTopicsVerifyTags(t *testing.T) {
 // ---------- Start with port already in use ----------
 
 func TestStartPortInUse(t *testing.T) {
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Skip("socket not available:", err)
+	}
+	ln.Close()
+
 	tmp := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 
@@ -981,7 +993,7 @@ func TestStartPortInUse(t *testing.T) {
 	}
 
 	// Start a listener on a specific port to block it
-	ln, err := net.Listen("tcp", ":0")
+	ln, err = net.Listen("tcp", ":0")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}

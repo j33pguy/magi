@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "magi": {
+      "command": "magi",
+      "args": ["mcp"],
+      "env": {
+        "MAGI_HTTP_URL": "http://localhost:8302",
+        "MAGI_API_TOKEN": "your-token-here"
+      }
+    }
+  }
+}

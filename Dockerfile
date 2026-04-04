@@ -17,6 +17,19 @@ RUN CGO_ENABLED=1 go build -o /usr/local/bin/magi .
 
 FROM debian:bookworm-slim
 
+ARG VERSION
+ARG REVISION
+ARG BUILD_DATE
+
+LABEL org.opencontainers.image.title="magi" \
+      org.opencontainers.image.description="Multi-Agent Graph Intelligence (MAGI) memory server" \
+      org.opencontainers.image.url="https://github.com/j33pguy/magi" \
+      org.opencontainers.image.source="https://github.com/j33pguy/magi" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.created=$BUILD_DATE
+
 RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/lib/libonnxruntime.so /usr/local/lib/
