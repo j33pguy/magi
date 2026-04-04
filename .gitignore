@@ -1,7 +1,7 @@
 # Binaries
 bin/
-claude-memory
-claude-memory-import
+magi
+magi-import
 
 # Environment
 .env
