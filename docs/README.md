@@ -12,6 +12,9 @@ MAGI is model- and agent-agnostic, self-hosted, and has zero cloud dependency by
 
 **Operations And Architecture**
 - `architecture.md`
+- `distributed-architecture.md`
+- `git-backed-memory.md`
 - `deployment.md`
+- `integration-testing.md`
 - `auth-architecture.md`
 - `task-queue.md`

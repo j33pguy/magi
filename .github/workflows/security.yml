@@ -1,7 +1,9 @@
 name: Security Scan
 
 on:
-  pull_request_target:
+  pull_request:
+    branches: [main]
+  push:
     branches: [main]
 
 permissions:
@@ -14,9 +16,8 @@ jobs:
     # This is intentional: untrusted PR code should never touch our infra
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Run Gitleaks
