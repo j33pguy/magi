@@ -875,6 +875,8 @@ func (h *handler) patternsPage(w http.ResponseWriter, r *http.Request) {
 		"decision_style": {Type: "decision_style", Label: "Decision Style"},
 		"work_pattern":   {Type: "work_pattern", Label: "Work Patterns"},
 		"comms_style":    {Type: "comms_style", Label: "Communication Style"},
+		"topic_burst":    {Type: "topic_burst", Label: "Topic Bursts"},
+		"relationship":   {Type: "relationship", Label: "Relationship Patterns"},
 	}
 
 	for _, m := range memories {
@@ -889,7 +891,7 @@ func (h *handler) patternsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var groups []patternGroup
-	for _, key := range []string{"preference", "decision_style", "work_pattern", "comms_style"} {
+	for _, key := range []string{"preference", "decision_style", "work_pattern", "comms_style", "topic_burst", "relationship"} {
 		if g := grouped[key]; len(g.Patterns) > 0 {
 			groups = append(groups, *g)
 		}
@@ -1198,10 +1200,11 @@ func (h *handler) apiAnalyzePatterns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := map[string]int{
+	result := map[string]any{
 		"patterns_found":     len(detected),
 		"patterns_stored":    len(stored),
 		"skipped_duplicates": skippedDups,
+		"patterns":           detected,
 	}
 
 	// If HTMX request, re-render the patterns page content

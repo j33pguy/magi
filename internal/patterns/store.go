@@ -57,6 +57,15 @@ func StorePatterns(ctx context.Context, dbClient db.Store, embedder embeddings.P
 		if len(p.Evidence) > 0 {
 			content += "\n\nEvidence memory IDs: " + strings.Join(p.Evidence, ", ")
 		}
+		if p.FirstSeen != "" || p.LastSeen != "" {
+			content += "\n\nFirst seen: " + p.FirstSeen + "\nLast seen: " + p.LastSeen
+		}
+		if p.Trend != "" {
+			content += "\nTrend: " + p.Trend
+		}
+		if len(p.Sources) > 0 {
+			content += "\nSources: " + strings.Join(p.Sources, ", ")
+		}
 
 		mem := &db.Memory{
 			Content:    content,
