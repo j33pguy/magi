@@ -108,7 +108,7 @@ func TestHandleHealth(t *testing.T) {
 	if resp["ok"] != true {
 		t.Errorf("ok = %v, want true", resp["ok"])
 	}
-	if resp["version"] != "0.3.9" {
+	if resp["version"] != "0.3.10" {
 		t.Errorf("version = %v, want 0.3.9", resp["version"])
 	}
 	if resp["db_status"] != "ok" {
