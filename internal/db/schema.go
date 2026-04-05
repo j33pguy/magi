@@ -340,6 +340,8 @@ CREATE INDEX IF NOT EXISTS idx_memories_visibility ON memories(visibility, archi
 // migrationV10 widens the visibility CHECK constraint to include 'team' and 'shared'
 // for multi-agent sync (magi-sync). SQLite requires table recreation to alter CHECK constraints.
 const migrationV10 = `
+DROP TABLE IF EXISTS memories_new;
+
 CREATE TABLE IF NOT EXISTS memories_new (
 	id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
 	content TEXT NOT NULL,
@@ -364,6 +366,8 @@ CREATE TABLE IF NOT EXISTS memories_new (
 );
 
 INSERT INTO memories_new SELECT * FROM memories;
+
+DROP INDEX IF EXISTS idx_memories_embedding;
 
 DROP TABLE memories;
 
