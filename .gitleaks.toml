@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allow test fixture tokens and known false positives"
+paths = [
+  '''_test\.go$''',
+]
