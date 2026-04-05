@@ -38,6 +38,9 @@ func NewSQLiteClient(path string, logger *slog.Logger) (*SQLiteClient, error) {
 	}
 
 	// Enable WAL mode for concurrent read/write access.
+	// Some PRAGMAs return rows (journal_mode), others don't (synchronous).
+	// Use Query+Close to handle both cases and avoid "Execute returned rows"
+	// errors with drivers that reject Exec on row-returning statements.
 	pragmas := []string{
 		"PRAGMA journal_mode=WAL",
 		"PRAGMA synchronous=NORMAL",
@@ -45,9 +48,12 @@ func NewSQLiteClient(path string, logger *slog.Logger) (*SQLiteClient, error) {
 		"PRAGMA cache_size=-2000", // 2MB cache
 	}
 	for _, pragma := range pragmas {
-		if _, err := db.Exec(pragma); err != nil {
+		rows, err := db.Query(pragma)
+		if err != nil {
 			logger.Warn("PRAGMA failed (non-fatal)", "pragma", pragma, "error", err)
+			continue
 		}
+		rows.Close()
 	}
 
 	// Connection pool: allow more concurrent readers with WAL mode.

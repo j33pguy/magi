@@ -311,6 +311,12 @@ func (a *App) collectPayloads() ([]Payload, error) {
 			if err != nil {
 				return nil, err
 			}
+		case "openclaw":
+			var err error
+			payloads, err = (openclawAdapter{}).Scan(a.cfg, agent, a.cfg.Privacy)
+			if err != nil {
+				return nil, err
+			}
 		case "settings":
 			var err error
 			payloads, err = (settingsAdapter{}).Scan(a.cfg, agent)

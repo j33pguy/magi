@@ -47,6 +47,35 @@ agents:
       - "**/plugins/**"
     visibility: team
 
+  - type: openclaw
+    name: openclaw-gilfoyle
+    enabled: true
+    owner: UserA
+    paths:
+      - ~/.openclaw
+    # Patterns relative to ~/.openclaw
+    include:
+      - "workspace/**/*.md"
+      - "agents/*/sessions/*.jsonl"
+    exclude:
+      - "**/tmp/**"
+      - "**/cache/**"
+      - "**/*.bin"
+      - "**/browser/**"
+      - "**/canvas/**"
+      - "**/completions/**"
+      - "**/credentials/**"
+      - "**/delivery-queue/**"
+      - "**/discord/**"
+      - "**/flows/**"
+      - "**/media/**"
+      - "**/subagents/**"
+      - "**/tasks/**"
+      - "**/*.tar.gz"
+      - "**/*.bak*"
+      - "**/*.tmp"
+    visibility: internal
+
   - type: codex
     enabled: false
     paths:
