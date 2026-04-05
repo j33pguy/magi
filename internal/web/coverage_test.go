@@ -18,7 +18,7 @@ import (
 // ---------- helpers ----------
 
 // newTestMuxWithData creates a mux and seeds it with several memories, tags, and links.
-func newTestMuxWithData(t *testing.T) (*http.ServeMux, *db.Client) {
+func newTestMuxWithData(t *testing.T) (http.Handler, *db.Client) {
 	t.Helper()
 	mux, client := newTestMuxAndDB(t)
 
@@ -80,7 +80,7 @@ func newTestMuxWithData(t *testing.T) (*http.ServeMux, *db.Client) {
 }
 
 // newTestMuxAndDB is like newTestMux but also returns the db client for seeding data directly.
-func newTestMuxAndDB(t *testing.T) (*http.ServeMux, *db.Client) {
+func newTestMuxAndDB(t *testing.T) (http.Handler, *db.Client) {
 	t.Helper()
 	tmp := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -97,7 +97,7 @@ func newTestMuxAndDB(t *testing.T) (*http.ServeMux, *db.Client) {
 
 	mux := http.NewServeMux()
 	RegisterRoutes(mux, client.TursoClient, &mockEmbedder{}, logger)
-	return mux, client.TursoClient
+	return &autoAuthMux{inner: mux}, client.TursoClient
 }
 
 // ---------- statsPage and getStats with data ----------
@@ -1071,7 +1071,7 @@ func TestCov_ConversationsSearchTagLoading(t *testing.T) {
 
 // newBrokenMux creates a mux backed by a DB that has been closed, so all DB
 // operations will fail and trigger serverError paths.
-func newBrokenMux(t *testing.T) *http.ServeMux {
+func newBrokenMux(t *testing.T) http.Handler {
 	t.Helper()
 	tmp := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -1090,7 +1090,7 @@ func newBrokenMux(t *testing.T) *http.ServeMux {
 	// Close the DB to make all queries fail
 	client.Close()
 
-	return mux
+	return &autoAuthMux{inner: mux}
 }
 
 func TestCov_ErrorPath_ListPage(t *testing.T) {
@@ -1281,7 +1281,7 @@ func (f *failingEmbedder) EmbedBatch(_ context.Context, texts []string) ([][]flo
 
 func (f *failingEmbedder) Dimensions() int { return 384 }
 
-func newFailEmbedMux(t *testing.T) *http.ServeMux {
+func newFailEmbedMux(t *testing.T) http.Handler {
 	t.Helper()
 	tmp := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -1297,7 +1297,7 @@ func newFailEmbedMux(t *testing.T) *http.ServeMux {
 
 	mux := http.NewServeMux()
 	RegisterRoutes(mux, client.TursoClient, &failingEmbedder{}, logger)
-	return mux
+	return &autoAuthMux{inner: mux}
 }
 
 func TestCov_ErrorPath_APISearchEmbedFail(t *testing.T) {
@@ -1686,15 +1686,16 @@ func TestCov_ErrorPath_APIAnalyzePatternsStoreError(t *testing.T) {
 		client.TursoClient.SaveMemory(mem)
 	}
 
-	mux := http.NewServeMux()
-	RegisterRoutes(mux, client.TursoClient, &mockEmbedder{}, logger)
+	rawMux := http.NewServeMux()
+	RegisterRoutes(rawMux, client.TursoClient, &mockEmbedder{}, logger)
+	handler := &autoAuthMux{inner: rawMux}
 
 	// Now break the DB so StorePatterns fails
 	client.Close()
 
 	req := httptest.NewRequest("POST", "/api/analyze-patterns", nil)
 	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	// Should be 500 because ListMemories will fail
 	if w.Code != http.StatusInternalServerError {

@@ -14,7 +14,7 @@ import (
 // ---------- helpers to seed data ----------
 
 // createMemoryViaAPI posts a form to /api/memories and returns the response code.
-func createMemoryViaAPI(t *testing.T, mux *http.ServeMux, content, project, tags string) int {
+func createMemoryViaAPI(t *testing.T, mux http.Handler, content, project, tags string) int {
 	t.Helper()
 	form := "content=" + content
 	if project != "" {
@@ -31,7 +31,7 @@ func createMemoryViaAPI(t *testing.T, mux *http.ServeMux, content, project, tags
 }
 
 // createAndGetMemoryID creates a memory and returns its ID by querying the list API.
-func createAndGetMemoryID(t *testing.T, mux *http.ServeMux, content string) string {
+func createAndGetMemoryID(t *testing.T, mux http.Handler, content string) string {
 	t.Helper()
 	code := createMemoryViaAPI(t, mux, content, "", "")
 	if code != http.StatusOK {

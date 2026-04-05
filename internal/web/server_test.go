@@ -34,7 +34,7 @@ func (m *mockEmbedder) EmbedBatch(_ context.Context, texts []string) ([][]float3
 
 func (m *mockEmbedder) Dimensions() int { return 384 }
 
-func newTestMux(t *testing.T) *http.ServeMux {
+func newTestMux(t *testing.T) http.Handler {
 	t.Helper()
 	tmp := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -51,7 +51,7 @@ func newTestMux(t *testing.T) *http.ServeMux {
 
 	mux := http.NewServeMux()
 	RegisterRoutes(mux, client.TursoClient, &mockEmbedder{}, logger)
-	return mux
+	return &autoAuthMux{inner: mux}
 }
 
 func TestRegisterRoutes(t *testing.T) {
@@ -319,7 +319,20 @@ func TestProxyAuthTrustsAllRoutes(t *testing.T) {
 	t.Setenv("MAGI_API_TOKEN", "test-secret")
 	t.Setenv("MAGI_TRUSTED_PROXY_AUTH", "true")
 	t.Setenv("MAGI_TRUSTED_PROXY_IPS", "127.0.0.1")
-	mux := newTestMux(t)
+
+	// Use raw mux (no auto-auth) to test actual auth behavior.
+	tmp := t.TempDir()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	client, err := db.NewSQLiteClient(filepath.Join(tmp, "test.db"), logger)
+	if err != nil {
+		t.Fatalf("NewSQLiteClient: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	if err := client.Migrate(); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	mux := http.NewServeMux()
+	RegisterRoutes(mux, client.TursoClient, &mockEmbedder{}, logger)
 
 	// Request with proxy header from trusted IP should reach /api/* routes
 	req := httptest.NewRequest("GET", "/api/memories", nil)
@@ -345,7 +358,20 @@ func TestProxyAuthDefaultsCIDRToLoopback(t *testing.T) {
 	t.Setenv("MAGI_API_TOKEN", "test-secret")
 	t.Setenv("MAGI_TRUSTED_PROXY_AUTH", "true")
 	t.Setenv("MAGI_TRUSTED_PROXY_IPS", "")
-	mux := newTestMux(t)
+
+	// Use raw mux (no auto-auth) to test actual auth behavior.
+	tmp := t.TempDir()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	client, err := db.NewSQLiteClient(filepath.Join(tmp, "test.db"), logger)
+	if err != nil {
+		t.Fatalf("NewSQLiteClient: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	if err := client.Migrate(); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	mux := http.NewServeMux()
+	RegisterRoutes(mux, client.TursoClient, &mockEmbedder{}, logger)
 
 	// Request from non-loopback IP with proxy header should be rejected
 	req := httptest.NewRequest("GET", "/", nil)
