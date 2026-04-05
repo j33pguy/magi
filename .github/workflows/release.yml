@@ -25,6 +25,8 @@ jobs:
           cache: false
 
       - name: Run tests
+        env:
+          MAGI_API_TOKEN: test
         run: CGO_ENABLED=1 go test ./... -count=1 -short
 
       - name: Build binaries
