@@ -220,6 +220,31 @@ Common tag patterns:
 - `speaker:<name>` — who said/created it
 - `channel:<source>` — where it came from
 - `priority:high|medium|low` — task priority
+- `ghrepo:<owner>/<repo>` — GitHub repository (e.g. `ghrepo:j33pguy/magi`)
+- `glrepo:<owner>/<repo>` — GitLab repository
+- `repo:<host>/<owner>/<repo>` — other git hosts
+- `inventory` — project/repo registry entries
+
+### Repository Tags
+
+The `ghrepo:` convention links memories to their source repository. This is set
+automatically by [magi-sync](https://github.com/j33pguy/magi-sync) when it
+detects a git remote, and can be set manually when indexing project state:
+
+```json
+{
+  "content": "MAGI v0.4.1 — Universal memory server for AI agents.",
+  "type": "state",
+  "tags": ["ghrepo:j33pguy/magi", "project", "inventory"],
+  "project": "magi"
+}
+```
+
+Query by repo:
+```
+GET /memories?tags=ghrepo:j33pguy/magi
+GET /memories?tags=inventory          # all tracked repos
+```
 
 ---
 

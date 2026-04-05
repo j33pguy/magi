@@ -99,7 +99,7 @@ curl -X POST http://MAGI_HTTP_ADDR:8302/remember \
 | `project` | string | no | Project namespace |
 | `type` | string | no | Memory type |
 | `visibility` | string | no | `private`, `internal`, `public` |
-| `tags` | string[] | no | Tags |
+| `tags` | string[] | no | Tags (see [tag conventions](AGENT-GUIDE.md#repository-tags): `ghrepo:owner/repo`, `inventory`, etc.) |
 | `source` | string | no | Source identifier |
 | `speaker` | string | no | `user`, `assistant`, `agent`, `system` |
 | `area` | string | no | Top-level area |

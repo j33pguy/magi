@@ -32,15 +32,60 @@ Machine tokens are supported in two ways:
 
 Machine tokens authenticate the same way as admin tokens but resolve to a machine identity.
 
-## Machine Enrollment Endpoints
+## Machine Management Endpoints
 
 Admin-only endpoints on the legacy HTTP API:
 
-- `POST /auth/machines/enroll`
-- `GET /auth/machines`
-- `POST /auth/machines/{id}/revoke`
+- `POST /auth/machines/enroll` — admin creates a machine credential directly
+- `GET /auth/machines` — list all machine credentials
+- `POST /auth/machines/{id}/revoke` — revoke a machine credential
 
-These return a one-time machine token and store the machine record for future lookups.
+## Self-Enrollment (v0.4.1+)
+
+For onboarding machines without sharing the admin API token, use enrollment tokens:
+
+### Admin: Create Enrollment Token
+
+```bash
+curl -X POST /auth/enrollment-tokens \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{
+    "label": "team-machines",
+    "max_uses": 10,
+    "default_user": "j33p",
+    "default_groups": ["homelab"],
+    "expires_in": "24h"
+  }'
+```
+
+Returns a one-time token (plaintext shown once, hash stored).
+
+### Client: Self-Enroll
+
+```bash
+curl -X POST /auth/enroll \
+  -d '{
+    "token": "<enrollment-token>",
+    "machine_id": "my-laptop",
+    "agent_name": "magi-sync",
+    "agent_type": "syncagent"
+  }'
+```
+
+**No Authorization header needed.** The enrollment token in the body is the auth.
+Returns a machine credential (token + record). The enrollment token's use count
+is incremented; once `max_uses` is reached, the token is exhausted.
+
+### Admin: Manage Enrollment Tokens
+
+- `GET /auth/enrollment-tokens` — list all enrollment tokens
+- `POST /auth/enrollment-tokens/{id}/revoke` — revoke a token
+
+### magi-sync Integration
+
+With [magi-sync](https://github.com/j33pguy/magi-sync) v0.3.0+, set
+`server.enroll_token` in config and run `magi-sync enroll`. The token is
+exchanged for a machine credential which is saved to `server.token` automatically.
 
 ## Identity Propagation
 
