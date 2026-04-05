@@ -8,7 +8,7 @@ import (
 )
 
 // version is the current MAGI version.
-const version = "0.3.8"
+const version = "0.3.9"
 
 // startTime records when the server started, used for uptime calculation.
 var startTime = time.Now()

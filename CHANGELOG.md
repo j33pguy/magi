@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.9
+
+### Fixes
+- **Visibility constraint** — DB now accepts `team` and `shared` visibility levels for multi-agent sync
+- **Migration V10** — recreates memories table with widened CHECK constraint, handles partial failure gracefully
+- **magi-sync project detection** — Claude project folder name used as project key instead of git remote URL
+- **magi-sync speaker** — project context files now tagged `claude-subagent` instead of `system`
+- **magi-sync include patterns** — example config fixed; patterns are relative to agent paths root
+
 ## v0.3.8
 
 - **Release companion tools** — `magi-sync` and `mcp-config` binaries now included in GitHub releases
