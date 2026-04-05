@@ -90,7 +90,10 @@ func authMiddleware(token string, trustProxyAuth bool, trustedCIDRs []*net.IPNet
 			return next
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if trustProxyAuth && !strings.HasPrefix(r.URL.Path, "/api/") {
+			// Trust proxy auth for ALL web UI requests (pages + HTMX + fetch API calls).
+			// The web UI server is separate from the REST API server (port 8302),
+			// so all requests here originate from the browser via Traefik/authentik.
+			if trustProxyAuth {
 				if strings.TrimSpace(r.Header.Get("X-Authentik-Username")) != "" && isIPTrusted(r.RemoteAddr, trustedCIDRs) {
 					next.ServeHTTP(w, r)
 					return
