@@ -25,6 +25,18 @@ Binaries:
 - `magi` (server)
 - `magi-import` (markdown import helper)
 
+## Pre-built Binaries (GitHub Releases)
+
+Tagged releases publish pre-built binaries on GitHub Releases. Download the `magi` server binary for your platform, mark it executable, and place it on your `PATH`. Releases also include companion tools like `magi-sync` and `mcp-config`.
+
+## GitHub Actions Auto-Deploy
+
+MAGI ships with an auto-deploy workflow that runs after a successful release. The release workflow builds and publishes the release artifacts, and the deploy workflow can pull the latest tagged binary and restart the server on your deploy host. You can also trigger it manually with a version override.
+
+## Ansible Role
+
+For infrastructure-as-code deployments, use the Ansible role at `ansible/roles/magi`. It installs the release binary, writes the systemd service, and manages environment configuration in an idempotent way.
+
 ## Core Configuration
 
 These are the most commonly used environment variables. All values here are real and match `main.go` and `internal/`.

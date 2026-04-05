@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/j33pguy/magi/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/j33pguy/magi/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-v0.3.6-informational">
+  <img alt="Version" src="https://img.shields.io/badge/version-v0.3.10-informational">
   <img alt="License" src="https://img.shields.io/badge/License-ELv2-blue">
   <img alt="Self-Hosted" src="https://img.shields.io/badge/Self--Hosted-Yes-success">
   <img alt="Model Agnostic" src="https://img.shields.io/badge/Model--Agnostic-Yes-success">
@@ -69,6 +69,8 @@ Automatically links memories into a **knowledge graph** and surfaces behavioral 
 - **Metrics endpoint** — latency, queue depth, cache stats, and more
 - **Chaos tested** — concurrent writes, search-during-ingestion, kill recovery
 - **24 MCP tools** — full agent integration out of the box
+- **magi-sync** — cross-machine memory sync agent for isolated devices
+- **Auto-deploy on release** — GitHub Actions deploy workflow triggers after releases
 
 ## Flexible Storage, Your Infrastructure
 
@@ -100,6 +102,12 @@ docker compose up -d
 curl http://localhost:8302/health
 ```
 
+Optional cross-machine sync setup:
+
+```bash
+magi-sync init
+```
+
 ### MCP Config
 
 ```bash
@@ -111,6 +119,9 @@ magi mcp-config
 ```bash
 export MAGI_HTTP_URL=http://localhost:8302
 export MAGI_API_TOKEN=your-token
+
+# If you installed the binary, start MAGI with:
+magi --http-only
 
 # Agent A stores a decision
 curl -X POST "$MAGI_HTTP_URL/remember" \

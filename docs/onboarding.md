@@ -58,8 +58,9 @@ If you use isolated agents on multiple computers:
 1. run one MAGI server on a stable host
 2. connect each machine's agent to that MAGI instance
 3. optionally install `magi-sync` on each machine
-4. enroll each `magi-sync` instance once
-5. let it ingest selected local context into shared memory
+4. run `magi-sync init` for the interactive setup wizard
+5. enroll each `magi-sync` instance once
+6. let it ingest selected local context into shared memory
 
 ```mermaid
 sequenceDiagram
@@ -91,3 +92,5 @@ Once the first agent loop feels good, the next step is usually one of these:
 - move from SQLite to PostgreSQL
 - turn on auth and machine enrollment
 - start storing structured memories like lessons, incidents, and project context
+
+For production setup and deployment patterns, see `docs/deployment.md`.
