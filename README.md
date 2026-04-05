@@ -89,7 +89,7 @@ No cloud lock-in. No hosted dependency. Your data stays on your infrastructure.
 - Organizations that need **persistent, auditable AI memory**
 - Architects who want agent memory **without vendor lock-in**
 
-Works with — or without — popular orchestrators like LangChain, CrewAI, or custom pipelines.
+Works with — or without — popular orchestrators like Openclaw, LangChain, CrewAI, or custom pipelines.
 
 ## Quick Start
 
