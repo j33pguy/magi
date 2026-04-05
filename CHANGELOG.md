@@ -12,7 +12,7 @@
 
 ## v0.3.8
 
-- **Release companion tools** — `magi-sync` and `mcp-config` binaries now included in GitHub releases
+- **Release companion tools** — `mcp-config` binary included in GitHub releases (`magi-sync` moved to [j33pguy/magi-sync](https://github.com/j33pguy/magi-sync))
 - Cross-compiled for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64
 - Pure Go binaries — download and run, zero dependencies
 

@@ -36,10 +36,15 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	trustProxyAuth := parseTrustedProxyAuth()
 	trustedCIDRs := parseTrustedProxyIPs()
 	if trustProxyAuth {
-		if len(trustedCIDRs) > 0 {
-			logger.Info("Trusting proxy authentication headers for web UI", "trusted_cidrs", len(trustedCIDRs))
+		if len(trustedCIDRs) == 0 {
+			// Default to loopback only when no CIDRs are configured.
+			// Prevents any external caller from spoofing proxy headers.
+			_, lo4, _ := net.ParseCIDR("127.0.0.0/8")
+			_, lo6, _ := net.ParseCIDR("::1/128")
+			trustedCIDRs = []*net.IPNet{lo4, lo6}
+			logger.Warn("MAGI_TRUSTED_PROXY_IPS not set — defaulting to loopback only (127.0.0.0/8, ::1/128). Set MAGI_TRUSTED_PROXY_IPS to trust your reverse proxy.")
 		} else {
-			logger.Info("Trusting proxy authentication headers for web UI (any source IP)")
+			logger.Info("Trusting proxy authentication headers for web UI", "trusted_cidrs", len(trustedCIDRs))
 		}
 	}
 	auth := authMiddleware(token, trustProxyAuth, trustedCIDRs)
@@ -84,13 +89,33 @@ func RegisterRoutes(mux *http.ServeMux, dbClient *db.Client, embedder embeddings
 	handleFunc("POST /api/analyze-patterns", h.apiAnalyzePatterns)
 }
 
+// isWriteMethod returns true for HTTP methods that modify state.
+func isWriteMethod(method string) bool {
+	switch method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
 func authMiddleware(token string, trustProxyAuth bool, trustedCIDRs []*net.IPNet) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if token == "" {
-			return next
+			// No token configured: enforce read-only mode.
+			// Allow GET/HEAD/OPTIONS; block all write methods.
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if isWriteMethod(r.Method) {
+					http.Error(w, `{"error":"write operations require MAGI_API_TOKEN to be configured"}`, http.StatusForbidden)
+					return
+				}
+				next.ServeHTTP(w, r)
+			})
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if trustProxyAuth && !strings.HasPrefix(r.URL.Path, "/api/") {
+			// Proxy auth: trust authentik headers from verified source IPs.
+			// Applies to all routes (including /api/*) when proxy is trusted.
+			if trustProxyAuth {
 				if strings.TrimSpace(r.Header.Get("X-Authentik-Username")) != "" && isIPTrusted(r.RemoteAddr, trustedCIDRs) {
 					next.ServeHTTP(w, r)
 					return
