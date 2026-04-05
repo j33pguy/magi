@@ -33,14 +33,18 @@ agents:
       - platform
     paths:
       - ~/.claude
+    # Patterns are relative to the agent's paths root (e.g. ~/.claude)
     include:
-      - "**/projects/**/*.jsonl"
-      - "**/CLAUDE.md"
-      - "**/.claude/**/*.md"
+      - "projects/**/*.jsonl"
+      - "projects/**/CLAUDE.md"
+      - "projects/**/memory/*.md"
+      - "memory/**/*.md"
+      - "plans/**/*.md"
     exclude:
       - "**/tmp/**"
       - "**/cache/**"
       - "**/*.bin"
+      - "**/plugins/**"
     visibility: team
 
   - type: codex
