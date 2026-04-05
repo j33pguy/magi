@@ -101,7 +101,7 @@ func markdownPayload(cfg *Config, path string, agent AgentConfig, privacy Privac
 		Visibility: agent.Visibility,
 		Tags:       identityTags(cfg, agent, "project_context"),
 		Source:     "magi-sync",
-		Speaker:    "system",
+		Speaker:    "claude-subagent",
 		SourcePath: path,
 		Hash:       hashBytes(data),
 	}
@@ -379,6 +379,21 @@ func firstLine(s string, max int) string {
 }
 
 func detectProjectForPath(path string) string {
+	// Check if path is inside a Claude projects directory structure.
+	// Claude stores projects under ~/.claude/projects/<project-name>/
+	// Use the project folder name as the project key.
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	for i, part := range parts {
+		if part == "projects" && i+1 < len(parts) {
+			// The next path component is the project name
+			projectName := parts[i+1]
+			if projectName != "" && projectName != "." {
+				return projectName
+			}
+		}
+	}
+
+	// Fall back to git remote detection
 	dir := filepath.Dir(path)
 	for {
 		if dir == "." || dir == "/" || dir == "" {
