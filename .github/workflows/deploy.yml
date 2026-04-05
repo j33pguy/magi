@@ -43,6 +43,9 @@ jobs:
       - name: Deploy via SSH
         env:
           DEPLOY_VERSION: ${{ steps.version.outputs.version }}
+          DEPLOY_HOST: ${{ secrets.MAGI_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.MAGI_DEPLOY_USER }}
+          DEPLOY_KEY_PATH: ${{ secrets.MAGI_DEPLOY_KEY_PATH }}
         run: |
           set -euo pipefail
 
@@ -51,7 +54,7 @@ jobs:
             DEPLOY_VERSION=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name')
           fi
 
-          echo "Deploying MAGI ${DEPLOY_VERSION} to magi01..."
+          echo "Deploying MAGI ${DEPLOY_VERSION}..."
 
           # Download binary
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${DEPLOY_VERSION}/magi-linux-amd64"
@@ -59,14 +62,14 @@ jobs:
           curl -sL -o "$TMPBIN" "$DOWNLOAD_URL"
           chmod +x "$TMPBIN"
 
-          # Deploy to magi01 via SSH
-          scp -i ~/.ssh/ansible_ed25519 -o StrictHostKeyChecking=accept-new \
-            "$TMPBIN" ansible@10.5.5.45:/tmp/magi-new
+          # Deploy via SSH
+          scp -i "$DEPLOY_KEY_PATH" -o StrictHostKeyChecking=accept-new \
+            "$TMPBIN" "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/magi-new"
 
-          ssh -i ~/.ssh/ansible_ed25519 ansible@10.5.5.45 bash -s << 'REMOTE_SCRIPT'
+          ssh -i "$DEPLOY_KEY_PATH" "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s << 'REMOTE_SCRIPT'
           set -euo pipefail
           sudo mv /tmp/magi-new /opt/magi/bin/magi
-          sudo chown ansible:ansible /opt/magi/bin/magi
+          sudo chown $(whoami):$(whoami) /opt/magi/bin/magi
           sudo chmod 755 /opt/magi/bin/magi
           sudo systemctl restart magi
           sleep 2
@@ -75,4 +78,4 @@ jobs:
           REMOTE_SCRIPT
 
           rm -f "$TMPBIN"
-          echo "✅ MAGI ${DEPLOY_VERSION} deployed to magi01"
+          echo "✅ MAGI ${DEPLOY_VERSION} deployed"
