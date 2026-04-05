@@ -1,17 +1,9 @@
 # Changelog
 
-## v0.3.10
-
-### Fixes
-- **FTS5 rebuild after V10 migration** — Migration V10 drops/recreates the memories table, which broke the FTS5 content-sync table and triggers. BM25 search silently returned 0 results. Now rebuilds FTS5 index and triggers after table recreation.
-
-### Added
-- **Auto-deploy workflow** — new GitHub Actions workflow deploys to magi01 automatically after successful release, or manually via workflow_dispatch
-- **OpenClaw adapter** — magi-sync now supports syncing OpenClaw workspace files
-
 ## v0.3.9
 
 ### Fixes
+- **FTS5 rebuild after V10 migration** — Migration V10 drops/recreates the memories table, which broke the FTS5 content-sync table and triggers. BM25 search silently returned 0 results. Now rebuilds FTS5 index and triggers after table recreation.
 - **Visibility constraint** — DB now accepts `team` and `shared` visibility levels for multi-agent sync
 - **Migration V10** — recreates memories table with widened CHECK constraint, handles partial failure gracefully
 - **magi-sync project detection** — Claude project folder name used as project key instead of git remote URL
