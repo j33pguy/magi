@@ -2,6 +2,46 @@ package classify
 
 import "testing"
 
+func TestInferType(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"procedure how-to", "How to unseal Vault after a reboot", "procedure"},
+		{"procedure steps", "Step 1: SSH into the server. Step 2: Run the script.", "procedure"},
+		{"procedure runbook", "Runbook for Traefik certificate renewal", "procedure"},
+		{"decision made", "Decided to use gRPC as default transport for all services", "decision"},
+		{"decision rationale", "Going with SQLite over Postgres — rationale: single-node, no overhead", "decision"},
+		{"incident outage", "Vault outage caused by sealed nodes after power failure", "incident"},
+		{"incident postmortem", "Root cause: missing firewall zone ID on Infra network", "incident"},
+		{"task queued", "[QUEUED] Fix privacy filter for magi-sync", "task"},
+		{"task running", "[RUNNING] Deploy Traefik config update", "task"},
+		{"task action item", "Action item: update Ansible inventory for new host", "task"},
+		{"conversation summary", "Session summary: discussed VLAN migration and Vault unsealing", "conversation"},
+		{"no match", "The weather is nice today", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := InferType(tt.content)
+			if got != tt.want {
+				t.Errorf("InferType() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestInfer_IncludesType(t *testing.T) {
+	// Infer should populate Type field too
+	c := Infer("How to deploy Traefik with Let's Encrypt certificates")
+	if c.Type != "procedure" {
+		t.Errorf("Type = %q, want procedure", c.Type)
+	}
+	if c.Area != "infrastructure" {
+		t.Errorf("Area = %q, want infrastructure", c.Area)
+	}
+}
+
 func TestInfer(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -8,6 +8,7 @@ type Classification struct {
 	Speaker string
 	Area    string
 	SubArea string
+	Type    string // memory, procedure, decision, incident, conversation, task
 }
 
 type rule struct {
@@ -50,14 +51,48 @@ var rules = []rule{
 	{regexp.MustCompile(`(?i)testing|\btest\b|coverage|benchmark`), "development", "testing"},
 }
 
+// typeRule maps content patterns to memory types.
+type typeRule struct {
+	pattern *regexp.Regexp
+	typ     string
+}
+
+var typeRules = []typeRule{
+	// procedure — how-to, step-by-step, runbooks
+	{regexp.MustCompile(`(?i)(how to|steps? to|procedure|runbook|walkthrough|instructions?|to do this|first,.*then|step \d)`), "procedure"},
+	// decision — choices made, rationale
+	{regexp.MustCompile(`(?i)(decided|decision|chose|going with|settled on|rationale|trade.?off|we.?ll use|picked|opted for)`), "decision"},
+	// incident — outages, failures, postmortems
+	{regexp.MustCompile(`(?i)(incident|outage|down|broke|failure|postmortem|root cause|degraded|recovered|alert fired)`), "incident"},
+	// task — work items, tracking
+	{regexp.MustCompile(`(?i)(\[QUEUED\]|\[RUNNING\]|\[DONE\]|\[BLOCKED\]|todo|task:|action item|needs to be done)`), "task"},
+	// conversation — session logs, summaries
+	{regexp.MustCompile(`(?i)(conversation|session summary|discussed|talked about|turn_count|chat log)`), "conversation"},
+}
+
+// InferType returns a best-guess memory type for the given content.
+// Returns empty string if no type can be determined.
+func InferType(content string) string {
+	for _, r := range typeRules {
+		if r.pattern.MatchString(content) {
+			return r.typ
+		}
+	}
+	return ""
+}
+
 // Infer returns a best-guess Classification for the given content.
 // Returns empty strings for fields it cannot determine.
 // Speaker is always left empty — callers should set it explicitly.
 func Infer(content string) Classification {
+	var c Classification
 	for _, r := range rules {
 		if r.pattern.MatchString(content) {
-			return Classification{Area: r.area, SubArea: r.subArea}
+			c.Area = r.area
+			c.SubArea = r.subArea
+			break
 		}
 	}
-	return Classification{}
+	c.Type = InferType(content)
+	return c
 }

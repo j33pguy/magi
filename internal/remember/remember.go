@@ -72,7 +72,11 @@ func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider,
 	}
 
 	if input.Type == "" {
-		input.Type = "memory"
+		if inferred := classify.InferType(input.Content); inferred != "" {
+			input.Type = inferred
+		} else {
+			input.Type = "memory"
+		}
 	}
 	if input.Speaker == "" {
 		input.Speaker = "assistant"

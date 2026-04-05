@@ -46,9 +46,7 @@ func (s *Server) handleRememberWithDefaultSource(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if req.Type == "" {
-		req.Type = "memory"
-	}
+	// Type inference handled by remember.Remember if empty
 	if req.Source == "" {
 		req.Source = defaultSource
 	}
