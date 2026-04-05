@@ -1,0 +1,78 @@
+name: Deploy
+
+on:
+  # Auto-deploy after successful release
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+    branches: [main]
+  # Manual trigger with version override
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g. v0.3.10, or "latest")'
+        required: false
+        default: 'latest'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to magi01
+    runs-on: [self-hosted, linux, x64]
+    if: >
+      github.actor == 'j33pguy' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.workflow_run.conclusion == 'success')
+
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version || 'latest' }}" >> $GITHUB_OUTPUT
+          else
+            # Get the tag from the release workflow
+            TAG=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/latest" \
+              | jq -r '.tag_name')
+            echo "version=${TAG}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy via SSH
+        env:
+          DEPLOY_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          # Resolve version
+          if [ "$DEPLOY_VERSION" = "latest" ]; then
+            DEPLOY_VERSION=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r '.tag_name')
+          fi
+
+          echo "Deploying MAGI ${DEPLOY_VERSION} to magi01..."
+
+          # Download binary
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${DEPLOY_VERSION}/magi-linux-amd64"
+          TMPBIN=$(mktemp)
+          curl -sL -o "$TMPBIN" "$DOWNLOAD_URL"
+          chmod +x "$TMPBIN"
+
+          # Deploy to magi01 via SSH
+          scp -i ~/.ssh/ansible_ed25519 -o StrictHostKeyChecking=accept-new \
+            "$TMPBIN" ansible@10.5.5.45:/tmp/magi-new
+
+          ssh -i ~/.ssh/ansible_ed25519 ansible@10.5.5.45 bash -s << 'REMOTE_SCRIPT'
+          set -euo pipefail
+          sudo mv /tmp/magi-new /opt/magi/bin/magi
+          sudo chown ansible:ansible /opt/magi/bin/magi
+          sudo chmod 755 /opt/magi/bin/magi
+          sudo systemctl restart magi
+          sleep 2
+          systemctl is-active magi
+          echo "Deploy complete: $(date)"
+          REMOTE_SCRIPT
+
+          rm -f "$TMPBIN"
+          echo "✅ MAGI ${DEPLOY_VERSION} deployed to magi01"
