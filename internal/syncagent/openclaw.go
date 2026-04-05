@@ -182,6 +182,15 @@ func openclawSessionPayloads(cfg *Config, path string, agent AgentConfig, privac
 		if turnContent == "" {
 			continue
 		}
+		// Skip tool results — they're usually raw JSON/command output noise.
+		// They're already included in the conversation_summary.
+		if turn.Role == "tool" {
+			continue
+		}
+		// Skip short system messages (session metadata, etc.)
+		if turn.Role == "system" && len(turnContent) < 40 {
+			continue
+		}
 		ptags := identityTags(cfg, agent, "conversation")
 		ptags = append(ptags, "speaker:"+turn.Role, fmt.Sprintf("turn_index:%d", i), "source:openclaw")
 		if sessionID != "" {
