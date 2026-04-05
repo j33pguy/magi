@@ -160,7 +160,7 @@ func (s *SQLServerSchema) migrationV2() error {
 
 		`IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK_memories_visibility')
 		ALTER TABLE memories ADD CONSTRAINT CK_memories_visibility
-			CHECK (visibility IN ('private', 'internal', 'public'))`,
+			CHECK (visibility IN ('private', 'internal', 'team', 'shared', 'public'))`,
 
 		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_memories_visibility')
 		CREATE INDEX idx_memories_visibility ON memories(visibility, archived_at)`,

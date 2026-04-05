@@ -34,6 +34,7 @@ func (s *Schema) run() error {
 		{7, migrationV7},
 		{8, migrationV8},
 		{9, migrationV9},
+		{10, migrationV10},
 	}
 
 	for _, m := range migrations {
@@ -331,7 +332,54 @@ CREATE INDEX IF NOT EXISTS idx_task_events_memory ON task_events(memory_id) WHER
 // Public memories: shareable context, project docs — safe for any consumer
 const migrationV2 = `
 ALTER TABLE memories ADD COLUMN visibility TEXT NOT NULL DEFAULT 'internal'
-	CHECK(visibility IN ('private', 'internal', 'public'));
+	CHECK(visibility IN ('private', 'internal', 'team', 'shared', 'public'));
 
 CREATE INDEX IF NOT EXISTS idx_memories_visibility ON memories(visibility, archived_at);
+`
+
+// migrationV10 widens the visibility CHECK constraint to include 'team' and 'shared'
+// for multi-agent sync (magi-sync). SQLite requires table recreation to alter CHECK constraints.
+const migrationV10 = `
+CREATE TABLE IF NOT EXISTS memories_new (
+	id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+	content TEXT NOT NULL,
+	summary TEXT,
+	embedding F32_BLOB(384),
+	project TEXT NOT NULL,
+	type TEXT NOT NULL DEFAULT 'note',
+	source TEXT,
+	source_file TEXT,
+	parent_id TEXT,
+	chunk_index INTEGER DEFAULT 0,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+	archived_at TEXT,
+	token_count INTEGER,
+	visibility TEXT NOT NULL DEFAULT 'internal'
+		CHECK(visibility IN ('private', 'internal', 'team', 'shared', 'public')),
+	speaker TEXT NOT NULL DEFAULT '',
+	area TEXT NOT NULL DEFAULT '',
+	sub_area TEXT NOT NULL DEFAULT '',
+	FOREIGN KEY (parent_id) REFERENCES memories_new(id)
+);
+
+INSERT INTO memories_new SELECT * FROM memories;
+
+DROP TABLE memories;
+
+ALTER TABLE memories_new RENAME TO memories;
+
+CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project, archived_at);
+CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type, archived_at);
+CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_memories_parent ON memories(parent_id);
+CREATE INDEX IF NOT EXISTS idx_memories_visibility ON memories(visibility, archived_at);
+CREATE INDEX IF NOT EXISTS idx_memories_type_created ON memories(type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_memories_speaker ON memories(speaker) WHERE speaker != '';
+CREATE INDEX IF NOT EXISTS idx_memories_area ON memories(area) WHERE area != '';
+CREATE INDEX IF NOT EXISTS idx_memories_area_sub ON memories(area, sub_area) WHERE area != '';
+CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
+CREATE INDEX IF NOT EXISTS idx_memories_embedding ON memories(
+	libsql_vector_idx(embedding, 'metric=cosine', 'compress_neighbors=float8', 'max_neighbors=20')
+);
 `

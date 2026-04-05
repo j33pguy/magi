@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_tags_tag ON memory_tags(tag);
 // pgMigrationV2 adds visibility field for access control.
 const pgMigrationV2 = `
 ALTER TABLE memories ADD COLUMN visibility TEXT NOT NULL DEFAULT 'internal'
-	CHECK(visibility IN ('private', 'internal', 'public'));
+	CHECK(visibility IN ('private', 'internal', 'team', 'shared', 'public'));
 
 CREATE INDEX IF NOT EXISTS idx_memories_visibility ON memories(visibility, archived_at);
 `
