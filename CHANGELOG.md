@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.3.8
+
+- **Release companion tools** — `magi-sync` and `mcp-config` binaries now included in GitHub releases
+- Cross-compiled for linux/amd64, linux/arm64, darwin/amd64, darwin/arm64
+- Pure Go binaries — download and run, zero dependencies
+
+## v0.3.7
+
+### Features
+- **Pattern detection v2** (#124) — temporal trending, topic clustering, relationship pattern analysis
+- **REST API endpoints** — `/patterns` and `/patterns/trending` for pattern queries
+- **Examples** (#126) — Python client, LangChain integration, Docker quickstart compose
+- **TypeScript SDK** (#118) — full REST API coverage
+- **magi-sync watch mode** (#117) — real-time file watching with fsnotify
+- **Settings sync** (#119) — cross-device conflict resolution for distributed setups
+- **Architecture docs** (#127) — distributed architecture, git-backed memory, integration testing guides
+
+### Security
+- **Gitleaks secret scanning** (#125) — automated secret detection on all PRs and pushes
+- **CI actor allowlist** — only `j33pguy` and `dependabot` can trigger CI workflows
+- **SECURITY.md** — vulnerability reporting policy
+- **CONTRIBUTING.md** — contributor guidelines and PR template
+- **Dependabot** — automated updates for Go modules and GitHub Actions
+
+### Fixes
+- Pin `onnxruntime_go` to v1.17.0 for ORT 1.20.1 compatibility
+- `TestWatchTriggersSync` race condition (#122)
+- Docker build optimization (multi-stage, smaller images)
+- Socket test reliability improvements
+- Gitleaks workflow trigger fix (`pull_request_target` → `pull_request`)
+
+### CI/CD
+- Bumped `actions/checkout` v4→v6, `actions/setup-go` v5→v6, `docker/login-action` v3→v4
+- Go dependency group update (#131)
+
+## v0.3.6
+
+- **gRPC task queue methods** (#114) — comprehensive test coverage for task operations
+- **Version bump** — internal version constant aligned with release tags
+
 ## v0.3.5
 
 - **Documentation refresh** — all docs current with codebase, removed stale draft docs for unimplemented features
