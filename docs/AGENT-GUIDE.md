@@ -233,7 +233,7 @@ detects a git remote, and can be set manually when indexing project state:
 
 ```json
 {
-  "content": "MAGI v0.4.1 — Universal memory server for AI agents.",
+  "content": "MAGI v0.3.10 — Universal memory server for AI agents.",
   "type": "state",
   "tags": ["ghrepo:j33pguy/magi", "project", "inventory"],
   "project": "magi"
