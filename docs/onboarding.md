@@ -58,8 +58,9 @@ If you use isolated agents on multiple computers:
 1. run one MAGI server on a stable host
 2. connect each machine's agent to that MAGI instance
 3. optionally install `magi-sync` on each machine
-4. enroll each `magi-sync` instance once
-5. let it ingest selected local context into shared memory
+4. run `magi-sync init` to create the config
+5. enroll each `magi-sync` instance once
+6. let it ingest selected local context into shared memory
 
 ```mermaid
 sequenceDiagram

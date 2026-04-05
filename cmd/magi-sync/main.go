@@ -13,6 +13,8 @@ import (
 
 func main() {
 	configPath := flag.String("config", syncagent.DefaultConfigPath(), "Path to magi-sync config file")
+	interactive := flag.Bool("interactive", false, "Run interactive setup wizard")
+	flag.BoolVar(interactive, "i", false, "Run interactive setup wizard")
 	flag.Parse()
 
 	mode := syncagent.ModeOnce
@@ -20,7 +22,19 @@ func main() {
 		mode = syncagent.Mode(flag.Arg(0))
 	}
 
+	if *interactive || mode == syncagent.ModeInit {
+		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer cancel()
+
+		if err := syncagent.RunInteractive(ctx, *configPath, os.Stdin, os.Stdout, syncagent.NewLogger()); err != nil {
+			fmt.Fprintf(os.Stderr, "interactive setup error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	validModes := map[syncagent.Mode]bool{
+		syncagent.ModeInit:   true,
 		syncagent.ModeEnroll: true,
 		syncagent.ModeCheck:  true,
 		syncagent.ModeDryRun: true,
@@ -29,7 +43,7 @@ func main() {
 		syncagent.ModeWatch:  true,
 	}
 	if !validModes[mode] {
-		fmt.Fprintf(os.Stderr, "unknown mode %q; valid modes: enroll, check, dry-run, once, run, watch\n", mode)
+		fmt.Fprintf(os.Stderr, "unknown mode %q; valid modes: init, enroll, check, dry-run, once, run, watch\n", mode)
 		os.Exit(1)
 	}
 

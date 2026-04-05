@@ -15,6 +15,7 @@ import (
 type Mode string
 
 const (
+	ModeInit   Mode = "init"
 	ModeEnroll Mode = "enroll"
 	ModeCheck  Mode = "check"
 	ModeDryRun Mode = "dry-run"
