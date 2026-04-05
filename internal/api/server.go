@@ -182,6 +182,11 @@ func (s *Server) SetMachineStore(machines MachineRegistryStore) {
 	s.machines = machines
 }
 
+// SetEnrollmentStore configures the enrollment token backend.
+func (s *Server) SetEnrollmentStore(enrollment EnrollmentStore) {
+	s.enrollment = enrollment
+}
+
 func (s *Server) SetTaskStore(tasks TaskStore) {
 	s.tasks = tasks
 }

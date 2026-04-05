@@ -203,6 +203,9 @@ func New(logger *slog.Logger) (*Server, error) {
 	if machines, ok := dbClient.(api.MachineRegistryStore); ok {
 		s.httpAPI.SetMachineStore(machines)
 	}
+	if enrollment, ok := dbClient.(api.EnrollmentStore); ok {
+		s.httpAPI.SetEnrollmentStore(enrollment)
+	}
 	if tasks, ok := dbClient.(api.TaskStore); ok {
 		s.httpAPI.SetTaskStore(tasks)
 	}
