@@ -83,7 +83,7 @@ is incremented; once `max_uses` is reached, the token is exhausted.
 
 ### magi-sync Integration
 
-With [magi-sync](https://github.com/j33pguy/magi-sync) v0.3.0+, set
+With [magi-sync](https://github.com/j33pguy/magi-sync) v0.2.1+, set
 `server.enroll_token` in config and run `magi-sync enroll`. The token is
 exchanged for a machine credential which is saved to `server.token` automatically.
 
