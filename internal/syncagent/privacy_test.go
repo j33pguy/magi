@@ -17,7 +17,7 @@ func TestPrivacyPatterns(t *testing.T) {
 		{"vault root yaml", "vault_root_token: " + "hvs" + ".AAAAAAAAAAAAAAAAAAAAAA", true},
 		{"bearer token", "Authorization: Bearer AAAAAAAAAAAABBBBBBBBBBBBCCCCCCCCCCCC", true},
 		{"X-Vault-Token header", "X-Vault-Token: " + "hvs" + ".CCCCCCCCCCCCCCCCCCCCCC", true},
-		{"unseal key yaml", "vault_unseal_key_1: dGhpcyBpcyBhIHRlc3Qga2V5IHRoYXQgaXMgbG9uZyBlbm91Z2g=", true},
+		{"unseal key yaml", "vault_unseal_key_1: " + "AAAAAAAAAAAABBBB" + "CCCCCCCCDDDDDDDD" + "EEEEEEEEFFFFFFFF", true},
 		{"secret_id uuid", "secret_id: 00000000-0000-0000-0000-000000000000", true},
 		{"github token", "ghp_" + "AAAAAAAAAAAABBBBBBBBBBBBCCCCCCCCCCDDDDDD", true},
 		{"safe text", "The vault was unsealed successfully at 3pm", false},
