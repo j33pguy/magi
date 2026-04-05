@@ -44,6 +44,7 @@ jobs:
             CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/${tool}-linux-arm64 ./cmd/${tool}/
             CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/${tool}-darwin-amd64 ./cmd/${tool}/
             CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o dist/${tool}-darwin-arm64 ./cmd/${tool}/
+            CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/${tool}-windows-amd64.exe ./cmd/${tool}/
           done
 
           cd dist && sha256sum * > checksums.txt

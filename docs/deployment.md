@@ -6,40 +6,340 @@ MAGI is model- and agent-agnostic, self-hosted, and has zero cloud dependency by
 
 MAGI is usable today but still evolving. Test in a staging environment, keep backups, and plan for rollback before relying on it for critical workloads.
 
-## Build
+---
+
+## Quick Install
+
+### Pre-built Binaries (GitHub Releases)
+
+Every tagged release publishes pre-built binaries. Download the right one for your platform:
+
+**Linux (amd64):**
+```bash
+curl -L https://github.com/j33pguy/magi/releases/latest/download/magi-linux-amd64 -o magi
+chmod +x magi
+sudo mv magi /usr/local/bin/
+```
+
+**Linux (arm64):**
+```bash
+curl -L https://github.com/j33pguy/magi/releases/latest/download/magi-linux-arm64 -o magi
+chmod +x magi
+sudo mv magi /usr/local/bin/
+```
+
+**macOS (Apple Silicon):**
+```bash
+curl -L https://github.com/j33pguy/magi/releases/latest/download/magi-darwin-arm64 -o magi
+chmod +x magi
+sudo mv magi /usr/local/bin/
+```
+
+**macOS (Intel):**
+```bash
+curl -L https://github.com/j33pguy/magi/releases/latest/download/magi-darwin-amd64 -o magi
+chmod +x magi
+sudo mv magi /usr/local/bin/
+```
+
+Releases also include companion tools: `magi-sync` and `mcp-config` (available for Linux, macOS, and Windows).
+
+### Build From Source
 
 Prereqs:
 
 - Go 1.25+ with CGO enabled
 - ONNX Runtime shared library installed
-- A supported backend (SQLite, PostgreSQL, MySQL, SQL Server, or a remote sync-backed replica)
-
-Build locally from your checkout:
 
 ```bash
+git clone https://github.com/j33pguy/magi
+cd magi
 CGO_ENABLED=1 make build
 ```
 
-Binaries:
+Binaries land in `bin/`: `magi` (server) and `magi-import` (markdown importer).
 
-- `magi` (server)
-- `magi-import` (markdown import helper)
+### Docker
 
-## Pre-built Binaries (GitHub Releases)
+```bash
+MAGI_API_TOKEN=your-token docker compose up -d
+curl http://localhost:8302/health
+```
 
-Tagged releases publish pre-built binaries on GitHub Releases. Download the `magi` server binary for your platform, mark it executable, and place it on your `PATH`. Releases also include companion tools like `magi-sync` and `mcp-config`.
+---
 
-## GitHub Actions Auto-Deploy
+## Platform Setup
 
-MAGI ships with an auto-deploy workflow that runs after a successful release. The release workflow builds and publishes the release artifacts, and the deploy workflow can pull the latest tagged binary and restart the server on your deploy host. You can also trigger it manually with a version override.
+### Linux
 
-## Ansible Role
+#### ONNX Runtime
 
-For infrastructure-as-code deployments, use the Ansible role at `ansible/roles/magi`. It installs the release binary, writes the systemd service, and manages environment configuration in an idempotent way.
+**Fedora/RHEL:**
+```bash
+dnf install onnxruntime
+```
+
+**Ubuntu/Debian:**
+```bash
+# Download from https://github.com/microsoft/onnxruntime/releases
+tar xzf onnxruntime-linux-x64-*.tgz
+sudo cp onnxruntime-linux-x64-*/lib/libonnxruntime.so* /usr/local/lib/
+sudo ldconfig
+```
+
+#### Systemd Service
+
+Create `/etc/systemd/system/magi.service`:
+
+```ini
+[Unit]
+Description=MAGI memory server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=magi
+Group=magi
+ExecStart=/usr/local/bin/magi --http-only
+WorkingDirectory=/opt/magi
+Restart=on-failure
+RestartSec=5
+
+Environment=MEMORY_BACKEND=sqlite
+Environment=SQLITE_PATH=/opt/magi/data/memory.db
+Environment=MAGI_API_TOKEN=your-token-here
+Environment=MAGI_MODEL_DIR=/opt/magi/data/models
+Environment=MAGI_LEGACY_HTTP_PORT=8302
+Environment=MAGI_UI_PORT=8080
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/magi
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# Setup
+sudo useradd -r -s /sbin/nologin magi
+sudo mkdir -p /opt/magi/data/models
+sudo chown -R magi:magi /opt/magi
+
+# Enable
+sudo systemctl daemon-reload
+sudo systemctl enable --now magi
+
+# Verify
+sudo systemctl status magi
+curl http://localhost:8302/health
+```
+
+### macOS
+
+#### ONNX Runtime
+
+```bash
+brew install onnxruntime
+```
+
+#### Launch Agent (auto-start on login)
+
+Create `~/Library/LaunchAgents/com.magi.server.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.magi.server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/magi</string>
+        <string>--http-only</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>MEMORY_BACKEND</key>
+        <string>sqlite</string>
+        <key>SQLITE_PATH</key>
+        <string>/Users/YOU/.magi/memory.db</string>
+        <key>MAGI_API_TOKEN</key>
+        <string>your-token-here</string>
+        <key>MAGI_MODEL_DIR</key>
+        <string>/Users/YOU/.magi/models</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/magi.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/magi.err</string>
+</dict>
+</plist>
+```
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.magi.server.plist
+curl http://localhost:8302/health
+```
+
+### Windows
+
+> **Note:** The main `magi` server binary requires CGO (ONNX Runtime + SQLite). Native Windows builds are not yet available in GitHub Releases. You can run MAGI on Windows via **WSL2** or **Docker Desktop**.
+
+#### Option 1: WSL2 (Recommended)
+
+Install WSL2 with Ubuntu, then follow the Linux instructions:
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+Inside WSL2:
+```bash
+# Download MAGI binary
+curl -L https://github.com/j33pguy/magi/releases/latest/download/magi-linux-amd64 -o magi
+chmod +x magi
+sudo mv magi /usr/local/bin/
+
+# Install ONNX Runtime
+sudo apt-get update
+wget https://github.com/microsoft/onnxruntime/releases/download/v1.21.1/onnxruntime-linux-x64-1.21.1.tgz
+tar xzf onnxruntime-linux-x64-*.tgz
+sudo cp onnxruntime-linux-x64-*/lib/libonnxruntime.so* /usr/local/lib/
+sudo ldconfig
+
+# Run
+export MEMORY_BACKEND=sqlite
+export MAGI_API_TOKEN=your-token
+magi --http-only
+```
+
+The server is accessible from Windows at `http://localhost:8302`.
+
+#### Option 2: Docker Desktop
+
+Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/), then:
+
+```powershell
+git clone https://github.com/j33pguy/magi
+cd magi
+docker compose up -d
+curl http://localhost:8302/health
+```
+
+#### Windows-Native Companion Tools
+
+`magi-sync` and `mcp-config` are pure Go and **do** have native Windows binaries:
+
+```powershell
+# Download magi-sync for Windows
+Invoke-WebRequest -Uri "https://github.com/j33pguy/magi/releases/latest/download/magi-sync-windows-amd64.exe" -OutFile "magi-sync.exe"
+
+# Run interactive setup
+.\magi-sync.exe init
+
+# Point it at your MAGI server (WSL2, Docker, or remote Linux host)
+```
+
+---
+
+## Companion Tools Setup
+
+### magi-sync (Cross-Machine Memory Sync)
+
+`magi-sync` watches local agent files and syncs them to a central MAGI server. Available for Linux, macOS, and Windows.
+
+**Interactive setup (recommended):**
+```bash
+magi-sync init
+```
+
+The wizard auto-detects installed agents (Claude, OpenClaw, Codex) and writes the config to `~/.config/magi-sync/config.yaml`.
+
+**Modes:**
+| Mode | Description |
+|------|-------------|
+| `init` | Interactive setup wizard |
+| `enroll` | Enroll this machine with the server |
+| `check` | Verify config and server connectivity |
+| `dry-run` | Show what would sync without uploading |
+| `once` | Sync once and exit |
+| `run` | Sync on interval (default 30s) |
+| `watch` | Sync on file changes (fsnotify) |
+
+**Systemd service for continuous sync:**
+```ini
+[Unit]
+Description=magi-sync agent
+After=network-online.target
+
+[Service]
+Type=simple
+User=your-user
+ExecStart=/usr/local/bin/magi-sync watch
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### mcp-config
+
+Generate MCP client config for your agent:
+
+```bash
+mcp-config
+# Outputs JSON config to paste into your agent's MCP settings
+```
+
+---
+
+## Auto-Deploy (CI/CD)
+
+### GitHub Actions Deploy Workflow
+
+MAGI ships with a deploy workflow (`.github/workflows/deploy.yml`) that:
+- **Auto-triggers** after a successful Release workflow
+- **Manual dispatch** with a version override via `workflow_dispatch`
+- Downloads the release binary and deploys via SSH
+
+Set these GitHub secrets for auto-deploy:
+| Secret | Description |
+|--------|-------------|
+| `MAGI_DEPLOY_HOST` | Target server hostname or IP |
+| `MAGI_DEPLOY_USER` | SSH user on the target |
+| `MAGI_DEPLOY_KEY_PATH` | Path to SSH private key on the runner |
+
+### Ansible Role
+
+The IaC repo includes an Ansible role (`ansible/roles/magi`) for idempotent deployments:
+
+```bash
+ansible-playbook playbooks/magi.yml
+# Or with a specific version:
+ansible-playbook playbooks/magi.yml -e magi_version=v0.3.10
+```
+
+The role:
+- Downloads the release binary from GitHub
+- Manages systemd service and drop-in overrides
+- Fetches API token from HashiCorp Vault
+- Configures firewall rules (Fedora/firewalld)
+- Cleans up old `claude-memory` service if present
+
+---
 
 ## Core Configuration
-
-These are the most commonly used environment variables. All values here are real and match `main.go` and `internal/`.
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
@@ -47,21 +347,19 @@ These are the most commonly used environment variables. All values here are real
 | `SQLITE_PATH` | `~/.magi/memory-local.db` | SQLite file path |
 | `POSTGRES_URL` | none | PostgreSQL connection string |
 | `MYSQL_DSN` | none | MySQL/MariaDB DSN |
-| `SQLSERVER_URL` | none | SQL Server DSN (or use `SQLSERVER_HOST`/`SQLSERVER_PORT`/`SQLSERVER_DATABASE`/`SQLSERVER_USER`/`SQLSERVER_PASSWORD`) |
-| `TURSO_URL` | none | Remote sync service URL (used when `MEMORY_BACKEND=turso`) |
-| `TURSO_AUTH_TOKEN` | none | Auth token for remote sync service |
-| `MAGI_REPLICA_PATH` | `~/.magi/memory.db` | Local replica path for sync-backed stores |
-| `MAGI_SYNC_INTERVAL` | `60s` | Replica sync interval (seconds) |
+| `SQLSERVER_URL` | none | SQL Server DSN |
+| `TURSO_URL` | none | Turso/libSQL connection string |
+| `TURSO_AUTH_TOKEN` | none | Turso auth token |
+| `MAGI_REPLICA_PATH` | `~/.magi/memory.db` | Local replica path |
+| `MAGI_SYNC_INTERVAL` | `60s` | Replica sync interval |
 | `MAGI_API_TOKEN` | empty | Admin bearer token (unset = read-only GETs only) |
-| `MAGI_MACHINE_TOKENS_JSON` | empty | Bootstrap machine tokens as JSON array |
-| `MAGI_MACHINE_TOKENS_FILE` | empty | Path to bootstrap machine token JSON file |
 | `MAGI_GRPC_PORT` | `8300` | gRPC server port |
-| `MAGI_HTTP_PORT` | `8301` | gRPC gateway (HTTP/JSON) port |
+| `MAGI_HTTP_PORT` | `8301` | gRPC gateway port |
 | `MAGI_LEGACY_HTTP_PORT` | `8302` | Legacy REST API port |
-| `MAGI_UI_ENABLED` | `true` | Enable or disable the web UI server |
 | `MAGI_UI_PORT` | `8080` | Web UI port |
+| `MAGI_UI_ENABLED` | `true` | Enable web UI |
 
-## Performance And Pipeline Tuning
+## Performance Tuning
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
@@ -71,44 +369,31 @@ These are the most commonly used environment variables. All values here are real
 | `MAGI_BATCH_FLUSH_INTERVAL` | `100ms` | Batch flush interval |
 | `MAGI_BATCH_MAX_SIZE` | `50` | Max batch size per flush |
 | `MAGI_CACHE_ENABLED` | `false` | Enable hot caches |
-| `MAGI_CACHE_QUERY_TTL` | `60s` | TTL for cached recall/search results |
-| `MAGI_CACHE_MEMORY_SIZE` | `1000` | Max memories in hot cache |
-| `MAGI_CACHE_EMBEDDING_SIZE` | `5000` | Max embeddings in hot cache |
-| `MAGI_EMBED_WORKERS` | `min(NumCPU, 8)` | Embedding worker count |
-| `MAGI_MODEL_DIR` | `~/.magi/models` | Directory for ONNX model files |
-| `ONNXRUNTIME_LIB` | empty | Override ONNX Runtime shared library path |
-| `MAGI_TURBOQUANT_ENABLED` | empty | Enable TurboQuant (if available) |
-| `MAGI_TURBOQUANT_BITS` | empty | TurboQuant bit depth |
+| `MAGI_CACHE_QUERY_TTL` | `60s` | Query cache TTL |
+| `MAGI_CACHE_MEMORY_SIZE` | `1000` | Memory cache size |
+| `MAGI_CACHE_EMBEDDING_SIZE` | `5000` | Embedding cache size |
+| `MAGI_MODEL_DIR` | `~/.magi/models` | ONNX model directory |
+| `ONNXRUNTIME_LIB` | empty | Override ONNX Runtime library path |
 
-## Auth And Secrets
-
-Auth is bearer-token based today. Set `MAGI_API_TOKEN` to enable write access and admin-only endpoints.
-
-Machine enrollment options:
-
-- `MAGI_MACHINE_TOKENS_JSON`
-- `MAGI_MACHINE_TOKENS_FILE`
-- Machine registry endpoints (see `docs/http-api.md`)
-
-Secret handling:
+## Auth & Secrets
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
+| `MAGI_MACHINE_TOKENS_JSON` | empty | Bootstrap machine tokens (JSON array) |
+| `MAGI_MACHINE_TOKENS_FILE` | empty | Path to machine token JSON file |
 | `MAGI_SECRET_MODE` | `reject` | `reject` or `externalize` |
-| `MAGI_SECRET_BACKEND` | empty | Secret backend identifier (current built-in value: `vault`) |
-| `MAGI_REDACTED` | empty | Secret backend base URL |
-| `MAGI_VAULT_TOKEN` | empty | Secret backend token |
-| `MAGI_VAULT_MOUNT` | `secret` | Secret backend KV mount |
-| `MAGI_VAULT_NAMESPACE` | empty | Optional namespace |
+| `MAGI_SECRET_BACKEND` | empty | Secret backend (e.g. `vault`) |
+| `MAGI_VAULT_TOKEN` | empty | Vault token |
+| `MAGI_VAULT_MOUNT` | `secret` | Vault KV mount |
 
 ## Git-Backed History
 
-Optional git-backed versioning uses:
-
-- `MAGI_GIT_ENABLED`
-- `MAGI_GIT_PATH`
-- `MAGI_GIT_COMMIT_MODE` (`immediate` or `batch`)
-- `MAGI_GIT_BATCH_INTERVAL` (seconds)
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `MAGI_GIT_ENABLED` | `false` | Enable git versioning |
+| `MAGI_GIT_PATH` | empty | Git repo path for memory history |
+| `MAGI_GIT_COMMIT_MODE` | `immediate` | `immediate` or `batch` |
+| `MAGI_GIT_BATCH_INTERVAL` | `60s` | Batch commit interval |
 
 ## Node Mesh (Optional)
 
@@ -119,48 +404,66 @@ Optional git-backed versioning uses:
 | `MAGI_READER_POOL_SIZE` | `8` | Reader goroutine count |
 | `MAGI_COORDINATOR_ENABLED` | `true` | Enable coordinator routing |
 
-## Example Systemd Service
-
-This example is generic and safe to adapt.
-
-```ini
-[Unit]
-Description=MAGI memory server
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-ExecStart=/opt/magi/bin/magi --http-only
-Restart=on-failure
-RestartSec=5
-
-Environment=MEMORY_BACKEND=sqlite
-Environment=MAGI_API_TOKEN=admin-token-example
-Environment=MAGI_MODEL_DIR=/opt/magi/models
-Environment=MAGI_GRPC_PORT=8300
-Environment=MAGI_HTTP_PORT=8301
-Environment=MAGI_LEGACY_HTTP_PORT=8302
-Environment=MAGI_UI_PORT=8080
-
-[Install]
-WantedBy=multi-user.target
-```
-
 ## Health Endpoints
 
-- `GET /health`
-- `GET /readyz`
-- `GET /livez`
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /health` | No | Full health (DB + git + memory count) |
+| `GET /readyz` | No | Readiness (DB accessible) |
+| `GET /livez` | No | Liveness (process alive) |
 
-These are on the legacy HTTP API port (`MAGI_LEGACY_HTTP_PORT`).
+All on the legacy HTTP port (`MAGI_LEGACY_HTTP_PORT`, default 8302).
 
-## Deployment Guidance
+## Ports Summary
 
-- Keep MAGI private by default and expose only through a trusted network boundary.
-- If you must expose it publicly, put it behind an authenticated reverse proxy and keep bearer tokens private.
-- Prefer MCP tools first; REST and gRPC mirror MCP functionality.
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 8300 | gRPC | Native gRPC clients |
+| 8301 | HTTP/JSON | gRPC-gateway reverse proxy |
+| 8302 | HTTP/JSON | Legacy REST API + health endpoints |
+| 8080 | HTTP | Web UI |
+
+## Reverse Proxy
+
+Example Traefik dynamic config:
+
+```yaml
+http:
+  routers:
+    magi-ui:
+      rule: "Host(`memory.example.com`)"
+      service: magi-ui
+      entryPoints: [websecure]
+      tls:
+        certResolver: letsencrypt
+      middlewares: [auth-middleware]
+
+    magi-api:
+      rule: "Host(`memory-api.example.com`)"
+      service: magi-api
+      entryPoints: [websecure]
+      tls:
+        certResolver: letsencrypt
+      # API uses Bearer token auth
+
+  services:
+    magi-ui:
+      loadBalancer:
+        servers:
+          - url: "http://localhost:8080"
+    magi-api:
+      loadBalancer:
+        servers:
+          - url: "http://localhost:8302"
+```
 
 ## Model Setup
 
-The ONNX model (`all-MiniLM-L6-v2`) auto-downloads to `MAGI_MODEL_DIR` on first run. For air-gapped environments, place the model files in that directory before starting the server.
+The ONNX model (`all-MiniLM-L6-v2`) auto-downloads to `MAGI_MODEL_DIR` on first run. For air-gapped environments, place the model files (`model.onnx` + `tokenizer.json`) in that directory before starting.
+
+## Deployment Guidance
+
+- Keep MAGI private by default — expose only through a trusted network boundary
+- If exposing publicly, use an authenticated reverse proxy and keep bearer tokens private
+- Prefer MCP tools first; REST and gRPC mirror MCP functionality
+- Back up your SQLite database regularly (`cp` while MAGI is running is safe with WAL mode)
