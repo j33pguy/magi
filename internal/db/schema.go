@@ -386,4 +386,30 @@ CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
 CREATE INDEX IF NOT EXISTS idx_memories_embedding ON memories(
 	libsql_vector_idx(embedding, 'metric=cosine', 'compress_neighbors=float8', 'max_neighbors=20')
 );
+
+-- Recreate FTS5 table and triggers after table recreation.
+-- The original memories table was dropped, breaking the content-sync link
+-- and dropping the triggers that kept the FTS index in sync.
+DROP TABLE IF EXISTS memories_fts;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+	content,
+	content='memories',
+	content_rowid='rowid'
+);
+
+INSERT INTO memories_fts(rowid, content) SELECT rowid, content FROM memories;
+
+CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+	INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+	INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+	INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+	INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
+END;
 `
