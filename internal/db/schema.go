@@ -35,6 +35,7 @@ func (s *Schema) run() error {
 		{8, migrationV8},
 		{9, migrationV9},
 		{10, migrationV10},
+		{11, migrationV11},
 	}
 
 	for _, m := range migrations {
@@ -412,4 +413,20 @@ CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
 	INSERT INTO memories_fts(memories_fts, rowid, content) VALUES('delete', old.rowid, old.content);
 	INSERT INTO memories_fts(rowid, content) VALUES (new.rowid, new.content);
 END;
+`
+
+// migrationV11 adds enrollment_tokens table for one-time self-enrollment.
+const migrationV11 = `
+CREATE TABLE IF NOT EXISTS enrollment_tokens (
+	id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))),
+	token_hash TEXT NOT NULL UNIQUE,
+	label TEXT NOT NULL DEFAULT '',
+	max_uses INTEGER NOT NULL DEFAULT 1,
+	use_count INTEGER NOT NULL DEFAULT 0,
+	default_user TEXT NOT NULL DEFAULT '',
+	default_groups TEXT NOT NULL DEFAULT '[]',
+	expires_at TEXT,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	revoked_at TEXT
+);
 `

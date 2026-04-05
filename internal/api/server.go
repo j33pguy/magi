@@ -28,6 +28,7 @@ type Server struct {
 	logger     *slog.Logger
 	auth       *auth.Resolver
 	machines   MachineRegistryStore
+	enrollment EnrollmentStore
 	secrets    secretstore.Manager
 	gitRepo    *vcs.Repo        // optional — nil if git versioning is disabled
 	pipeline   *pipeline.Writer // optional — nil if async writes disabled
@@ -38,6 +39,15 @@ type MachineRegistryStore interface {
 	CreateMachineCredential(cred *db.MachineCredential) (*db.MachineCredential, error)
 	ListMachineCredentials() ([]*db.MachineCredential, error)
 	RevokeMachineCredential(id string) error
+}
+
+// EnrollmentStore manages one-time enrollment tokens.
+type EnrollmentStore interface {
+	CreateEnrollmentToken(et *db.EnrollmentToken) (*db.EnrollmentToken, error)
+	GetEnrollmentTokenByHash(tokenHash string) (*db.EnrollmentToken, error)
+	IncrementEnrollmentTokenUse(id string) error
+	ListEnrollmentTokens() ([]*db.EnrollmentToken, error)
+	RevokeEnrollmentToken(id string) error
 }
 
 // TaskStore manages a separate task queue outside the memory stack.
@@ -63,6 +73,9 @@ func NewServer(dbClient db.Store, embedder embeddings.Provider, logger *slog.Log
 	s.auth = resolver
 	if machines, ok := dbClient.(MachineRegistryStore); ok {
 		s.machines = machines
+	}
+	if enrollment, ok := dbClient.(EnrollmentStore); ok {
+		s.enrollment = enrollment
 	}
 	secretManager, err := secretstore.NewFromEnv(logger)
 	if err != nil {
@@ -122,6 +135,14 @@ func NewServer(dbClient db.Store, embedder embeddings.Provider, logger *slog.Log
 	mux.HandleFunc("POST /auth/machines/enroll", s.requireAuth(s.handleEnrollMachine))
 	mux.HandleFunc("GET /auth/machines", s.requireAuth(s.handleListMachineCredentials))
 	mux.HandleFunc("POST /auth/machines/{id}/revoke", s.requireAuth(s.handleRevokeMachineCredential))
+
+	// Enrollment token management (admin-only)
+	mux.HandleFunc("POST /auth/enrollment-tokens", s.requireAuth(s.handleCreateEnrollmentToken))
+	mux.HandleFunc("GET /auth/enrollment-tokens", s.requireAuth(s.handleListEnrollmentTokens))
+	mux.HandleFunc("POST /auth/enrollment-tokens/{id}/revoke", s.requireAuth(s.handleRevokeEnrollmentToken))
+
+	// Self-enrollment: unauthenticated, burns enrollment token
+	mux.HandleFunc("POST /auth/enroll", s.handleSelfEnroll)
 	mux.HandleFunc("POST /auth/secrets/resolve", s.requireAuth(s.handleResolveSecret))
 
 	s.httpServer = &http.Server{
