@@ -37,7 +37,7 @@ MAGI handles sensitive data (AI agent memories, decisions, conversations). Key s
 - Bearer token authentication on all API endpoints
 - Machine token enrollment for magi-sync clients
 - Token-based access scoping (owner vs machine credentials)
-- Read-only mode when no auth is configured (dev mode)
+- Read-only mode enforced when no auth is configured (write methods blocked, not just logged)
 
 ### Data Protection
 - All data stored locally — no external cloud dependencies

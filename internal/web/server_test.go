@@ -286,3 +286,84 @@ func TestIsTopicTag(t *testing.T) {
 		t.Error("expected false for channel:discord")
 	}
 }
+
+func TestReadOnlyModeBlocksWrites(t *testing.T) {
+	// When MAGI_API_TOKEN is empty, write methods should be blocked.
+	t.Setenv("MAGI_API_TOKEN", "")
+	mux := newTestMux(t)
+
+	// GET should work
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, httptest.NewRequest("GET", "/api/memories", nil))
+	if rr.Code == http.StatusForbidden {
+		t.Errorf("GET should be allowed in read-only mode, got %d", rr.Code)
+	}
+
+	// POST should be blocked
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, httptest.NewRequest("POST", "/api/memories", nil))
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("POST should be blocked in read-only mode, got %d", rr.Code)
+	}
+
+	// DELETE should be blocked
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, httptest.NewRequest("DELETE", "/api/memories/abc", nil))
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("DELETE should be blocked in read-only mode, got %d", rr.Code)
+	}
+}
+
+func TestProxyAuthTrustsAllRoutes(t *testing.T) {
+	// When proxy auth is enabled, /api/* routes should also be trusted.
+	t.Setenv("MAGI_API_TOKEN", "test-secret")
+	t.Setenv("MAGI_TRUSTED_PROXY_AUTH", "true")
+	t.Setenv("MAGI_TRUSTED_PROXY_IPS", "127.0.0.1")
+	mux := newTestMux(t)
+
+	// Request with proxy header from trusted IP should reach /api/* routes
+	req := httptest.NewRequest("GET", "/api/memories", nil)
+	req.Header.Set("X-Authentik-Username", "testuser")
+	req.RemoteAddr = "127.0.0.1:12345"
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code == http.StatusUnauthorized {
+		t.Errorf("proxy-authed request to /api/* should be allowed, got %d", rr.Code)
+	}
+
+	// Request without proxy header should require bearer token
+	req2 := httptest.NewRequest("GET", "/api/memories", nil)
+	rr2 := httptest.NewRecorder()
+	mux.ServeHTTP(rr2, req2)
+	if rr2.Code != http.StatusUnauthorized {
+		t.Errorf("unauthenticated request should be 401, got %d", rr2.Code)
+	}
+}
+
+func TestProxyAuthDefaultsCIDRToLoopback(t *testing.T) {
+	// When MAGI_TRUSTED_PROXY_IPS is empty, should default to loopback.
+	t.Setenv("MAGI_API_TOKEN", "test-secret")
+	t.Setenv("MAGI_TRUSTED_PROXY_AUTH", "true")
+	t.Setenv("MAGI_TRUSTED_PROXY_IPS", "")
+	mux := newTestMux(t)
+
+	// Request from non-loopback IP with proxy header should be rejected
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("X-Authentik-Username", "attacker")
+	req.RemoteAddr = "10.5.5.99:12345"
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("non-loopback proxy request should be rejected, got %d", rr.Code)
+	}
+
+	// Request from loopback should be trusted
+	req2 := httptest.NewRequest("GET", "/", nil)
+	req2.Header.Set("X-Authentik-Username", "testuser")
+	req2.RemoteAddr = "127.0.0.1:12345"
+	rr2 := httptest.NewRecorder()
+	mux.ServeHTTP(rr2, req2)
+	if rr2.Code == http.StatusUnauthorized {
+		t.Errorf("loopback proxy request should be trusted, got %d", rr2.Code)
+	}
+}
