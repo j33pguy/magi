@@ -3,7 +3,6 @@ module github.com/j33pguy/magi
 go 1.25.7
 
 require (
-	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.17.2
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
@@ -12,11 +11,10 @@ require (
 	github.com/microsoft/go-mssqldb v1.9.8
 	github.com/prometheus/client_golang v1.23.2
 	github.com/tursodatabase/go-libsql v0.0.0-20251219133454-43644db490ff
-	github.com/yalue/onnxruntime_go v1.17.0
+	github.com/yalue/onnxruntime_go v1.27.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260319201613-d00831a3d3e7
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
