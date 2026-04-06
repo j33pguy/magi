@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.4.0
+
+### Features
+- **Self-enrollment token flow** (#140) — machines can self-register with enrollment tokens
+- **Procedure type + auto-type inference + agent guide** (#138) — new `procedure` memory type with automatic type inference
+
+### Fixes
+- **Enforce read-only mode, default proxy CIDR to loopback** (#139) — web UI respects read-only flag, proxy defaults to 127.0.0.0/8
+- **Wire EnrollmentStore via SetEnrollmentStore** — enrollment store properly initialized at startup
+
+### Docs
+- Self-enrollment endpoints documentation
+- `ghrepo` tag convention for repository-scoped memories
+
+### Ecosystem
+- **magi-sync** extracted to [j33pguy/magi-sync](https://github.com/j33pguy/magi-sync)
+- **magi-ui** extracted to [j33pguy/magi-ui](https://github.com/j33pguy/magi-ui)
+
+### CI
+- Test auth isolation via `TestMain` + `autoAuthMux` pattern
+
 ## v0.3.9
 
 ### Fixes

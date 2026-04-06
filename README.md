@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/j33pguy/magi/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/j33pguy/magi/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-v0.3.9-informational">
+  <img alt="Version" src="https://img.shields.io/badge/version-v0.4.0-informational">
   <img alt="License" src="https://img.shields.io/badge/License-ELv2-blue">
   <img alt="Self-Hosted" src="https://img.shields.io/badge/Self--Hosted-Yes-success">
   <img alt="Model Agnostic" src="https://img.shields.io/badge/Model--Agnostic-Yes-success">
