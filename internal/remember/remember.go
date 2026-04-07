@@ -134,9 +134,20 @@ func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider,
 	match, err := store.FindSimilar(embedding, groupDistance)
 	if err != nil {
 		logger.Warn("dedup check failed, proceeding with insert", "error", err)
-	} else if match != nil && match.Distance <= maxDistance {
-		logger.Info("deduplicated memory", "existing_id", match.Memory.ID, "distance", match.Distance)
-		return &Result{Deduplicated: true, Match: match}, nil
+	} else if match != nil {
+		// Do not dedupe across projects. This avoids suppressing writes for
+		// distinct project buckets (e.g. benchmark per-question projects).
+		if input.Project != "" && match.Memory != nil && match.Memory.Project != input.Project {
+			logger.Debug("ignoring cross-project dedupe candidate",
+				"input_project", input.Project,
+				"match_project", match.Memory.Project,
+				"match_id", match.Memory.ID,
+			)
+			match = nil
+		} else if match.Distance <= maxDistance {
+			logger.Info("deduplicated memory", "existing_id", match.Memory.ID, "distance", match.Distance)
+			return &Result{Deduplicated: true, Match: match}, nil
+		}
 	}
 
 	memory := &db.Memory{

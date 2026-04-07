@@ -121,3 +121,76 @@ func TestRememberRejectsSecretsWithoutManager(t *testing.T) {
 		t.Fatalf("expected SecretError, got %T", err)
 	}
 }
+
+func TestRememberDedupesWithinProject(t *testing.T) {
+	store := newRememberStore(t)
+	embedder := &testEmbedder{}
+	opts := Options{Logger: slog.Default(), TagMode: TagModeWarn}
+
+	first, err := Remember(context.Background(), store, embedder, Input{
+		Content: "same content for same project",
+		Project: "proj-a",
+	}, opts)
+	if err != nil {
+		t.Fatalf("first remember: %v", err)
+	}
+	if first.Deduplicated {
+		t.Fatal("first remember should not dedupe")
+	}
+
+	second, err := Remember(context.Background(), store, embedder, Input{
+		Content: "same content for same project",
+		Project: "proj-a",
+	}, opts)
+	if err != nil {
+		t.Fatalf("second remember: %v", err)
+	}
+	if !second.Deduplicated {
+		t.Fatal("second remember should dedupe within same project")
+	}
+
+	mems, err := store.ListMemories(&db.MemoryFilter{Project: "proj-a", Limit: 10})
+	if err != nil {
+		t.Fatalf("ListMemories: %v", err)
+	}
+	if len(mems) != 1 {
+		t.Fatalf("memories in proj-a = %d, want 1", len(mems))
+	}
+}
+
+func TestRememberDoesNotDedupeAcrossProjects(t *testing.T) {
+	store := newRememberStore(t)
+	embedder := &testEmbedder{}
+	opts := Options{Logger: slog.Default(), TagMode: TagModeWarn}
+
+	_, err := Remember(context.Background(), store, embedder, Input{
+		Content: "same content across projects",
+		Project: "proj-a",
+	}, opts)
+	if err != nil {
+		t.Fatalf("remember proj-a: %v", err)
+	}
+
+	second, err := Remember(context.Background(), store, embedder, Input{
+		Content: "same content across projects",
+		Project: "proj-b",
+	}, opts)
+	if err != nil {
+		t.Fatalf("remember proj-b: %v", err)
+	}
+	if second.Deduplicated {
+		t.Fatal("remember in proj-b should not dedupe against proj-a")
+	}
+
+	memA, err := store.ListMemories(&db.MemoryFilter{Project: "proj-a", Limit: 10})
+	if err != nil {
+		t.Fatalf("ListMemories proj-a: %v", err)
+	}
+	memB, err := store.ListMemories(&db.MemoryFilter{Project: "proj-b", Limit: 10})
+	if err != nil {
+		t.Fatalf("ListMemories proj-b: %v", err)
+	}
+	if len(memA) != 1 || len(memB) != 1 {
+		t.Fatalf("expected 1 memory per project, got proj-a=%d proj-b=%d", len(memA), len(memB))
+	}
+}
