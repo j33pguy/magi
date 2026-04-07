@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 
 	ort "github.com/yalue/onnxruntime_go"
@@ -50,6 +51,30 @@ func newWorkerSession(modelPath string) (*workerSession, error) {
 	batchSize := int64(1)
 	seqLen := int64(maxTokenLen)
 
+	sessionOptions, err := ort.NewSessionOptions()
+	if err != nil {
+		return nil, fmt.Errorf("creating session options: %w", err)
+	}
+	defer sessionOptions.Destroy()
+
+	intraThreads := onnxThreadEnv("MAGI_ONNX_INTRA_THREADS", 1)
+	interThreads := onnxThreadEnv("MAGI_ONNX_INTER_THREADS", 1)
+	if err := sessionOptions.SetIntraOpNumThreads(intraThreads); err != nil {
+		return nil, fmt.Errorf("setting intra-op threads: %w", err)
+	}
+	if err := sessionOptions.SetInterOpNumThreads(interThreads); err != nil {
+		return nil, fmt.Errorf("setting inter-op threads: %w", err)
+	}
+	if os.Getenv("MAGI_ONNX_EXECUTION_MODE") == "parallel" {
+		if err := sessionOptions.SetExecutionMode(ort.ExecutionModeParallel); err != nil {
+			return nil, fmt.Errorf("setting execution mode parallel: %w", err)
+		}
+	} else {
+		if err := sessionOptions.SetExecutionMode(ort.ExecutionModeSequential); err != nil {
+			return nil, fmt.Errorf("setting execution mode sequential: %w", err)
+		}
+	}
+
 	inputIDsTensor, err := ort.NewTensor(ort.NewShape(batchSize, seqLen), make([]int64, batchSize*seqLen))
 	if err != nil {
 		return nil, fmt.Errorf("creating input_ids tensor: %w", err)
@@ -79,7 +104,7 @@ func newWorkerSession(modelPath string) (*workerSession, error) {
 		[]string{"last_hidden_state"},
 		[]ort.Value{inputIDsTensor, maskTensor, typeTensor},
 		[]ort.Value{outputTensor},
-		nil,
+		sessionOptions,
 	)
 	if err != nil {
 		inputIDsTensor.Destroy()
@@ -323,6 +348,18 @@ func meanPool(data []float32, mask []int64, seqLen, embDim int) []float32 {
 	}
 
 	return embedding
+}
+
+func onnxThreadEnv(name string, def int) int {
+	v := os.Getenv(name)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 {
+		return def
+	}
+	return n
 }
 
 // findOnnxRuntimeLib searches common locations for the ONNX Runtime shared library.

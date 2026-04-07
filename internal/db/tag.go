@@ -65,6 +65,7 @@ func (c *Client) setTagsNoTx(memoryID string, tags []string) error {
 		return fmt.Errorf("clearing tags: %w", err)
 	}
 
+	tags = normalizeTags(tags)
 	if len(tags) == 0 {
 		return nil
 	}

@@ -720,6 +720,7 @@ func (c *MySQLClient) SetTags(memoryID string, tags []string) error {
 		return fmt.Errorf("clearing tags: %w", err)
 	}
 
+	tags = normalizeTags(tags)
 	if len(tags) == 0 {
 		return tx.Commit()
 	}

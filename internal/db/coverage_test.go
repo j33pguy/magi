@@ -2052,16 +2052,22 @@ func TestCov_ErrorPath_RunMigrationMarkAppliedFail(t *testing.T) {
 	_, _ = c.DB.Exec("DROP TRIGGER IF EXISTS block_mark_v7")
 }
 
-// SetTags insert error (after delete succeeds) — duplicate tags cause PK violation
-func TestCov_ErrorPath_SetTagsInsertFail(t *testing.T) {
+// SetTags de-duplicates input tags to avoid PK violations.
+func TestCov_SetTagsDedupesInput(t *testing.T) {
 	c := newTestSQLiteClient(t)
 
-	saved, _ := c.SaveMemory(&Memory{Content: "insert fail", Embedding: zeroEmbedding(), Project: "p", Type: "memory", Visibility: "internal"})
+	saved, _ := c.SaveMemory(&Memory{Content: "dedupe", Embedding: zeroEmbedding(), Project: "p", Type: "memory", Visibility: "internal"})
 
-	// Pass duplicate tags to trigger PRIMARY KEY violation in the batched INSERT
-	err := c.SetTags(saved.ID, []string{"dup", "dup"})
-	if err == nil {
-		t.Error("expected error for duplicate tags (PK violation)")
+	if err := c.SetTags(saved.ID, []string{"dup", "dup", " dup ", ""}); err != nil {
+		t.Fatalf("SetTags: %v", err)
+	}
+
+	tags, err := c.GetTags(saved.ID)
+	if err != nil {
+		t.Fatalf("GetTags: %v", err)
+	}
+	if len(tags) != 1 || tags[0] != "dup" {
+		t.Fatalf("tags = %v, want [dup]", tags)
 	}
 }
 
