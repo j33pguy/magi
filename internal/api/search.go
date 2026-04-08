@@ -2,10 +2,12 @@ package api
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/rewrite"
 	"github.com/j33pguy/magi/internal/search"
 )
 
@@ -54,6 +56,28 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Optional rewrite fallback: run a second retrieval pass with deterministic
+	// query rewriting and merge candidates. Enable with rewrite_fallback=1.
+	if q.Get("rewrite_fallback") == "1" {
+		rewritten := rewrite.Query(query)
+		if rewritten != "" && rewritten != query {
+			rewrittenEmbedding, rerr := s.embedder.Embed(r.Context(), rewritten)
+			if rerr != nil {
+				s.logger.Warn("rewrite fallback embedding failed", "error", rerr)
+			} else {
+				extra, herr := s.db.HybridSearch(rewrittenEmbedding, rewritten, filter, topK*2)
+				if herr != nil {
+					s.logger.Warn("rewrite fallback search failed", "error", herr)
+				} else if len(extra) > 0 {
+					results = mergeHybridResults(results, extra)
+					if len(results) > topK {
+						results = results[:topK]
+					}
+				}
+			}
+		}
+	}
+
 	for _, result := range results {
 		if result.Memory.ParentID != "" {
 			parent, err := s.db.GetMemory(result.Memory.ParentID)
@@ -69,4 +93,40 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	search.ApplyRecencyWeighting(results, recencyDecay)
 
 	writeJSON(w, http.StatusOK, results)
+}
+
+func mergeHybridResults(primary, secondary []*db.HybridResult) []*db.HybridResult {
+	merged := make([]*db.HybridResult, 0, len(primary)+len(secondary))
+	seen := make(map[string]*db.HybridResult, len(primary)+len(secondary))
+
+	for _, r := range primary {
+		if r == nil || r.Memory == nil || r.Memory.ID == "" {
+			continue
+		}
+		copyR := *r
+		seen[r.Memory.ID] = &copyR
+		merged = append(merged, &copyR)
+	}
+
+	for _, r := range secondary {
+		if r == nil || r.Memory == nil || r.Memory.ID == "" {
+			continue
+		}
+		if existing, ok := seen[r.Memory.ID]; ok {
+			if r.Score > existing.Score {
+				existing.Score = r.Score
+				existing.Distance = r.Distance
+				existing.Memory = r.Memory
+			}
+			continue
+		}
+		copyR := *r
+		seen[r.Memory.ID] = &copyR
+		merged = append(merged, &copyR)
+	}
+
+	sort.SliceStable(merged, func(i, j int) bool {
+		return merged[i].Score > merged[j].Score
+	})
+	return merged
 }

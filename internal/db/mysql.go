@@ -611,14 +611,29 @@ func (c *MySQLClient) GetContextMemories(project string, limit int) ([]*Memory, 
 // FindSimilar returns the single closest non-archived memory by cosine distance.
 // Returns nil if no memories exist or the closest distance exceeds maxDistance.
 func (c *MySQLClient) FindSimilar(embedding []float32, maxDistance float64) (*VectorResult, error) {
-	rows, err := c.DB.Query(`
+	return c.findSimilarWithProject("", embedding, maxDistance)
+}
+
+// FindSimilarInProject is project-scoped similarity lookup.
+func (c *MySQLClient) FindSimilarInProject(project string, embedding []float32, maxDistance float64) (*VectorResult, error) {
+	return c.findSimilarWithProject(project, embedding, maxDistance)
+}
+
+func (c *MySQLClient) findSimilarWithProject(project string, embedding []float32, maxDistance float64) (*VectorResult, error) {
+	query := `
 		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
 		       m.parent_id, m.chunk_index, m.speaker, m.area, m.sub_area,
 		       m.created_at, m.updated_at, m.archived_at, m.token_count,
 		       m.embedding
 		FROM memories m
-		WHERE m.archived_at IS NULL AND m.embedding IS NOT NULL
-	`)
+		WHERE m.archived_at IS NULL AND m.embedding IS NOT NULL`
+	args := []any{}
+	if project != "" {
+		query += " AND m.project = ?"
+		args = append(args, project)
+	}
+
+	rows, err := c.DB.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("finding similar memory: %w", err)
 	}

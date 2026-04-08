@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -596,7 +598,7 @@ func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryF
 	if topK <= 0 {
 		topK = 10
 	}
-	fetchK := topK * 3 // over-fetch to have enough for fusion
+	fetchK := topK * hybridFetchMultiplier() // over-fetch to have enough for fusion
 
 	// Run vector and BM25 searches concurrently.
 	var (
@@ -626,7 +628,9 @@ func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryF
 	}
 
 	// Build RRF score map keyed by memory ID.
-	const k = 60.0
+	k := hybridRRFK()
+	vecWeight := hybridVectorWeight()
+	bm25Weight := hybridBM25Weight()
 	type entry struct {
 		memory   *Memory
 		rrfScore float64
@@ -638,19 +642,19 @@ func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryF
 
 	for rank, r := range vecResults {
 		e := &entry{memory: r.Memory, vecRank: rank + 1, distance: r.Distance}
-		e.rrfScore += 1.0 / (k + float64(rank+1))
+		e.rrfScore += vecWeight / (k + float64(rank+1))
 		scored[r.Memory.ID] = e
 	}
 
 	for rank, r := range bm25Results {
 		if e, ok := scored[r.Memory.ID]; ok {
 			e.bm25Rank = rank + 1
-			e.rrfScore += 1.0 / (k + float64(rank+1))
+			e.rrfScore += bm25Weight / (k + float64(rank+1))
 		} else {
 			scored[r.Memory.ID] = &entry{
 				memory:   r.Memory,
 				bm25Rank: rank + 1,
-				rrfScore: 1.0 / (k + float64(rank+1)),
+				rrfScore: bm25Weight / (k + float64(rank+1)),
 			}
 		}
 	}
@@ -761,20 +765,34 @@ func (c *Client) GetContextMemories(project string, limit int) ([]*Memory, error
 // FindSimilar returns the single closest non-archived memory by cosine distance.
 // Returns nil if no memories exist or the closest distance exceeds maxDistance.
 func (c *Client) FindSimilar(embedding []float32, maxDistance float64) (*VectorResult, error) {
+	return c.findSimilarWithProject("", embedding, maxDistance)
+}
+
+// FindSimilarInProject is project-scoped similarity lookup.
+func (c *Client) FindSimilarInProject(project string, embedding []float32, maxDistance float64) (*VectorResult, error) {
+	return c.findSimilarWithProject(project, embedding, maxDistance)
+}
+
+func (c *Client) findSimilarWithProject(project string, embedding []float32, maxDistance float64) (*VectorResult, error) {
 	var m Memory
 	var summary, source, sourceFile, parentID, archivedAt sql.NullString
 	var distance float64
 
-	err := c.DB.QueryRow(`
+	query := `
 		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
 		       m.parent_id, m.chunk_index, m.speaker, m.area, m.sub_area,
 		       m.created_at, m.updated_at, m.archived_at, m.token_count,
 		       vector_distance_cos(m.embedding, vector32(?)) AS distance
 		FROM memories m
-		WHERE m.archived_at IS NULL
-		ORDER BY distance ASC
-		LIMIT 1
-	`, float32sToBytes(embedding)).Scan(
+		WHERE m.archived_at IS NULL`
+	args := []any{float32sToBytes(embedding)}
+	if project != "" {
+		query += " AND m.project = ?"
+		args = append(args, project)
+	}
+	query += " ORDER BY distance ASC LIMIT 1"
+
+	err := c.DB.QueryRow(query, args...).Scan(
 		&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
 		&source, &sourceFile, &parentID, &m.ChunkIndex,
 		&m.Speaker, &m.Area, &m.SubArea,
@@ -805,6 +823,54 @@ func (c *Client) FindSimilar(embedding []float32, maxDistance float64) (*VectorR
 	m.Tags = tags
 
 	return &VectorResult{Memory: &m, Distance: distance}, nil
+}
+
+func hybridFetchMultiplier() int {
+	v := strings.TrimSpace(os.Getenv("MAGI_HYBRID_FETCH_MULTIPLIER"))
+	if v == "" {
+		return 3
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 {
+		return 3
+	}
+	return n
+}
+
+func hybridRRFK() float64 {
+	v := strings.TrimSpace(os.Getenv("MAGI_HYBRID_RRF_K"))
+	if v == "" {
+		return 60.0
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || f <= 0 {
+		return 60.0
+	}
+	return f
+}
+
+func hybridVectorWeight() float64 {
+	v := strings.TrimSpace(os.Getenv("MAGI_HYBRID_VECTOR_WEIGHT"))
+	if v == "" {
+		return 1.0
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || f <= 0 {
+		return 1.0
+	}
+	return f
+}
+
+func hybridBM25Weight() float64 {
+	v := strings.TrimSpace(os.Getenv("MAGI_HYBRID_BM25_WEIGHT"))
+	if v == "" {
+		return 1.0
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || f <= 0 {
+		return 1.0
+	}
+	return f
 }
 
 func nullString(s string) sql.NullString {

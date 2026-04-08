@@ -65,6 +65,12 @@ func (e *SecretError) Error() string {
 	return fmt.Sprintf("Content may contain secrets: %s. Remove sensitive data before storing.", e.Warning)
 }
 
+// Optional extension for project-scoped similarity lookup.
+// Implemented by concrete DB clients for benchmark-safe dedupe behavior.
+type projectSimilarFinder interface {
+	FindSimilarInProject(project string, embedding []float32, maxDistance float64) (*db.VectorResult, error)
+}
+
 // Remember runs enrichment, dedup, save, tags, and contradiction detection.
 func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider, input Input, opts Options) (*Result, error) {
 	if input.Content == "" {
@@ -131,12 +137,31 @@ func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider,
 	maxDistance := 1.0 - dedupThreshold
 	groupDistance := 0.15 // 1.0 - 0.85
 
-	match, err := store.FindSimilar(embedding, groupDistance)
-	if err != nil {
-		logger.Warn("dedup check failed, proceeding with insert", "error", err)
-	} else if match != nil && match.Distance <= maxDistance {
-		logger.Info("deduplicated memory", "existing_id", match.Memory.ID, "distance", match.Distance)
-		return &Result{Deduplicated: true, Match: match}, nil
+	var (
+		match  *db.VectorResult
+		simErr error
+	)
+	if ps, ok := store.(projectSimilarFinder); ok && input.Project != "" {
+		match, simErr = ps.FindSimilarInProject(input.Project, embedding, groupDistance)
+	} else {
+		match, simErr = store.FindSimilar(embedding, groupDistance)
+	}
+	if simErr != nil {
+		logger.Warn("dedup check failed, proceeding with insert", "error", simErr)
+	} else if match != nil {
+		// Do not dedupe across projects. This avoids suppressing writes for
+		// distinct project buckets (e.g. benchmark per-question projects).
+		if input.Project != "" && match.Memory != nil && match.Memory.Project != input.Project {
+			logger.Debug("ignoring cross-project dedupe candidate",
+				"input_project", input.Project,
+				"match_project", match.Memory.Project,
+				"match_id", match.Memory.ID,
+			)
+			match = nil
+		} else if match.Distance <= maxDistance {
+			logger.Info("deduplicated memory", "existing_id", match.Memory.ID, "distance", match.Distance)
+			return &Result{Deduplicated: true, Match: match}, nil
+		}
 	}
 
 	memory := &db.Memory{
