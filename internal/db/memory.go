@@ -761,20 +761,34 @@ func (c *Client) GetContextMemories(project string, limit int) ([]*Memory, error
 // FindSimilar returns the single closest non-archived memory by cosine distance.
 // Returns nil if no memories exist or the closest distance exceeds maxDistance.
 func (c *Client) FindSimilar(embedding []float32, maxDistance float64) (*VectorResult, error) {
+	return c.findSimilarWithProject("", embedding, maxDistance)
+}
+
+// FindSimilarInProject is project-scoped similarity lookup.
+func (c *Client) FindSimilarInProject(project string, embedding []float32, maxDistance float64) (*VectorResult, error) {
+	return c.findSimilarWithProject(project, embedding, maxDistance)
+}
+
+func (c *Client) findSimilarWithProject(project string, embedding []float32, maxDistance float64) (*VectorResult, error) {
 	var m Memory
 	var summary, source, sourceFile, parentID, archivedAt sql.NullString
 	var distance float64
 
-	err := c.DB.QueryRow(`
+	query := `
 		SELECT m.id, m.content, m.summary, m.project, m.type, m.visibility, m.source, m.source_file,
 		       m.parent_id, m.chunk_index, m.speaker, m.area, m.sub_area,
 		       m.created_at, m.updated_at, m.archived_at, m.token_count,
 		       vector_distance_cos(m.embedding, vector32(?)) AS distance
 		FROM memories m
-		WHERE m.archived_at IS NULL
-		ORDER BY distance ASC
-		LIMIT 1
-	`, float32sToBytes(embedding)).Scan(
+		WHERE m.archived_at IS NULL`
+	args := []any{float32sToBytes(embedding)}
+	if project != "" {
+		query += " AND m.project = ?"
+		args = append(args, project)
+	}
+	query += " ORDER BY distance ASC LIMIT 1"
+
+	err := c.DB.QueryRow(query, args...).Scan(
 		&m.ID, &m.Content, &summary, &m.Project, &m.Type, &m.Visibility,
 		&source, &sourceFile, &parentID, &m.ChunkIndex,
 		&m.Speaker, &m.Area, &m.SubArea,
