@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -596,7 +598,7 @@ func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryF
 	if topK <= 0 {
 		topK = 10
 	}
-	fetchK := topK * 3 // over-fetch to have enough for fusion
+	fetchK := topK * hybridFetchMultiplier() // over-fetch to have enough for fusion
 
 	// Run vector and BM25 searches concurrently.
 	var (
@@ -626,7 +628,9 @@ func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryF
 	}
 
 	// Build RRF score map keyed by memory ID.
-	const k = 60.0
+	k := hybridRRFK()
+	vecWeight := hybridVectorWeight()
+	bm25Weight := hybridBM25Weight()
 	type entry struct {
 		memory   *Memory
 		rrfScore float64
@@ -638,19 +642,19 @@ func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryF
 
 	for rank, r := range vecResults {
 		e := &entry{memory: r.Memory, vecRank: rank + 1, distance: r.Distance}
-		e.rrfScore += 1.0 / (k + float64(rank+1))
+		e.rrfScore += vecWeight / (k + float64(rank+1))
 		scored[r.Memory.ID] = e
 	}
 
 	for rank, r := range bm25Results {
 		if e, ok := scored[r.Memory.ID]; ok {
 			e.bm25Rank = rank + 1
-			e.rrfScore += 1.0 / (k + float64(rank+1))
+			e.rrfScore += bm25Weight / (k + float64(rank+1))
 		} else {
 			scored[r.Memory.ID] = &entry{
 				memory:   r.Memory,
 				bm25Rank: rank + 1,
-				rrfScore: 1.0 / (k + float64(rank+1)),
+				rrfScore: bm25Weight / (k + float64(rank+1)),
 			}
 		}
 	}
@@ -819,6 +823,54 @@ func (c *Client) findSimilarWithProject(project string, embedding []float32, max
 	m.Tags = tags
 
 	return &VectorResult{Memory: &m, Distance: distance}, nil
+}
+
+func hybridFetchMultiplier() int {
+	v := strings.TrimSpace(os.Getenv("MAGI_HYBRID_FETCH_MULTIPLIER"))
+	if v == "" {
+		return 3
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 {
+		return 3
+	}
+	return n
+}
+
+func hybridRRFK() float64 {
+	v := strings.TrimSpace(os.Getenv("MAGI_HYBRID_RRF_K"))
+	if v == "" {
+		return 60.0
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || f <= 0 {
+		return 60.0
+	}
+	return f
+}
+
+func hybridVectorWeight() float64 {
+	v := strings.TrimSpace(os.Getenv("MAGI_HYBRID_VECTOR_WEIGHT"))
+	if v == "" {
+		return 1.0
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || f <= 0 {
+		return 1.0
+	}
+	return f
+}
+
+func hybridBM25Weight() float64 {
+	v := strings.TrimSpace(os.Getenv("MAGI_HYBRID_BM25_WEIGHT"))
+	if v == "" {
+		return 1.0
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || f <= 0 {
+		return 1.0
+	}
+	return f
 }
 
 func nullString(s string) sql.NullString {
