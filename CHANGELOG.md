@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.1
+
+### Features
+- **Hybrid search tuning knobs** (#144) — configurable RRF constant, fetch multiplier, and vector/BM25 weights via `MAGI_HYBRID_RRF_K`, `MAGI_HYBRID_FETCH_MULTIPLIER`, `MAGI_HYBRID_VECTOR_WEIGHT`, `MAGI_HYBRID_BM25_WEIGHT`
+- **Search rewrite fallback** (#144) — optional `rewrite_fallback=1` parameter on `GET /search` re-runs the query with a deterministic rewrite when the first pass returns no results
+- **Project-scoped deduplication** (#144) — dedupe now respects project boundaries; same content in different projects creates separate memories
+
+### Fixes
+- **Cross-project dedupe prevention** (#144) — memories in different projects are no longer incorrectly deduplicated against each other
+- **Tag deduplication** — `normalizeTags` now removes duplicate tags before storage
+- **Explicit ONNX threading** — ONNX runtime thread counts configurable via `MAGI_ONNX_INTRA_THREADS`, `MAGI_ONNX_INTER_THREADS`, `MAGI_ONNX_EXECUTION_MODE`
+
+### Deps
+- Bump `onnxruntime_go` (#142)
+- Bump `actions/github-script` from 7 to 8 (#141)
+
 ## v0.4.0
 
 ### Features

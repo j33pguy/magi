@@ -11,17 +11,13 @@ MAGI is the shared memory store. Every agent session (main, sub-agent, cron, Dis
 ## Connection
 
 ```
-MAGI_URL=http://10.5.5.45:8302
+MAGI_URL=http://localhost:8302
 ```
 
-Authentication requires an API token from Vault:
+Authentication requires an API token. Set via `MAGI_API_TOKEN` environment variable or retrieve from your secret backend:
 
 ```bash
-VAULT_TOKEN=$(curl -sk -X POST https://10.5.5.30:8200/v1/auth/approle/login \
-  -d '{"role_id":"<role_id>","secret_id":"<secret_id>"}' \
-  | jq -r '.auth.client_token')
-API_TOKEN=$(curl -sk -H "X-Vault-Token: $VAULT_TOKEN" \
-  https://10.5.5.30:8200/v1/homelab/data/claude_memory | jq -r '.data.data.api_token')
+API_TOKEN=$MAGI_API_TOKEN
 ```
 
 All requests need `Authorization: Bearer $API_TOKEN`.
@@ -29,7 +25,7 @@ All requests need `Authorization: Bearer $API_TOKEN`.
 ## Health Check (every session start)
 
 ```bash
-curl -s --max-time 3 http://10.5.5.45:8302/health
+curl -s --max-time 3 http://$MAGI_HOST:8302/health
 ```
 
 Expected: `{"ok":true, ...}`. If this fails, **stop and alert j33p**. Do not work without memory.
@@ -41,7 +37,7 @@ Expected: `{"ok":true, ...}`. If this fails, **stop and alert j33p**. Do not wor
 ### Remember (store knowledge)
 
 ```bash
-curl -s -X POST http://10.5.5.45:8302/remember \
+curl -s -X POST http://$MAGI_HOST:8302/remember \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -55,7 +51,7 @@ curl -s -X POST http://10.5.5.45:8302/remember \
 ### Recall (search knowledge)
 
 ```bash
-curl -s -X POST http://10.5.5.45:8302/recall \
+curl -s -X POST http://$MAGI_HOST:8302/recall \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query": "how to unseal vault", "limit": 5}'
@@ -64,7 +60,7 @@ curl -s -X POST http://10.5.5.45:8302/recall \
 ### Search conversations
 
 ```bash
-curl -s -X POST http://10.5.5.45:8302/conversations/search \
+curl -s -X POST http://$MAGI_HOST:8302/conversations/search \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query": "vault unsealing procedure", "limit": 10}'
@@ -73,7 +69,7 @@ curl -s -X POST http://10.5.5.45:8302/conversations/search \
 ### Delete (remove noise/duplicates)
 
 ```bash
-curl -s -X DELETE "http://10.5.5.45:8302/memories/<id>" \
+curl -s -X DELETE "http://$MAGI_HOST:8302/memories/<id>" \
   -H "Authorization: Bearer $API_TOKEN"
 ```
 
@@ -85,13 +81,13 @@ Use the correct `type` when storing memories. If omitted, MAGI auto-classifies b
 
 | Type | Use For | Example |
 |------|---------|---------|
-| `memory` | General facts, state, context | "pihole-01 is at 10.5.5.11 on VLAN 5" |
+| `memory` | General facts, state, context | "pihole-01 is the primary DNS server on VLAN 5" |
 | `procedure` | How-to guides, runbooks, step-by-step | "How to deploy Traefik: step 1..." |
 | `decision` | Choices made and why | "Decided to use gRPC over REST for all internal services" |
 | `incident` | Outages, failures, postmortems | "Vault outage caused by missing firewall zone ID" |
 | `task` | Work items, tracking | "[QUEUED] Fix privacy filter" |
 | `conversation` | Session summaries | "Discussed VLAN migration and DNS changes" |
-| `state` | Current infrastructure state | "pve-01 is at 10.5.75.30 with 120GB RAM" |
+| `state` | Current infrastructure state | "pve-01 has 120GB RAM, running Proxmox 8.2" |
 
 ### Auto-classification
 
@@ -107,59 +103,48 @@ You can always override by setting `type` explicitly.
 
 ## Work Tracking
 
-Every task j33p requests gets tracked through MAGI:
+MAGI has a dedicated task queue for tracking work. Use the task API (or MCP tools `create_task`, `update_task`, `list_tasks`, `add_task_event`) instead of embedding status markers in memory content.
 
-### Lifecycle
+### Task Lifecycle
 
 ```
-[QUEUED] → [RUNNING] → [DONE]
-                     → [BLOCKED]
+queued → started → done
+                 → failed
+                 → blocked
+                 → canceled
 ```
 
-### Queue a task
+### Create a task
 ```bash
-curl -s -X POST http://10.5.5.45:8302/remember \
+curl -s -X POST http://$MAGI_HOST:8302/task \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "content": "[QUEUED] Deploy new Traefik config with wildcard cert",
-    "type": "task",
-    "tags": ["work-tracking", "active", "traefik"],
-    "source": "discord"
+    "title": "Deploy new Traefik config with wildcard cert",
+    "project": "infrastructure",
+    "priority": "high",
+    "status": "queued"
   }'
 ```
 
-### Update status
+### Update task status
 ```bash
-curl -s -X POST http://10.5.5.45:8302/remember \
+curl -s -X PATCH http://$MAGI_HOST:8302/task/<id> \
   -H "Authorization: Bearer $API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "content": "[RUNNING] Deploy new Traefik config — branch feat/wildcard-cert, agent: dinesh",
-    "type": "task",
-    "tags": ["work-tracking", "active", "traefik"]
+    "status": "done",
+    "status_comment": "PR #42 merged, verified on all routes"
   }'
 ```
 
-### Complete
+### List active tasks
 ```bash
-curl -s -X POST http://10.5.5.45:8302/remember \
-  -H "Authorization: Bearer $API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content": "[DONE] Traefik wildcard cert deployed — PR #42 merged, verified on all routes",
-    "type": "task",
-    "tags": ["work-tracking", "traefik"]
-  }'
+curl -s "http://$MAGI_HOST:8302/task?status=queued&status=started" \
+  -H "Authorization: Bearer $API_TOKEN"
 ```
 
-### Check active work before starting
-```bash
-curl -s -X POST http://10.5.5.45:8302/conversations/search \
-  -H "Authorization: Bearer $API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "work-tracking active queued running", "limit": 10}'
-```
+See `task-queue.md` for the full task model, event types, and MCP tool reference.
 
 ---
 
@@ -233,7 +218,7 @@ detects a git remote, and can be set manually when indexing project state:
 
 ```json
 {
-  "content": "MAGI v0.3.10 — Universal memory server for AI agents.",
+  "content": "MAGI — Universal memory server for AI agents.",
   "type": "state",
   "tags": ["ghrepo:j33pguy/magi", "project", "inventory"],
   "project": "magi"
@@ -273,7 +258,7 @@ If your agent supports MCP (Model Context Protocol), MAGI exposes tools directly
 - `index_turn` — Index a conversation turn
 - `index_session` — Index a full session summary
 
-MCP server runs on port 8301 (gRPC) or via stdio. See `docs/mcp.md` for setup.
+MCP server runs on port 8301 (gRPC) or via stdio. See `docs/mcp-tools.md` for setup.
 
 ---
 
@@ -282,7 +267,7 @@ MCP server runs on port 8301 (gRPC) or via stdio. See `docs/mcp.md` for setup.
 ### Store a procedure
 ```json
 {
-  "content": "How to restart MAGI on magi01:\n1. SSH: ssh ansible@10.5.5.45\n2. Pull latest: cd /opt/magi/src && sudo git pull\n3. Build: sudo go build -o ../bin/magi .\n4. Restart: sudo systemctl restart magi\n5. Verify: curl -s http://10.5.5.45:8302/health",
+  "content": "How to restart MAGI:\n1. Pull latest: cd /opt/magi/src && sudo git pull\n2. Build: sudo go build -o ../bin/magi .\n3. Restart: sudo systemctl restart magi\n4. Verify: curl -s http://localhost:8302/health",
   "type": "procedure",
   "tags": ["magi", "infrastructure", "runbook"],
   "source": "discord"
