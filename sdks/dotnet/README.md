@@ -22,3 +22,13 @@ var results = await magi.RecallAsync(new() { Query = "API changes", Limit = 5 })
 foreach (var r in results.Results)
     Console.WriteLine($"{r.Score:F2} — {r.Memory.Content}");
 ```
+
+## Available Methods
+
+| Method | Description |
+|--------|-------------|
+| `RememberAsync(RememberRequest)` | Store a memory |
+| `RecallAsync(RecallRequest)` | Semantic search for memories |
+| `ListAsync(Dictionary<string, string>?)` | List and filter memories |
+| `ForgetAsync(string id)` | Archive (soft-delete) a memory |
+| `HealthAsync()` | Check server health |

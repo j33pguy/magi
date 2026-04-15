@@ -53,7 +53,7 @@ Store a memory with automatic semantic embedding, deduplication, and contradicti
 |-----------|------|----------|-------------|
 | `content` | string | yes | The content to remember |
 | `project` | string | yes* | Project/namespace name (required unless the server detected a default project) |
-| `type` | string | no | Memory type: `memory`, `incident`, `lesson`, `decision`, `project_context`, `conversation`, `audit`, `runbook`, `preference`, `context`, `security`, `state` |
+| `type` | string | no | Memory type: `memory`, `incident`, `lesson`, `decision`, `project_context`, `conversation`, `audit`, `runbook`, `preference`, `context`, `security`, `state`, `procedure` |
 | `summary` | string | no | Brief one-line summary |
 | `tags` | string[] | no | Tags for categorization |
 | `dedup_threshold` | number | no | Similarity threshold for deduplication (0.0–1.0, default 0.95) |
@@ -97,7 +97,7 @@ Browse and filter memories without semantic search.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `project` | string | no | Filter by project |
-| `type` | string | no | Memory type: `memory`, `incident`, `lesson`, `decision`, `project_context`, `conversation`, `audit`, `runbook`, `preference`, `context`, `security` |
+| `type` | string | no | Memory type: `memory`, `incident`, `lesson`, `decision`, `project_context`, `conversation`, `audit`, `runbook`, `preference`, `context`, `security`, `state`, `procedure` |
 | `tags` | string[] | no | Filter by tags |
 | `limit` | number | no | Max results (default 20) |
 | `offset` | number | no | Pagination offset (default 0) |
@@ -116,7 +116,7 @@ Update an existing memory. Re-embeds automatically if content changes.
 | `id` | string | yes | Memory ID |
 | `content` | string | no | New content (triggers re-embedding) |
 | `summary` | string | no | New summary |
-| `type` | string | no | Memory type: `memory`, `incident`, `lesson`, `decision`, `project_context`, `conversation`, `audit`, `runbook`, `preference`, `context`, `security` |
+| `type` | string | no | Memory type: `memory`, `incident`, `lesson`, `decision`, `project_context`, `conversation`, `audit`, `runbook`, `preference`, `context`, `security`, `state`, `procedure` |
 | `tags` | string[] | no | Replace all tags with these |
 
 ---

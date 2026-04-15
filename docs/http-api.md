@@ -245,6 +245,7 @@ GET /memory/search?q=example
 | `tags` | no | Comma-separated tag filter |
 | `project` | no | Project filter |
 | `type` | no | Type filter |
+| `rewrite_fallback` | no | Set to `1` to re-run query with a deterministic rewrite when the first pass returns no results |
 
 ---
 
@@ -371,6 +372,37 @@ POST /auth/machines/{id}/revoke
 ```
 
 Admin-only endpoints that manage machine credentials.
+
+---
+
+### Self-Enrollment
+
+```
+POST /auth/enrollment-tokens
+GET /auth/enrollment-tokens
+POST /auth/enrollment-tokens/{id}/revoke
+POST /auth/enroll
+```
+
+`POST /auth/enrollment-tokens` (admin-only) creates a limited-use token that machines can exchange for a permanent credential. `POST /auth/enroll` requires no Authorization header — the enrollment token is passed in the request body.
+
+See `auth-architecture.md` for details.
+
+---
+
+### Behavioral Patterns
+
+```
+GET /patterns
+```
+
+Query params: `project`, `type`, `tags`, `limit`, `offset`, `speaker`, `area`, `sub_area`, `after`, `before`, `trend`, `pattern_area`, `source`, `max_patterns`.
+
+```
+GET /patterns/trending
+```
+
+Same query params as `/patterns`, plus `include_stable`. Returns patterns where `trend != stable`.
 
 ---
 

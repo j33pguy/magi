@@ -5,6 +5,7 @@ MAGI is model- and agent-agnostic, self-hosted, and has zero cloud dependency by
 **Getting Started**
 - `onboarding.md`
 - `agent-project-memory.md`
+- `AGENT-GUIDE.md` — practical guide for AI agents using MAGI
 
 **APIs And Tools**
 - `mcp-tools.md` — 24 MCP tools reference

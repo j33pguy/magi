@@ -67,6 +67,13 @@ These are the most commonly used environment variables. All values here are real
 | `ONNXRUNTIME_LIB` | empty | Override ONNX Runtime shared library path |
 | `MAGI_TURBOQUANT_ENABLED` | empty | Enable TurboQuant (if available) |
 | `MAGI_TURBOQUANT_BITS` | empty | TurboQuant bit depth |
+| `MAGI_HYBRID_FETCH_MULTIPLIER` | `3` | Over-fetch factor for hybrid search (topK * multiplier) |
+| `MAGI_HYBRID_RRF_K` | `60.0` | Reciprocal Rank Fusion constant K |
+| `MAGI_HYBRID_VECTOR_WEIGHT` | `1.0` | Vector search weight in RRF fusion |
+| `MAGI_HYBRID_BM25_WEIGHT` | `1.0` | BM25 search weight in RRF fusion |
+| `MAGI_ONNX_INTRA_THREADS` | `1` | ONNX intra-op thread count |
+| `MAGI_ONNX_INTER_THREADS` | `1` | ONNX inter-op thread count |
+| `MAGI_ONNX_EXECUTION_MODE` | `sequential` | ONNX execution mode (`parallel` or `sequential`) |
 
 ## Auth And Secrets
 

@@ -40,7 +40,7 @@ Admin-only endpoints on the legacy HTTP API:
 - `GET /auth/machines` — list all machine credentials
 - `POST /auth/machines/{id}/revoke` — revoke a machine credential
 
-## Self-Enrollment (v0.3.10+)
+## Self-Enrollment (v0.4.0+)
 
 For onboarding machines without sharing the admin API token, use enrollment tokens:
 
