@@ -3,16 +3,17 @@ package pipeline
 import (
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/remember"
 )
 
 // completedWrite holds a fully-processed memory ready for DB insertion.
 type completedWrite struct {
-	memory *db.Memory
-	tags   []string
-	id     string // pre-generated ID for status tracking
+	prepared *remember.PreparedWrite
+	id       string // pre-generated ID for status tracking
 }
 
 // BatchInserter collects completed writes and flushes them in batches.
@@ -22,6 +23,8 @@ type BatchInserter struct {
 	flushInterval time.Duration
 	maxSize       int
 	logger        *slog.Logger
+	completed     *atomic.Int64
+	failed        *atomic.Int64
 
 	mu      sync.Mutex
 	pending []completedWrite
@@ -30,13 +33,15 @@ type BatchInserter struct {
 }
 
 // NewBatchInserter creates a batch inserter that flushes on interval or size threshold.
-func NewBatchInserter(store db.Store, status *StatusTracker, flushInterval time.Duration, maxSize int, logger *slog.Logger) *BatchInserter {
+func NewBatchInserter(store db.Store, status *StatusTracker, flushInterval time.Duration, maxSize int, logger *slog.Logger, completed *atomic.Int64, failed *atomic.Int64) *BatchInserter {
 	bi := &BatchInserter{
 		store:         store,
 		status:        status,
 		flushInterval: flushInterval,
 		maxSize:       maxSize,
 		logger:        logger,
+		completed:     completed,
+		failed:        failed,
 		pending:       make([]completedWrite, 0, maxSize),
 		done:          make(chan struct{}),
 	}
@@ -99,20 +104,29 @@ func (bi *BatchInserter) flush() {
 	bi.mu.Unlock()
 
 	for _, cw := range batch {
-		saved, err := bi.store.SaveMemory(cw.memory)
+		if cw.prepared == nil || cw.prepared.Memory == nil {
+			bi.logger.Error("batch insert missing prepared write", "id", cw.id)
+			bi.status.Set(cw.id, StateFailed, "prepared write missing")
+			if bi.failed != nil {
+				bi.failed.Add(1)
+			}
+			continue
+		}
+		bi.logger.Info("batch insert starting", "id", cw.id, "project", cw.prepared.Memory.Project, "parent_id", cw.prepared.Memory.ParentID, "tag_count", len(cw.prepared.Tags))
+		result, err := remember.Persist(bi.store, cw.prepared, remember.Options{TagMode: remember.TagModeWarn, Logger: bi.logger})
 		if err != nil {
-			bi.logger.Error("batch insert failed", "id", cw.id, "error", err)
+			bi.logger.Error("batch insert failed", "id", cw.id, "project", cw.prepared.Memory.Project, "error", err)
 			bi.status.Set(cw.id, StateFailed, err.Error())
+			if bi.failed != nil {
+				bi.failed.Add(1)
+			}
 			continue
 		}
 
-		if len(cw.tags) > 0 {
-			if err := bi.store.SetTags(saved.ID, cw.tags); err != nil {
-				bi.logger.Warn("batch tag write failed (non-fatal)", "id", saved.ID, "error", err)
-			}
-		}
-
 		bi.status.Set(cw.id, StateComplete, "")
-		bi.logger.Debug("batch inserted memory", "id", saved.ID, "pre_id", cw.id)
+		if bi.completed != nil {
+			bi.completed.Add(1)
+		}
+		bi.logger.Info("batch insert complete", "id", cw.id, "saved_id", result.Saved.ID, "project", result.Saved.Project)
 	}
 }

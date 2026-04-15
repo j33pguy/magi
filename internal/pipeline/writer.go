@@ -9,10 +9,10 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/j33pguy/magi/internal/classify"
-	"github.com/j33pguy/magi/internal/contradiction"
 	"github.com/j33pguy/magi/internal/db"
 	"github.com/j33pguy/magi/internal/embeddings"
+	"github.com/j33pguy/magi/internal/remember"
+	"github.com/j33pguy/magi/internal/secretstore"
 )
 
 // WriteRequest is a memory write submitted to the async pipeline.
@@ -40,13 +40,14 @@ type Stats struct {
 // Writer is the async write pipeline. Callers submit writes and get back
 // an ID immediately; workers handle embedding, classification, and DB insert.
 type Writer struct {
-	queue    chan writeJob
-	embedder embeddings.Provider
-	store    db.Store
-	batch    *BatchInserter
-	status   *StatusTracker
-	logger   *slog.Logger
-	cfg      Config
+	queue         chan writeJob
+	embedder      embeddings.Provider
+	store         db.Store
+	batch         *BatchInserter
+	status        *StatusTracker
+	logger        *slog.Logger
+	cfg           Config
+	secretManager secretstore.Manager
 
 	submitted atomic.Int64
 	completed atomic.Int64
@@ -64,18 +65,16 @@ type writeJob struct {
 // NewWriter creates and starts the async write pipeline.
 func NewWriter(store db.Store, embedder embeddings.Provider, cfg Config, logger *slog.Logger) *Writer {
 	status := NewStatusTracker()
-	batch := NewBatchInserter(store, status, cfg.FlushInterval, cfg.BatchMaxSize, logger.WithGroup("batch"))
-
 	w := &Writer{
 		queue:    make(chan writeJob, cfg.QueueSize),
 		embedder: embedder,
 		store:    store,
-		batch:    batch,
 		status:   status,
 		logger:   logger,
 		cfg:      cfg,
 		done:     make(chan struct{}),
 	}
+	w.batch = NewBatchInserter(store, status, cfg.FlushInterval, cfg.BatchMaxSize, logger.WithGroup("batch"), &w.completed, &w.failed)
 
 	for i := 0; i < cfg.Workers; i++ {
 		w.wg.Add(1)
@@ -84,6 +83,11 @@ func NewWriter(store db.Store, embedder embeddings.Provider, cfg Config, logger 
 
 	logger.Info("Async write pipeline started", "workers", cfg.Workers, "queue_size", cfg.QueueSize)
 	return w
+}
+
+// SetSecretManager enables secret externalization for async remember writes.
+func (w *Writer) SetSecretManager(manager secretstore.Manager) {
+	w.secretManager = manager
 }
 
 // Submit enqueues a write request and returns the pre-generated memory ID.
@@ -154,78 +158,44 @@ func (w *Writer) processJob(logger *slog.Logger, job writeJob) {
 	mem := job.req.Memory
 	ctx := context.Background()
 
-	// 1. Generate embedding if not already present
-	if mem.Embedding == nil {
-		emb, err := w.embedder.Embed(ctx, mem.Content)
-		if err != nil {
-			logger.Error("embedding failed", "id", job.id, "error", err)
-			w.status.Set(job.id, StateFailed, fmt.Sprintf("embedding: %v", err))
-			w.failed.Add(1)
-			return
-		}
-		mem.Embedding = emb
-	}
+	logger.Info("async write processing started", "id", job.id, "project", mem.Project, "type", mem.Type, "content_len", len(mem.Content))
 
-	// 2. Auto-classify if area/subarea not set
-	if mem.Area == "" || mem.SubArea == "" {
-		c := classify.Infer(mem.Content)
-		if mem.Area == "" {
-			mem.Area = c.Area
-		}
-		if mem.SubArea == "" {
-			mem.SubArea = c.SubArea
-		}
+	var dedupThreshold *float64
+	if job.req.DedupThreshold > 0 {
+		dedupThreshold = &job.req.DedupThreshold
 	}
-
-	// 3. Deduplication check
-	dedupThreshold := job.req.DedupThreshold
-	if dedupThreshold <= 0 || dedupThreshold > 1 {
-		dedupThreshold = 0.95
-	}
-	maxDistance := 1.0 - dedupThreshold
-	groupDistance := 0.15 // 1.0 - 0.85
-
-	match, err := w.store.FindSimilar(mem.Embedding, groupDistance)
+	prepared, err := remember.Prepare(ctx, w.store, w.embedder, remember.Input{
+		Content:    mem.Content,
+		Summary:    mem.Summary,
+		Project:    mem.Project,
+		Type:       mem.Type,
+		Visibility: mem.Visibility,
+		Source:     mem.Source,
+		Speaker:    mem.Speaker,
+		Area:       mem.Area,
+		SubArea:    mem.SubArea,
+		Tags:       job.req.Tags,
+	}, remember.Options{
+		DedupThreshold: dedupThreshold,
+		TagMode:        remember.TagModeWarn,
+		Logger:         logger,
+		SecretManager:  w.secretManager,
+	})
 	if err != nil {
-		logger.Warn("dedup check failed, proceeding", "id", job.id, "error", err)
-	} else if match != nil && match.Distance <= maxDistance {
-		logger.Info("deduplicated async write", "id", job.id, "existing_id", match.Memory.ID)
+		logger.Error("async write prepare failed", "id", job.id, "project", mem.Project, "error", err)
+		w.status.Set(job.id, StateFailed, err.Error())
+		w.failed.Add(1)
+		return
+	}
+	if prepared.Deduplicated {
+		logger.Info("deduplicated async write", "id", job.id, "existing_id", prepared.Match.Memory.ID, "project", mem.Project)
 		w.status.Set(job.id, StateComplete, "")
 		w.completed.Add(1)
 		return
 	}
 
-	// Soft-group: link to similar parent
-	if match != nil {
-		mem.ParentID = match.Memory.ID
-	}
-
-	// 4. Build tags
-	tags := append([]string{}, job.req.Tags...)
-	if mem.Speaker != "" {
-		tags = append(tags, "speaker:"+mem.Speaker)
-	}
-	if mem.Area != "" {
-		tags = append(tags, "area:"+mem.Area)
-	}
-	if mem.SubArea != "" {
-		tags = append(tags, "sub_area:"+mem.SubArea)
-	}
-
-	// 5. Contradiction detection (best-effort)
-	detector := &contradiction.Detector{Threshold: 0.85}
-	if _, cErr := detector.Check(ctx, w.store, w.embedder, mem.Content, mem.Area, mem.SubArea); cErr != nil {
-		logger.Warn("contradiction detection failed", "id", job.id, "error", cErr)
-	}
-
-	// 6. Submit to batch inserter
-	w.batch.Add(completedWrite{
-		memory: mem,
-		tags:   tags,
-		id:     job.id,
-	})
-
-	w.completed.Add(1)
+	logger.Info("queueing async write for batch insert", "id", job.id, "project", prepared.Memory.Project, "parent_id", prepared.Memory.ParentID, "tag_count", len(prepared.Tags))
+	w.batch.Add(completedWrite{prepared: prepared, id: job.id})
 }
 
 // generateID produces a 32-char hex string matching SQLite's lower(hex(randomblob(16))).

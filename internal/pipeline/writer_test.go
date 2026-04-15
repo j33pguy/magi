@@ -3,11 +3,13 @@ package pipeline
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/secretstore"
 )
 
 // mockStore implements db.Store for testing.
@@ -55,6 +57,21 @@ func (m *mockStore) getSaved() []*db.Memory {
 	out := make([]*db.Memory, len(m.saved))
 	copy(out, m.saved)
 	return out
+}
+
+type pipelineSecretManager struct{}
+
+func (s *pipelineSecretManager) BackendName() string { return "vault" }
+
+func (s *pipelineSecretManager) Externalize(_ context.Context, _ string, content string) (*secretstore.ExternalizeResult, error) {
+	return &secretstore.ExternalizeResult{
+		RedactedContent: strings.ReplaceAll(content, "abc123", "[stored:vault://magi/test#api_key]"),
+		Refs:            []secretstore.Reference{{Backend: "vault", Path: "magi/test", Key: "api_key"}},
+	}, nil
+}
+
+func (s *pipelineSecretManager) Resolve(_ context.Context, path, key string) (string, error) {
+	return path + "#" + key, nil
 }
 
 // mockEmbedder implements embeddings.Provider for testing.
@@ -232,4 +249,31 @@ func TestGenerateID(t *testing.T) {
 func testLogger(t *testing.T) *slog.Logger {
 	t.Helper()
 	return slog.Default()
+}
+
+func TestWriterExternalizesSecretsWithManager(t *testing.T) {
+	store := newMockStore()
+	embedder := &mockEmbedder{}
+	cfg := testConfig()
+
+	w := NewWriter(store, embedder, cfg, testLogger(t))
+	w.SetSecretManager(&pipelineSecretManager{})
+	defer w.Close()
+
+	_, err := w.Submit(WriteRequest{
+		Memory: &db.Memory{Content: "api_key=abc123", Project: "secret-proj", Type: "memory"},
+	})
+	if err != nil {
+		t.Fatalf("Submit failed: %v", err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	saved := store.getSaved()
+	if len(saved) != 1 {
+		t.Fatalf("expected 1 saved memory, got %d", len(saved))
+	}
+	if saved[0].Content == "api_key=abc123" {
+		t.Fatalf("expected secret redaction, got %q", saved[0].Content)
+	}
 }

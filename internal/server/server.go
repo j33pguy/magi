@@ -214,6 +214,7 @@ func New(logger *slog.Logger) (*Server, error) {
 	pipelineCfg := pipeline.ConfigFromEnv()
 	if pipelineCfg.Enabled {
 		s.pipeline = pipeline.NewWriter(s.store, s.embedder, pipelineCfg, logger.WithGroup("pipeline"))
+		s.pipeline.SetSecretManager(s.secrets)
 		s.httpAPI.SetPipeline(s.pipeline)
 	}
 

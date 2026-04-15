@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/remember"
 )
 
 func TestBatchFlushOnSize(t *testing.T) {
@@ -13,19 +14,18 @@ func TestBatchFlushOnSize(t *testing.T) {
 	status := NewStatusTracker()
 	defer status.Close()
 
-	bi := NewBatchInserter(store, status, 5*time.Second, 3, slog.Default())
+	bi := NewBatchInserter(store, status, 5*time.Second, 3, slog.Default(), nil, nil)
 
 	// Add 3 items — should trigger size-based flush
 	for i := 0; i < 3; i++ {
 		bi.Add(completedWrite{
-			memory: &db.Memory{
+			prepared: &remember.PreparedWrite{Memory: &db.Memory{
 				Content:   "batch size test",
 				Embedding: make([]float32, 384),
 				Project:   "test",
 				Type:      "memory",
-			},
-			tags: []string{"test"},
-			id:   "test-id-" + string(rune('a'+i)),
+			}, Tags: []string{"test"}},
+			id: "test-id-" + string(rune('a'+i)),
 		})
 	}
 
@@ -45,15 +45,15 @@ func TestBatchFlushOnInterval(t *testing.T) {
 	status := NewStatusTracker()
 	defer status.Close()
 
-	bi := NewBatchInserter(store, status, 20*time.Millisecond, 100, slog.Default())
+	bi := NewBatchInserter(store, status, 20*time.Millisecond, 100, slog.Default(), nil, nil)
 
 	bi.Add(completedWrite{
-		memory: &db.Memory{
+		prepared: &remember.PreparedWrite{Memory: &db.Memory{
 			Content:   "interval test",
 			Embedding: make([]float32, 384),
 			Project:   "test",
 			Type:      "memory",
-		},
+		}},
 		id: "interval-1",
 	})
 
@@ -73,16 +73,16 @@ func TestBatchStatusTracking(t *testing.T) {
 	st := NewStatusTracker()
 	defer st.Close()
 
-	bi := NewBatchInserter(store, st, 10*time.Millisecond, 1, slog.Default())
+	bi := NewBatchInserter(store, st, 10*time.Millisecond, 1, slog.Default(), nil, nil)
 
 	st.Set("track-1", StatePending, "")
 	bi.Add(completedWrite{
-		memory: &db.Memory{
+		prepared: &remember.PreparedWrite{Memory: &db.Memory{
 			Content:   "status track test",
 			Embedding: make([]float32, 384),
 			Project:   "test",
 			Type:      "memory",
-		},
+		}},
 		id: "track-1",
 	})
 
