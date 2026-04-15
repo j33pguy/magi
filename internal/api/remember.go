@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/pipeline"
 	"github.com/j33pguy/magi/internal/remember"
 )
 
@@ -52,6 +54,15 @@ func (s *Server) handleRememberWithDefaultSource(w http.ResponseWriter, r *http.
 	if req.Source == "" {
 		req.Source = defaultSource
 	}
+	if req.Speaker == "" {
+		req.Speaker = "assistant"
+	}
+
+	if s.pipeline != nil {
+		s.handleRememberAsync(w, req)
+		return
+	}
+
 	input := remember.Input{
 		Content:    req.Content,
 		Summary:    req.Summary,
@@ -94,4 +105,47 @@ func (s *Server) handleRememberWithDefaultSource(w http.ResponseWriter, r *http.
 		resp["tag_warning"] = "tags may not have been saved: " + result.TagWarning[:min(len(result.TagWarning), 80)]
 	}
 	writeJSON(w, http.StatusCreated, resp)
+}
+
+func (s *Server) handleRememberAsync(w http.ResponseWriter, req rememberRequest) {
+	mem := rememberMemory(req)
+	result, err := s.pipeline.Submit(pipelineWriteRequest(&mem, req.Tags))
+	if err != nil {
+		s.logger.Error("remember async submit failed", "error", err)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"id":    result.ID,
+		"ok":    true,
+		"async": true,
+		"status": map[string]any{
+			"state": pipelineStatePending(),
+			"url":   fmt.Sprintf("/memory/%s/status", result.ID),
+		},
+	})
+}
+
+func rememberMemory(req rememberRequest) db.Memory {
+	return db.Memory{
+		Content:    req.Content,
+		Summary:    req.Summary,
+		Project:    req.Project,
+		Type:       req.Type,
+		Visibility: req.Visibility,
+		Source:     req.Source,
+		Speaker:    req.Speaker,
+		Area:       req.Area,
+		SubArea:    req.SubArea,
+		TokenCount: len(req.Content) / 4,
+	}
+}
+
+func pipelineWriteRequest(mem *db.Memory, tags []string) pipeline.WriteRequest {
+	return pipeline.WriteRequest{Memory: mem, Tags: tags}
+}
+
+func pipelineStatePending() string {
+	return "pending"
 }

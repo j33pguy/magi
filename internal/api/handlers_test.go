@@ -11,9 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/j33pguy/magi/internal/auth"
 	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/pipeline"
 	"github.com/j33pguy/magi/internal/secretstore"
 )
 
@@ -177,6 +179,92 @@ func TestHandleRemember(t *testing.T) {
 	}
 	if resp["id"] == nil || resp["id"] == "" {
 		t.Error("expected non-empty id")
+	}
+}
+
+func TestHandleRememberAsync(t *testing.T) {
+	s := newTestServer(t)
+	s.SetPipeline(pipeline.NewWriter(s.db, s.embedder, pipeline.Config{
+		Enabled:       true,
+		Workers:       2,
+		QueueSize:     16,
+		FlushInterval: 5 * time.Millisecond,
+		BatchMaxSize:  4,
+	}, s.logger))
+	defer s.pipeline.Close()
+
+	body := `{"content": "async memory content", "project": "test-proj", "type": "memory", "tags": ["alpha"]}`
+	req := httptest.NewRequest("POST", "/remember", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.handleRemember(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusAccepted, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp["ok"] != true {
+		t.Fatalf("ok = %v, want true", resp["ok"])
+	}
+	if resp["async"] != true {
+		t.Fatalf("async = %v, want true", resp["async"])
+	}
+	id, _ := resp["id"].(string)
+	if id == "" {
+		t.Fatal("expected non-empty id")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		status := s.pipeline.Status(id)
+		if status != nil && status.State == pipeline.StateComplete {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	status := s.pipeline.Status(id)
+	if status == nil {
+		t.Fatal("expected async status")
+	}
+	if status.State != pipeline.StateComplete {
+		t.Fatalf("state = %s, want %s", status.State, pipeline.StateComplete)
+	}
+
+	memories, err := s.db.ListMemories(&db.MemoryFilter{Project: "test-proj"})
+	if err != nil {
+		t.Fatalf("ListMemories: %v", err)
+	}
+	var found *db.Memory
+	for _, m := range memories {
+		if m.Content == "async memory content" {
+			found = m
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("expected async memory to be saved")
+	}
+	if found.Speaker != "assistant" {
+		t.Fatalf("speaker = %q, want %q", found.Speaker, "assistant")
+	}
+	tags, err := s.db.GetTags(found.ID)
+	if err != nil {
+		t.Fatalf("GetTags: %v", err)
+	}
+	gotAlpha := false
+	for _, tag := range tags {
+		if tag == "alpha" {
+			gotAlpha = true
+			break
+		}
+	}
+	if !gotAlpha {
+		t.Fatalf("expected alpha tag, got %v", tags)
 	}
 }
 
