@@ -176,3 +176,41 @@ CREATE INDEX IF NOT EXISTS idx_task_events_task_created ON task_events(task_id, 
 CREATE INDEX IF NOT EXISTS idx_task_events_type_created ON task_events(event_type, created_at);
 CREATE INDEX IF NOT EXISTS idx_task_events_memory ON task_events(memory_id);
 `
+
+const pgMigrationV10 = `
+CREATE TABLE IF NOT EXISTS repositories (
+	id TEXT NOT NULL PRIMARY KEY DEFAULT gen_random_uuid()::text,
+	host TEXT NOT NULL DEFAULT '',
+	owner TEXT NOT NULL,
+	name TEXT NOT NULL,
+	canonical_name TEXT NOT NULL,
+	display_name TEXT NOT NULL DEFAULT '',
+	default_branch TEXT NOT NULL DEFAULT '',
+	is_fork BOOLEAN NOT NULL DEFAULT FALSE,
+	upstream_canonical_name TEXT NOT NULL DEFAULT '',
+	created_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+	UNIQUE(canonical_name)
+);
+CREATE INDEX IF NOT EXISTS idx_repositories_owner_name ON repositories(owner, name);
+
+CREATE TABLE IF NOT EXISTS memory_contexts (
+	memory_id TEXT NOT NULL PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+	repository_id TEXT REFERENCES repositories(id) ON DELETE SET NULL,
+	scope_owner TEXT NOT NULL DEFAULT '',
+	scope_team TEXT NOT NULL DEFAULT '',
+	scope_workspace TEXT NOT NULL DEFAULT '',
+	scope_machine TEXT NOT NULL DEFAULT '',
+	scope_agent TEXT NOT NULL DEFAULT '',
+	scope_environment TEXT NOT NULL DEFAULT '',
+	provenance_transport TEXT NOT NULL DEFAULT '',
+	provenance_imported_from TEXT NOT NULL DEFAULT '',
+	provenance_human_authored BOOLEAN NOT NULL DEFAULT FALSE,
+	durable_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')
+);
+CREATE INDEX IF NOT EXISTS idx_memory_contexts_repository ON memory_contexts(repository_id);
+CREATE INDEX IF NOT EXISTS idx_memory_contexts_scope_machine ON memory_contexts(scope_machine) WHERE scope_machine != '';
+CREATE INDEX IF NOT EXISTS idx_memory_contexts_scope_agent ON memory_contexts(scope_agent) WHERE scope_agent != '';
+`

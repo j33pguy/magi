@@ -743,6 +743,11 @@ func (c *MySQLClient) SetTags(memoryID string, tags []string) error {
 
 // CreateLink creates a directed link between two memories.
 func (c *MySQLClient) CreateLink(ctx context.Context, fromID, toID, relation string, weight float64, auto bool) (*MemoryLink, error) {
+	relation, err := validateMemoryRelation(relation)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now().UTC().Format(time.DateTime)
 	id := newHexID()
 	autoInt := 0
@@ -750,7 +755,7 @@ func (c *MySQLClient) CreateLink(ctx context.Context, fromID, toID, relation str
 		autoInt = 1
 	}
 
-	_, err := c.DB.ExecContext(ctx, `
+	_, err = c.DB.ExecContext(ctx, `
 		INSERT INTO memory_links (id, from_id, to_id, relation, weight, auto, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, id, fromID, toID, relation, weight, autoInt, now)
@@ -962,6 +967,7 @@ func (c *MySQLClient) Migrate() error {
 		{7, mysqlMigrationV7},
 		{8, mysqlMigrationV8},
 		{9, mysqlMigrationV9},
+		{10, mysqlMigrationV10},
 	}
 
 	for _, m := range migrations {

@@ -4,8 +4,55 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
+
+const (
+	MemoryRelationCausedBy    = "caused_by"
+	MemoryRelationLedTo       = "led_to"
+	MemoryRelationRelatedTo   = "related_to"
+	MemoryRelationSupersedes  = "supersedes"
+	MemoryRelationPartOf      = "part_of"
+	MemoryRelationContradicts = "contradicts"
+)
+
+var validMemoryRelations = map[string]struct{}{
+	MemoryRelationCausedBy:    {},
+	MemoryRelationLedTo:       {},
+	MemoryRelationRelatedTo:   {},
+	MemoryRelationSupersedes:  {},
+	MemoryRelationPartOf:      {},
+	MemoryRelationContradicts: {},
+}
+
+func MemoryRelations() []string {
+	return []string{
+		MemoryRelationCausedBy,
+		MemoryRelationLedTo,
+		MemoryRelationRelatedTo,
+		MemoryRelationSupersedes,
+		MemoryRelationPartOf,
+		MemoryRelationContradicts,
+	}
+}
+
+func NormalizeMemoryRelation(relation string) string {
+	return strings.TrimSpace(strings.ToLower(relation))
+}
+
+func ValidMemoryRelation(relation string) bool {
+	_, ok := validMemoryRelations[NormalizeMemoryRelation(relation)]
+	return ok
+}
+
+func validateMemoryRelation(relation string) (string, error) {
+	relation = NormalizeMemoryRelation(relation)
+	if !ValidMemoryRelation(relation) {
+		return "", fmt.Errorf("invalid relation %q", relation)
+	}
+	return relation, nil
+}
 
 // MemoryLink represents a directed relationship between two memories.
 type MemoryLink struct {
@@ -20,6 +67,11 @@ type MemoryLink struct {
 
 // CreateLink creates a directed link between two memories.
 func (c *Client) CreateLink(ctx context.Context, fromID, toID, relation string, weight float64, auto bool) (*MemoryLink, error) {
+	relation, err := validateMemoryRelation(relation)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now().UTC().Format(time.DateTime)
 	autoInt := 0
 	if auto {
@@ -27,7 +79,7 @@ func (c *Client) CreateLink(ctx context.Context, fromID, toID, relation string, 
 	}
 
 	var id string
-	err := c.DB.QueryRowContext(ctx, `
+	err = c.DB.QueryRowContext(ctx, `
 		INSERT INTO memory_links (from_id, to_id, relation, weight, auto, created_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING id

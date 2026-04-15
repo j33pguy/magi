@@ -162,3 +162,43 @@ CREATE INDEX idx_task_events_task_created ON task_events(task_id, created_at);
 CREATE INDEX idx_task_events_type_created ON task_events(event_type, created_at);
 CREATE INDEX idx_task_events_memory ON task_events(memory_id);
 `
+
+const mysqlMigrationV10 = `
+CREATE TABLE IF NOT EXISTS repositories (
+	id CHAR(32) NOT NULL PRIMARY KEY,
+	host VARCHAR(255) NOT NULL DEFAULT '',
+	owner VARCHAR(255) NOT NULL,
+	name VARCHAR(255) NOT NULL,
+	canonical_name VARCHAR(255) NOT NULL,
+	display_name VARCHAR(255) NOT NULL DEFAULT '',
+	default_branch VARCHAR(255) NOT NULL DEFAULT '',
+	is_fork TINYINT(1) NOT NULL DEFAULT 0,
+	upstream_canonical_name VARCHAR(255) NOT NULL DEFAULT '',
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE KEY uq_repositories_canonical_name (canonical_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE INDEX idx_repositories_owner_name ON repositories(owner, name);
+
+CREATE TABLE IF NOT EXISTS memory_contexts (
+	memory_id CHAR(32) NOT NULL PRIMARY KEY,
+	repository_id CHAR(32) NULL,
+	scope_owner VARCHAR(255) NOT NULL DEFAULT '',
+	scope_team VARCHAR(255) NOT NULL DEFAULT '',
+	scope_workspace VARCHAR(255) NOT NULL DEFAULT '',
+	scope_machine VARCHAR(255) NOT NULL DEFAULT '',
+	scope_agent VARCHAR(255) NOT NULL DEFAULT '',
+	scope_environment VARCHAR(255) NOT NULL DEFAULT '',
+	provenance_transport VARCHAR(255) NOT NULL DEFAULT '',
+	provenance_imported_from VARCHAR(255) NOT NULL DEFAULT '',
+	provenance_human_authored TINYINT(1) NOT NULL DEFAULT 0,
+	durable_at DATETIME NULL,
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE,
+	FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE INDEX idx_memory_contexts_repository ON memory_contexts(repository_id);
+CREATE INDEX idx_memory_contexts_scope_machine ON memory_contexts(scope_machine);
+CREATE INDEX idx_memory_contexts_scope_agent ON memory_contexts(scope_agent);
+`

@@ -62,23 +62,21 @@ func TestTraverseGraphMaxDepthDefault(t *testing.T) {
 }
 
 func TestValidRelations(t *testing.T) {
-	// Verify all expected relation types are documented
-	validRelations := []string{
-		"caused_by",
-		"led_to",
-		"related_to",
-		"supersedes",
-		"part_of",
-		"contradicts",
-	}
+	validRelations := MemoryRelations()
 
 	for _, r := range validRelations {
 		if r == "" {
 			t.Error("empty relation in valid list")
 		}
+		if !ValidMemoryRelation(r) {
+			t.Errorf("expected %q to be valid", r)
+		}
 	}
 
 	if len(validRelations) != 6 {
 		t.Errorf("expected 6 valid relations, got %d", len(validRelations))
+	}
+	if ValidMemoryRelation("contains") {
+		t.Error("contains should not be valid until schema support lands")
 	}
 }

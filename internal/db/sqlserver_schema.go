@@ -35,6 +35,7 @@ func (s *SQLServerSchema) run() error {
 		{7, s.migrationV7},
 		{8, s.migrationV8},
 		{9, s.migrationV9},
+		{10, s.migrationV10},
 	}
 
 	for _, m := range migrations {
@@ -347,5 +348,51 @@ func (s *SQLServerSchema) migrationV9() error {
 		CREATE INDEX idx_task_events_type_created ON task_events(event_type, created_at)`,
 		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_task_events_memory')
 		CREATE INDEX idx_task_events_memory ON task_events(memory_id)`,
+	})
+}
+
+func (s *SQLServerSchema) migrationV10() error {
+	return s.execStatements([]string{
+		`IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'repositories')
+		CREATE TABLE repositories (
+			id NVARCHAR(32) NOT NULL PRIMARY KEY DEFAULT LOWER(REPLACE(NEWID(), '-', '')),
+			host NVARCHAR(255) NOT NULL DEFAULT '',
+			owner NVARCHAR(255) NOT NULL,
+			name NVARCHAR(255) NOT NULL,
+			canonical_name NVARCHAR(255) NOT NULL,
+			display_name NVARCHAR(255) NOT NULL DEFAULT '',
+			default_branch NVARCHAR(255) NOT NULL DEFAULT '',
+			is_fork BIT NOT NULL DEFAULT 0,
+			upstream_canonical_name NVARCHAR(255) NOT NULL DEFAULT '',
+			created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+			updated_at DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+		)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'uq_repositories_canonical_name')
+		CREATE UNIQUE INDEX uq_repositories_canonical_name ON repositories(canonical_name)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_repositories_owner_name')
+		CREATE INDEX idx_repositories_owner_name ON repositories(owner, name)`,
+		`IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'memory_contexts')
+		CREATE TABLE memory_contexts (
+			memory_id NVARCHAR(32) NOT NULL PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+			repository_id NVARCHAR(32) NULL REFERENCES repositories(id),
+			scope_owner NVARCHAR(255) NOT NULL DEFAULT '',
+			scope_team NVARCHAR(255) NOT NULL DEFAULT '',
+			scope_workspace NVARCHAR(255) NOT NULL DEFAULT '',
+			scope_machine NVARCHAR(255) NOT NULL DEFAULT '',
+			scope_agent NVARCHAR(255) NOT NULL DEFAULT '',
+			scope_environment NVARCHAR(255) NOT NULL DEFAULT '',
+			provenance_transport NVARCHAR(255) NOT NULL DEFAULT '',
+			provenance_imported_from NVARCHAR(255) NOT NULL DEFAULT '',
+			provenance_human_authored BIT NOT NULL DEFAULT 0,
+			durable_at DATETIME2 NULL,
+			created_at DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+			updated_at DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+		)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_memory_contexts_repository')
+		CREATE INDEX idx_memory_contexts_repository ON memory_contexts(repository_id)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_memory_contexts_scope_machine')
+		CREATE INDEX idx_memory_contexts_scope_machine ON memory_contexts(scope_machine)`,
+		`IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_memory_contexts_scope_agent')
+		CREATE INDEX idx_memory_contexts_scope_agent ON memory_contexts(scope_agent)`,
 	})
 }

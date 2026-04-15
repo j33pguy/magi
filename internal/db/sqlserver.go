@@ -736,6 +736,11 @@ func (c *SQLServerClient) SetTags(memoryID string, tags []string) error {
 
 // CreateLink creates a directed link between two memories.
 func (c *SQLServerClient) CreateLink(ctx context.Context, fromID, toID, relation string, weight float64, auto bool) (*MemoryLink, error) {
+	relation, err := validateMemoryRelation(relation)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now().UTC().Format(time.DateTime)
 	autoVal := false
 	if auto {
@@ -743,7 +748,7 @@ func (c *SQLServerClient) CreateLink(ctx context.Context, fromID, toID, relation
 	}
 
 	var id string
-	err := c.db.QueryRowContext(ctx, `
+	err = c.db.QueryRowContext(ctx, `
 		INSERT INTO memory_links (from_id, to_id, relation, weight, auto, created_at)
 		OUTPUT INSERTED.id
 		VALUES (@p1, @p2, @p3, @p4, @p5, @p6)

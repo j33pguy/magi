@@ -34,6 +34,7 @@ func (s *Schema) run() error {
 		{7, migrationV7},
 		{8, migrationV8},
 		{9, migrationV9},
+		{10, migrationV10},
 	}
 
 	for _, m := range migrations {
@@ -322,6 +323,44 @@ CREATE TABLE IF NOT EXISTS task_events (
 CREATE INDEX IF NOT EXISTS idx_task_events_task_created ON task_events(task_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_task_events_type_created ON task_events(event_type, created_at);
 CREATE INDEX IF NOT EXISTS idx_task_events_memory ON task_events(memory_id) WHERE memory_id IS NOT NULL;
+`
+
+const migrationV10 = `
+CREATE TABLE IF NOT EXISTS repositories (
+	id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+	host TEXT NOT NULL DEFAULT '',
+	owner TEXT NOT NULL,
+	name TEXT NOT NULL,
+	canonical_name TEXT NOT NULL,
+	display_name TEXT NOT NULL DEFAULT '',
+	default_branch TEXT NOT NULL DEFAULT '',
+	is_fork INTEGER NOT NULL DEFAULT 0,
+	upstream_canonical_name TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+	UNIQUE(canonical_name)
+);
+CREATE INDEX IF NOT EXISTS idx_repositories_owner_name ON repositories(owner, name);
+
+CREATE TABLE IF NOT EXISTS memory_contexts (
+	memory_id TEXT NOT NULL PRIMARY KEY REFERENCES memories(id) ON DELETE CASCADE,
+	repository_id TEXT REFERENCES repositories(id) ON DELETE SET NULL,
+	scope_owner TEXT NOT NULL DEFAULT '',
+	scope_team TEXT NOT NULL DEFAULT '',
+	scope_workspace TEXT NOT NULL DEFAULT '',
+	scope_machine TEXT NOT NULL DEFAULT '',
+	scope_agent TEXT NOT NULL DEFAULT '',
+	scope_environment TEXT NOT NULL DEFAULT '',
+	provenance_transport TEXT NOT NULL DEFAULT '',
+	provenance_imported_from TEXT NOT NULL DEFAULT '',
+	provenance_human_authored INTEGER NOT NULL DEFAULT 0,
+	durable_at TEXT,
+	created_at TEXT NOT NULL DEFAULT (datetime('now')),
+	updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_memory_contexts_repository ON memory_contexts(repository_id) WHERE repository_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_memory_contexts_scope_machine ON memory_contexts(scope_machine) WHERE scope_machine != '';
+CREATE INDEX IF NOT EXISTS idx_memory_contexts_scope_agent ON memory_contexts(scope_agent) WHERE scope_agent != '';
 `
 
 // migrationV2 adds visibility field for access control.

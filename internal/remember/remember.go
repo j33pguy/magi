@@ -25,16 +25,26 @@ const (
 
 // Input holds the remember request data.
 type Input struct {
-	Content    string
-	Summary    string
-	Project    string
-	Type       string
-	Visibility string
-	Source     string
-	Speaker    string
-	Area       string
-	SubArea    string
-	Tags       []string
+	Content       string
+	Summary       string
+	Project       string
+	Type          string
+	Visibility    string
+	Source        string
+	SourceFile    string
+	Speaker       string
+	Area          string
+	SubArea       string
+	Tags          []string
+	Owner         string
+	Team          string
+	Workspace     string
+	Machine       string
+	Agent         string
+	Environment   string
+	Transport     string
+	ImportedFrom  string
+	HumanAuthored bool
 }
 
 // Options configures the remember enrichment process.
@@ -56,6 +66,16 @@ type Result struct {
 	Contradictions []contradiction.Candidate
 }
 
+// PreparedWrite captures the canonical remember pipeline state before persistence.
+type PreparedWrite struct {
+	Memory         *db.Memory
+	Envelope       Envelope
+	Deduplicated   bool
+	Match          *db.VectorResult
+	Tags           []string
+	Contradictions []contradiction.Candidate
+}
+
 // SecretError indicates content may contain secrets.
 type SecretError struct {
 	Warning string
@@ -65,8 +85,8 @@ func (e *SecretError) Error() string {
 	return fmt.Sprintf("Content may contain secrets: %s. Remove sensitive data before storing.", e.Warning)
 }
 
-// Remember runs enrichment, dedup, save, tags, and contradiction detection.
-func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider, input Input, opts Options) (*Result, error) {
+// Prepare runs the shared remember enrichment pipeline up to, but not including, persistence.
+func Prepare(ctx context.Context, store db.Store, embedder embeddings.Provider, input Input, opts Options) (*PreparedWrite, error) {
 	if input.Content == "" {
 		return nil, fmt.Errorf("content is required")
 	}
@@ -131,8 +151,12 @@ func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider,
 	if err != nil {
 		logger.Warn("dedup check failed, proceeding with insert", "error", err)
 	} else if match != nil && match.Distance <= maxDistance {
-		logger.Info("deduplicated memory", "existing_id", match.Memory.ID, "distance", match.Distance)
-		return &Result{Deduplicated: true, Match: match}, nil
+		if match.Memory.Project != input.Project {
+			logger.Debug("skipping cross-project dedup candidate", "existing_id", match.Memory.ID, "existing_project", match.Memory.Project, "project", input.Project)
+		} else {
+			logger.Info("deduplicated memory", "existing_id", match.Memory.ID, "distance", match.Distance)
+			return &PreparedWrite{Deduplicated: true, Match: match}, nil
+		}
 	}
 
 	memory := &db.Memory{
@@ -143,6 +167,7 @@ func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider,
 		Type:       input.Type,
 		Visibility: input.Visibility,
 		Source:     input.Source,
+		SourceFile: input.SourceFile,
 		Speaker:    input.Speaker,
 		Area:       input.Area,
 		SubArea:    input.SubArea,
@@ -154,25 +179,50 @@ func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider,
 		logger.Info("linking memory to similar parent", "parent_id", match.Memory.ID, "distance", match.Distance)
 	}
 
-	saved, err := store.SaveMemory(memory)
+	threshold := opts.ContradictionThreshold
+	if threshold <= 0 {
+		threshold = 0.85
+	}
+	detector := &contradiction.Detector{Threshold: threshold}
+	candidates, cErr := detector.Check(ctx, store, embedder, input.Content, input.Area, input.SubArea)
+	if cErr != nil {
+		logger.Warn("contradiction detection failed", "error", cErr)
+	}
+
+	prepared := &PreparedWrite{Memory: memory, Envelope: BuildEnvelope(input), Match: match, Tags: BuildTags(input)}
+	if len(candidates) > 0 {
+		prepared.Contradictions = candidates
+	}
+	return prepared, nil
+}
+
+// Persist saves a prepared write and applies tags under the configured tag mode.
+func Persist(store db.Store, prepared *PreparedWrite, opts Options) (*Result, error) {
+	if prepared == nil {
+		return nil, fmt.Errorf("prepared write is required")
+	}
+	if prepared.Deduplicated {
+		return &Result{Deduplicated: true, Match: prepared.Match}, nil
+	}
+	if prepared.Memory == nil {
+		return nil, fmt.Errorf("prepared memory is required")
+	}
+
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	saved, err := store.SaveMemory(prepared.Memory)
 	if err != nil {
 		return nil, fmt.Errorf("saving memory: %w", err)
 	}
 
-	tags := append([]string{}, input.Tags...)
-	if input.Speaker != "" {
-		tags = append(tags, "speaker:"+input.Speaker)
-	}
-	if input.Area != "" {
-		tags = append(tags, "area:"+input.Area)
-	}
-	if input.SubArea != "" {
-		tags = append(tags, "sub_area:"+input.SubArea)
-	}
+	persistEnvelope(store, saved.ID, prepared.Envelope, logger)
 
 	var tagWarning string
-	if len(tags) > 0 {
-		if err := store.SetTags(saved.ID, tags); err != nil {
+	if len(prepared.Tags) > 0 {
+		if err := store.SetTags(saved.ID, prepared.Tags); err != nil {
 			if opts.TagMode == TagModeWarn {
 				logger.Warn("setting tags failed (non-fatal)", "error", err, "memory_id", saved.ID)
 				tagWarning = err.Error()
@@ -182,22 +232,56 @@ func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider,
 		}
 	}
 
-	result := &Result{Saved: saved, Match: match, Tags: tags, TagWarning: tagWarning}
+	return &Result{
+		Saved:          saved,
+		Match:          prepared.Match,
+		Tags:           prepared.Tags,
+		TagWarning:     tagWarning,
+		Contradictions: prepared.Contradictions,
+	}, nil
+}
 
-	threshold := opts.ContradictionThreshold
-	if threshold <= 0 {
-		threshold = 0.85
+// Remember runs enrichment, dedup, save, tags, and contradiction detection.
+func Remember(ctx context.Context, store db.Store, embedder embeddings.Provider, input Input, opts Options) (*Result, error) {
+	prepared, err := Prepare(ctx, store, embedder, input, opts)
+	if err != nil {
+		return nil, err
 	}
-	// Best-effort contradiction detection; never blocks writes.
-	detector := &contradiction.Detector{Threshold: threshold}
-	candidates, cErr := detector.Check(ctx, store, embedder, input.Content, input.Area, input.SubArea)
-	if cErr != nil {
-		logger.Warn("contradiction detection failed", "error", cErr)
-	} else if len(candidates) > 0 {
-		result.Contradictions = candidates
-	}
+	return Persist(store, prepared, opts)
+}
 
-	return result, nil
+type memoryContextSaver interface {
+	SaveMemoryContext(record *db.MemoryContextRecord) error
+}
+
+func persistEnvelope(store db.Store, memoryID string, env Envelope, logger *slog.Logger) {
+	saver, ok := store.(memoryContextSaver)
+	if !ok {
+		return
+	}
+	record := &db.MemoryContextRecord{
+		MemoryID: memoryID,
+		Repository: db.RepositoryRecord{
+			Host:          env.Repository.Host,
+			Owner:         env.Repository.Owner,
+			Name:          env.Repository.Name,
+			CanonicalName: env.Repository.Canonical,
+			DisplayName:   env.Repository.Canonical,
+		},
+		ScopeOwner:              env.Scope.Owner,
+		ScopeTeam:               env.Scope.Team,
+		ScopeWorkspace:          env.Scope.Workspace,
+		ScopeMachine:            env.Scope.Machine,
+		ScopeAgent:              env.Scope.Agent,
+		ScopeEnvironment:        env.Scope.Environment,
+		ProvenanceTransport:     env.Provenance.Transport,
+		ProvenanceImportedFrom:  env.Provenance.ImportedFrom,
+		ProvenanceHumanAuthored: env.Provenance.HumanAuthored,
+		DurableAt:               env.Provenance.DurableAt,
+	}
+	if err := saver.SaveMemoryContext(record); err != nil && logger != nil {
+		logger.Warn("persisting memory context failed (non-fatal)", "memory_id", memoryID, "error", err)
+	}
 }
 
 var secretPatterns = []*regexp.Regexp{

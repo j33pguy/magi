@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -50,7 +51,7 @@ func (s *stubSecretManager) Resolve(_ context.Context, path, key string) (string
 	return path + "#" + key, nil
 }
 
-func newRememberStore(t *testing.T) db.Store {
+func newRememberStore(t *testing.T) *db.Client {
 	t.Helper()
 	tmp := t.TempDir()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -64,6 +65,22 @@ func newRememberStore(t *testing.T) db.Store {
 		t.Fatalf("Migrate: %v", err)
 	}
 	return client.TursoClient
+}
+
+func fetchRememberContextRow(t *testing.T, store *db.Client, memoryID string) (string, string, string, bool) {
+	t.Helper()
+	var canonicalName, scopeMachine, transport string
+	var humanAuthored int
+	err := store.DB.QueryRow(`
+		SELECT COALESCE(r.canonical_name, ''), mc.scope_machine, mc.provenance_transport, mc.provenance_human_authored
+		FROM memory_contexts mc
+		LEFT JOIN repositories r ON r.id = mc.repository_id
+		WHERE mc.memory_id = ?
+	`, memoryID).Scan(&canonicalName, &scopeMachine, &transport, &humanAuthored)
+	if err != nil {
+		t.Fatalf("QueryRow memory_contexts: %v", err)
+	}
+	return canonicalName, scopeMachine, transport, humanAuthored == 1
 }
 
 func TestRememberExternalizesSecretsWithManager(t *testing.T) {
@@ -119,5 +136,142 @@ func TestRememberRejectsSecretsWithoutManager(t *testing.T) {
 	}
 	if _, ok := err.(*SecretError); !ok {
 		t.Fatalf("expected SecretError, got %T", err)
+	}
+}
+
+func TestBuildTagsAddsRepoFacet(t *testing.T) {
+	tags := BuildTags(Input{
+		Project: "github.com/j33pguy/magi",
+		Speaker: "assistant",
+		Area:    "project",
+		SubArea: "memory",
+		Tags:    []string{"source:mcp"},
+	})
+
+	tagSet := map[string]bool{}
+	for _, tag := range tags {
+		tagSet[tag] = true
+	}
+	if !tagSet["repo:j33pguy/magi"] {
+		t.Fatalf("expected repo facet, got %v", tags)
+	}
+	if !tagSet["speaker:assistant"] || !tagSet["area:project"] || !tagSet["sub_area:memory"] {
+		t.Fatalf("expected derived taxonomy tags, got %v", tags)
+	}
+}
+
+func TestRememberPersistsRepoFacet(t *testing.T) {
+	store := newRememberStore(t)
+	result, err := Remember(context.Background(), store, &testEmbedder{}, Input{
+		Content:       "remember repo-aware context",
+		Project:       "github.com/j33pguy/magi",
+		Machine:       "gilfoyle",
+		Transport:     "http",
+		HumanAuthored: true,
+	}, Options{
+		Logger:  slog.Default(),
+		TagMode: TagModeFail,
+	})
+	if err != nil {
+		t.Fatalf("Remember: %v", err)
+	}
+
+	tags, err := store.GetTags(result.Saved.ID)
+	if err != nil {
+		t.Fatalf("GetTags: %v", err)
+	}
+	found := false
+	for _, tag := range tags {
+		if tag == "repo:j33pguy/magi" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected repo facet in persisted tags, got %v", tags)
+	}
+
+	canonicalName, scopeMachine, transport, humanAuthored := fetchRememberContextRow(t, store, result.Saved.ID)
+	if canonicalName != "j33pguy/magi" || scopeMachine != "gilfoyle" || transport != "http" || !humanAuthored {
+		t.Fatalf("unexpected persisted context: canonical=%q machine=%q transport=%q human=%v", canonicalName, scopeMachine, transport, humanAuthored)
+	}
+}
+
+func TestBuildTagsNormalizesSSHRepoFacet(t *testing.T) {
+	tags := BuildTags(Input{
+		Project: "git@github.com:j33pguy/magi.git",
+	})
+
+	found := false
+	for _, tag := range tags {
+		if tag == "repo:j33pguy/magi" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected normalized SSH repo facet, got %v", tags)
+	}
+}
+
+func TestBuildTagsInfersRepoFacetFromSourceFileGitOrigin(t *testing.T) {
+	repoDir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = repoDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%s failed: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+
+	run("git", "init")
+	run("git", "remote", "add", "origin", "git@github.com:j33pguy/magi.git")
+
+	sourceFile := filepath.Join(repoDir, "internal", "remember", "metadata.go")
+	if err := os.MkdirAll(filepath.Dir(sourceFile), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(sourceFile, []byte("package remember\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	tags := BuildTags(Input{SourceFile: sourceFile})
+	found := false
+	for _, tag := range tags {
+		if tag == "repo:j33pguy/magi" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected repo facet inferred from git source file, got %v", tags)
+	}
+}
+
+func TestRememberSkipsCrossProjectDedup(t *testing.T) {
+	store := newRememberStore(t)
+	first, err := Remember(context.Background(), store, &testEmbedder{}, Input{
+		Content: "same content, different project",
+		Project: "proj-a",
+	}, Options{Logger: slog.Default(), TagMode: TagModeFail})
+	if err != nil {
+		t.Fatalf("first Remember: %v", err)
+	}
+	second, err := Remember(context.Background(), store, &testEmbedder{}, Input{
+		Content: "same content, different project",
+		Project: "proj-b",
+	}, Options{Logger: slog.Default(), TagMode: TagModeFail})
+	if err != nil {
+		t.Fatalf("second Remember: %v", err)
+	}
+	if second.Deduplicated {
+		t.Fatal("expected cross-project duplicate to be inserted, not deduplicated")
+	}
+	if second.Saved == nil || first.Saved == nil {
+		t.Fatal("expected both memories to be saved")
+	}
+	if second.Saved.ID == first.Saved.ID {
+		t.Fatal("expected distinct memory ids across projects")
 	}
 }

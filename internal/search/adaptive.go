@@ -37,6 +37,7 @@ func Adaptive(ctx context.Context, client db.Store, embed EmbedFunc, query strin
 	}
 
 	resolveParents(client, results)
+	applyContextBoosts(client, filter, results)
 	filtered := gradeResults(results, minRelevance)
 	ApplyRecencyWeighting(filtered, recencyDecay)
 
@@ -60,6 +61,7 @@ func Adaptive(ctx context.Context, client db.Store, embed EmbedFunc, query strin
 			}
 
 			resolveParents(client, results2)
+			applyContextBoosts(client, filter, results2)
 
 			graded := gradeResults(results2, minRelevance)
 			ApplyRecencyWeighting(graded, recencyDecay)

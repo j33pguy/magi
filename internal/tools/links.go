@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 
@@ -21,7 +22,7 @@ func (l *LinkMemories) Tool() mcp.Tool {
 		mcp.WithDescription("Create a directed relationship between two memories (e.g. caused_by, led_to, supersedes)."),
 		mcp.WithString("from_id", mcp.Required(), mcp.Description("Source memory ID")),
 		mcp.WithString("to_id", mcp.Required(), mcp.Description("Target memory ID")),
-		mcp.WithString("relation", mcp.Required(), mcp.Description("One of: caused_by, led_to, related_to, supersedes, part_of, contradicts")),
+		mcp.WithString("relation", mcp.Required(), mcp.Description("One of: "+strings.Join(db.MemoryRelations(), ", "))),
 		mcp.WithNumber("weight", mcp.Description("Relationship strength 0.0–1.0 (default 1.0)")),
 	)
 }
@@ -39,6 +40,9 @@ func (l *LinkMemories) Handle(ctx context.Context, request mcp.CallToolRequest) 
 	relation, err := request.RequireString("relation")
 	if err != nil {
 		return mcp.NewToolResultError("relation is required"), nil
+	}
+	if !db.ValidMemoryRelation(relation) {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid relation %q, must be one of: %s", relation, strings.Join(db.MemoryRelations(), ", "))), nil
 	}
 
 	weight := request.GetFloat("weight", 1.0)
@@ -76,7 +80,7 @@ func (g *GetRelated) Tool() mcp.Tool {
 }
 
 type relatedResult struct {
-	Memory *db.Memory      `json:"memory"`
+	Memory *db.Memory       `json:"memory"`
 	Links  []*db.MemoryLink `json:"links"`
 }
 

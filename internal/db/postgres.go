@@ -235,6 +235,7 @@ func (c *PostgresClient) Migrate() error {
 		{7, pgMigrationV7},
 		{8, pgMigrationV8},
 		{9, pgMigrationV9},
+		{10, pgMigrationV10},
 	}
 
 	for _, m := range migrations {
@@ -840,10 +841,15 @@ func (c *PostgresClient) SetTags(memoryID string, tags []string) error {
 
 // CreateLink creates a directed link between two memories.
 func (c *PostgresClient) CreateLink(ctx context.Context, fromID, toID, relation string, weight float64, auto bool) (*MemoryLink, error) {
+	relation, err := validateMemoryRelation(relation)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now().UTC().Format(time.DateTime)
 
 	var id string
-	err := c.DB.QueryRowContext(ctx, `
+	err = c.DB.QueryRowContext(ctx, `
 		INSERT INTO memory_links (from_id, to_id, relation, weight, auto, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id
