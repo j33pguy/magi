@@ -3,16 +3,16 @@ module github.com/j33pguy/magi
 go 1.25.7
 
 require (
-	github.com/go-git/go-git/v5 v5.17.2
+	github.com/go-git/go-git/v5 v5.18.0
 	github.com/go-sql-driver/mysql v1.9.3
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
-	github.com/jackc/pgx/v5 v5.9.1
-	github.com/mark3labs/mcp-go v0.47.1
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
+	github.com/jackc/pgx/v5 v5.9.2
+	github.com/mark3labs/mcp-go v0.48.0
 	github.com/microsoft/go-mssqldb v1.9.8
 	github.com/prometheus/client_golang v1.23.2
 	github.com/tursodatabase/go-libsql v0.0.0-20251219133454-43644db490ff
 	github.com/yalue/onnxruntime_go v1.27.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20260319201613-d00831a3d3e7
+	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 )
@@ -56,9 +56,9 @@ require (
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/net v0.51.0 // indirect
-	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/text v0.34.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260311181403-84a4fc48630c // indirect
+	golang.org/x/text v0.36.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
