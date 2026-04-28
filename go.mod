@@ -7,11 +7,11 @@ require (
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
 	github.com/jackc/pgx/v5 v5.9.2
-	github.com/mark3labs/mcp-go v0.48.0
+	github.com/mark3labs/mcp-go v0.49.0
 	github.com/microsoft/go-mssqldb v1.9.8
 	github.com/prometheus/client_golang v1.23.2
 	github.com/tursodatabase/go-libsql v0.0.0-20251219133454-43644db490ff
-	github.com/yalue/onnxruntime_go v1.27.0
+	github.com/yalue/onnxruntime_go v1.28.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
