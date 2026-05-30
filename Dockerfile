@@ -1,11 +1,23 @@
 FROM golang:1.25-bookworm AS builder
 
-RUN apt-get update && apt-get install -y gcc libc6-dev && rm -rf /var/lib/apt/lists/*
+# TARGETARCH is provided automatically by BuildKit (e.g. amd64, arm64).
+ARG TARGETARCH
+ARG ONNX_VERSION=1.26.0
 
-ADD https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz /tmp/onnxruntime.tgz
-RUN tar -xzf /tmp/onnxruntime.tgz -C /tmp && \
-    cp /tmp/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so /usr/local/lib/ && \
-    ldconfig && \
+RUN apt-get update && apt-get install -y gcc libc6-dev curl && rm -rf /var/lib/apt/lists/*
+
+# Download the ONNX Runtime build matching the target architecture. ONNX Runtime
+# uses "x64"/"aarch64" naming, so map from Docker's TARGETARCH accordingly.
+RUN set -eux; \
+    case "$TARGETARCH" in \
+        amd64) ONNX_ARCH=x64 ;; \
+        arm64) ONNX_ARCH=aarch64 ;; \
+        *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-${ONNX_ARCH}-${ONNX_VERSION}.tgz" -o /tmp/onnxruntime.tgz; \
+    tar -xzf /tmp/onnxruntime.tgz -C /tmp; \
+    cp "/tmp/onnxruntime-linux-${ONNX_ARCH}-${ONNX_VERSION}/lib/libonnxruntime.so" /usr/local/lib/; \
+    ldconfig; \
     rm -rf /tmp/onnxruntime*
 
 WORKDIR /src
@@ -37,10 +49,15 @@ RUN ldconfig
 
 COPY --from=builder /usr/local/bin/magi /usr/local/bin/magi
 
-RUN mkdir -p /data/models && useradd -r -s /bin/false magi
+RUN useradd -r -s /bin/false magi && \
+    mkdir -p /data/models && \
+    chown -R magi:magi /data
 USER magi
 
 ENV MEMORY_BACKEND=sqlite
+# The sqlite backend reads SQLITE_PATH; MAGI_REPLICA_PATH is only used by the
+# turso backend. Set both so /data is used regardless of MEMORY_BACKEND.
+ENV SQLITE_PATH=/data/memory.db
 ENV MAGI_REPLICA_PATH=/data/memory.db
 ENV MAGI_MODEL_DIR=/data/models
 ENV MAGI_GRPC_PORT=8300
