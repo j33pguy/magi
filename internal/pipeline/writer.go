@@ -18,6 +18,7 @@ import (
 // WriteRequest is a memory write submitted to the async pipeline.
 type WriteRequest struct {
 	Memory         *db.Memory
+	Input          *remember.Input
 	Tags           []string
 	DedupThreshold float64
 }
@@ -164,18 +165,27 @@ func (w *Writer) processJob(logger *slog.Logger, job writeJob) {
 	if job.req.DedupThreshold > 0 {
 		dedupThreshold = &job.req.DedupThreshold
 	}
-	prepared, err := remember.Prepare(ctx, w.store, w.embedder, remember.Input{
+	input := remember.Input{
 		Content:    mem.Content,
 		Summary:    mem.Summary,
 		Project:    mem.Project,
 		Type:       mem.Type,
 		Visibility: mem.Visibility,
 		Source:     mem.Source,
+		SourceFile: mem.SourceFile,
 		Speaker:    mem.Speaker,
 		Area:       mem.Area,
 		SubArea:    mem.SubArea,
 		Tags:       job.req.Tags,
-	}, remember.Options{
+	}
+	if job.req.Input != nil {
+		input = *job.req.Input
+		if len(input.Tags) == 0 && len(job.req.Tags) > 0 {
+			input.Tags = append([]string(nil), job.req.Tags...)
+		}
+	}
+
+	prepared, err := remember.Prepare(ctx, w.store, w.embedder, input, remember.Options{
 		DedupThreshold: dedupThreshold,
 		TagMode:        remember.TagModeWarn,
 		Logger:         logger,

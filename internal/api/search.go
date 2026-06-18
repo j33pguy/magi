@@ -20,8 +20,13 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	topK, _ := strconv.Atoi(q.Get("top_k"))
 	if topK <= 0 {
+		topK, _ = strconv.Atoi(q.Get("limit"))
+	}
+	if topK <= 0 {
 		topK = 5
 	}
+
+	includeMeta := parseBoolQuery(q.Get("include_meta")) || parseBoolQuery(q.Get("debug_meta"))
 
 	recencyDecay, _ := strconv.ParseFloat(q.Get("recency_decay"), 64)
 
@@ -68,5 +73,24 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	search.ApplyRecencyWeighting(results, recencyDecay)
 
+	if includeMeta {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"results": results,
+			"meta": map[string]any{
+				"count": len(results),
+			},
+		})
+		return
+	}
+
 	writeJSON(w, http.StatusOK, results)
+}
+
+func parseBoolQuery(raw string) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }

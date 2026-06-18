@@ -96,8 +96,8 @@ func TestHealth(t *testing.T) {
 	if !resp.Ok {
 		t.Error("expected ok=true")
 	}
-	if resp.Version != "0.3.0" {
-		t.Errorf("expected version 0.3.0, got %s", resp.Version)
+	if resp.Version != "0.5.0" {
+		t.Errorf("expected version 0.5.0, got %s", resp.Version)
 	}
 }
 

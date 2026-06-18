@@ -392,6 +392,71 @@ func TestHandleSearchWithTags(t *testing.T) {
 	}
 }
 
+func TestHandleSearchWithLimitAlias(t *testing.T) {
+	s := newTestServer(t)
+	for i := 0; i < 10; i++ {
+		seedMemory(t, s, "searchable memory content", "proj", "memory")
+	}
+
+	req := httptest.NewRequest("GET", "/search?q=searchable&limit=2", nil)
+	w := httptest.NewRecorder()
+	s.handleSearch(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var results []*db.HybridResult
+	if err := json.NewDecoder(w.Body).Decode(&results); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(results) > 2 {
+		t.Fatalf("got %d results, want at most 2", len(results))
+	}
+}
+
+func TestHandleSearchDefaultResponseIsArray(t *testing.T) {
+	s := newTestServer(t)
+	seedMemory(t, s, "searchable memory content", "proj", "memory")
+
+	req := httptest.NewRequest("GET", "/search?q=searchable", nil)
+	w := httptest.NewRecorder()
+	s.handleSearch(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var results []*db.HybridResult
+	if err := json.NewDecoder(w.Body).Decode(&results); err != nil {
+		t.Fatalf("expected array response, decode failed: %v", err)
+	}
+}
+
+func TestHandleSearchIncludeMetaResponseShape(t *testing.T) {
+	s := newTestServer(t)
+	seedMemory(t, s, "searchable memory content", "proj", "memory")
+
+	req := httptest.NewRequest("GET", "/search?q=searchable&include_meta=true", nil)
+	w := httptest.NewRecorder()
+	s.handleSearch(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&payload); err != nil {
+		t.Fatalf("expected object response, decode failed: %v", err)
+	}
+	if _, ok := payload["results"]; !ok {
+		t.Fatalf("expected results key in include_meta response")
+	}
+	if _, ok := payload["meta"]; !ok {
+		t.Fatalf("expected meta key in include_meta response")
+	}
+}
+
 func TestHandleSearchDefaultTopK(t *testing.T) {
 	s := newTestServer(t)
 	seedMemory(t, s, "default topk content", "proj", "memory")

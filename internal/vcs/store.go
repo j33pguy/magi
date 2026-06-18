@@ -71,9 +71,14 @@ func (v *VersionedStore) DeleteMemory(id string) error {
 		return err
 	}
 
-	relPath := filepath.Join("memories", id+".json")
-	if err := v.repo.RemoveAndCommit(relPath, fmt.Sprintf("delete: %s", id)); err != nil {
-		v.logger.Warn("git: failed to remove memory file", "id", id, "error", err)
+	for _, relPath := range []string{
+		filepath.Join("memories", id+".json"),
+		filepath.Join("contexts", id+".json"),
+		filepath.Join("links", id+".json"),
+	} {
+		if err := v.repo.RemoveAndCommit(relPath, fmt.Sprintf("delete: %s", id)); err != nil {
+			v.logger.Warn("git: failed to remove git-backed file", "id", id, "path", relPath, "error", err)
+		}
 	}
 	return nil
 }
@@ -121,11 +126,14 @@ func (v *VersionedStore) CreateLink(ctx context.Context, fromID, toID, relation 
 }
 
 func (v *VersionedStore) DeleteLink(ctx context.Context, linkID string) error {
+	var fromID string
+	if err := v.Client.DB.QueryRowContext(ctx, `SELECT from_id FROM memory_links WHERE id = ?`, linkID).Scan(&fromID); err != nil {
+		return v.Client.DeleteLink(ctx, linkID)
+	}
 	if err := v.Client.DeleteLink(ctx, linkID); err != nil {
 		return err
 	}
-	// Can't update link file without knowing from_id — acceptable tradeoff.
-	// Links will be refreshed on next CreateLink for that memory.
+	v.writeLinkToGit(ctx, fromID)
 	return nil
 }
 
@@ -151,16 +159,42 @@ func (v *VersionedStore) writeLinkToGit(ctx context.Context, fromID string) {
 		return
 	}
 
+	relPath := filepath.Join("links", fromID+".json")
+	if len(links) == 0 {
+		if err := v.repo.WriteAndCommit(relPath, []byte("[]\n"), fmt.Sprintf("link: clear links from %s", fromID)); err != nil {
+			v.logger.Warn("git: failed to clear link file", "from_id", fromID, "error", err)
+		}
+		return
+	}
+
 	data, err := LinksToJSON(links)
 	if err != nil {
 		v.logger.Warn("git: failed to serialize links", "from_id", fromID, "error", err)
 		return
 	}
 
-	relPath := filepath.Join("links", fromID+".json")
 	if err := v.repo.WriteAndCommit(relPath, data, fmt.Sprintf("link: update links from %s", fromID)); err != nil {
 		v.logger.Warn("git: failed to write link file", "from_id", fromID, "error", err)
 	}
+}
+
+func (v *VersionedStore) SaveMemoryContext(record *db.MemoryContextRecord) error {
+	if err := v.Client.SaveMemoryContext(record); err != nil {
+		return err
+	}
+	if record == nil || record.MemoryID == "" || record.Empty() {
+		return nil
+	}
+	data, err := ContextToJSON(record)
+	if err != nil {
+		v.logger.Warn("git: failed to serialize context", "memory_id", record.MemoryID, "error", err)
+		return nil
+	}
+	relPath := filepath.Join("contexts", record.MemoryID+".json")
+	if err := v.repo.WriteAndCommit(relPath, data, fmt.Sprintf("context: update %s", record.MemoryID)); err != nil {
+		v.logger.Warn("git: failed to write context file", "memory_id", record.MemoryID, "error", err)
+	}
+	return nil
 }
 
 func truncate(s string, max int) string {

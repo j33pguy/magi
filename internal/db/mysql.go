@@ -479,7 +479,7 @@ func (c *MySQLClient) HybridSearch(embedding []float32, query string, filter *Me
 	if topK <= 0 {
 		topK = 10
 	}
-	fetchK := topK * 3
+	fetchK := hybridFetchK(topK)
 
 	var (
 		vecResults  []*VectorResult
@@ -1045,4 +1045,8 @@ func (c *MySQLClient) scanMemories(rows *sql.Rows) ([]*Memory, error) {
 		memories = append(memories, m)
 	}
 	return memories, nil
+}
+
+func (c *MySQLClient) PersistPreparedMemory(input PersistPreparedMemoryInput) (*PersistPreparedMemoryResult, error) {
+	return persistPreparedMemoryGeneric(c, input)
 }

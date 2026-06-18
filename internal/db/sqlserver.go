@@ -489,7 +489,7 @@ func (c *SQLServerClient) HybridSearch(embedding []float32, query string, filter
 	if topK <= 0 {
 		topK = 10
 	}
-	fetchK := topK * 3
+	fetchK := hybridFetchK(topK)
 
 	vecResults, err := c.SearchMemories(embedding, filter, fetchK)
 	if err != nil {
@@ -1053,4 +1053,8 @@ func sqlserverAppendAccessCondition(filter *MemoryFilter, conditions *[]string, 
 	}
 
 	*conditions = append(*conditions, "("+strings.Join(parts, " OR ")+")")
+}
+
+func (c *SQLServerClient) PersistPreparedMemory(input PersistPreparedMemoryInput) (*PersistPreparedMemoryResult, error) {
+	return persistPreparedMemoryGeneric(c, input)
 }

@@ -61,7 +61,9 @@ func (c *Client) setTagsNoTx(memoryID string, tags []string) error {
 	// lets streams expire server-side while keeping stale connections in the pool.
 	_ = c.DB.Ping()
 
-	if _, err := c.DB.ExecContext(context.Background(), "DELETE FROM memory_tags WHERE memory_id = ?", memoryID); err != nil {
+	ctx := context.Background()
+
+	if _, err := c.DB.ExecContext(ctx, "DELETE FROM memory_tags WHERE memory_id = ?", memoryID); err != nil {
 		return fmt.Errorf("clearing tags: %w", err)
 	}
 
@@ -77,7 +79,7 @@ func (c *Client) setTagsNoTx(memoryID string, tags []string) error {
 	}
 
 	query := fmt.Sprintf("INSERT INTO memory_tags (memory_id, tag) VALUES %s", strings.Join(placeholders, ", "))
-	if _, err := c.DB.ExecContext(context.Background(), query, args...); err != nil {
+	if _, err := c.DB.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("inserting tags: %w", err)
 	}
 

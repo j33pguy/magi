@@ -10,22 +10,24 @@ import (
 )
 
 type fakeStore struct {
-	memories     map[string]*db.Memory
-	tags         map[string][]string
-	hybrid       []*db.HybridResult
-	getCalls     int
-	hybridCalls  int
-	saveCalls    int
-	updateCalls  int
-	archiveCalls int
-	deleteCalls  int
-	closeCalls   int
+	memories       map[string]*db.Memory
+	tags           map[string][]string
+	memoryContexts map[string]*db.MemoryContextRecord
+	hybrid         []*db.HybridResult
+	getCalls       int
+	hybridCalls    int
+	saveCalls      int
+	updateCalls    int
+	archiveCalls   int
+	deleteCalls    int
+	closeCalls     int
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		memories: make(map[string]*db.Memory),
-		tags:     make(map[string][]string),
+		memories:       make(map[string]*db.Memory),
+		tags:           make(map[string][]string),
+		memoryContexts: make(map[string]*db.MemoryContextRecord),
 	}
 }
 
@@ -116,6 +118,25 @@ func (f *fakeStore) SetTags(memoryID string, tags []string) error {
 	return nil
 }
 
+func (f *fakeStore) PersistPreparedMemory(input db.PersistPreparedMemoryInput) (*db.PersistPreparedMemoryResult, error) {
+	saved, err := f.SaveMemory(input.Memory)
+	if err != nil {
+		return nil, err
+	}
+	if len(input.Tags) > 0 {
+		if err := f.SetTags(saved.ID, input.Tags); err != nil {
+			return nil, err
+		}
+	}
+	if input.Context != nil {
+		input.Context.MemoryID = saved.ID
+		if err := f.SaveMemoryContext(input.Context); err != nil {
+			return nil, err
+		}
+	}
+	return &db.PersistPreparedMemoryResult{Saved: saved}, nil
+}
+
 func (f *fakeStore) CreateLink(_ context.Context, _, _, _ string, _ float64, _ bool) (*db.MemoryLink, error) {
 	return nil, nil
 }
@@ -142,6 +163,11 @@ func (f *fakeStore) Migrate() error {
 
 func (f *fakeStore) Close() error {
 	f.closeCalls++
+	return nil
+}
+
+func (f *fakeStore) SaveMemoryContext(record *db.MemoryContextRecord) error {
+	f.memoryContexts[record.MemoryID] = record
 	return nil
 }
 
@@ -233,5 +259,19 @@ func TestStoreSetTagsRefreshesCachedMemory(t *testing.T) {
 	}
 	if len(got.Tags) != 2 || got.Tags[0] != "owner:UserA" {
 		t.Fatalf("expected cached tags to be refreshed, got %#v", got.Tags)
+	}
+}
+
+func TestStoreDelegatesMemoryContextPersistence(t *testing.T) {
+	delegate := newFakeStore()
+	store := NewStore(delegate, Config{Enabled: true, QueryTTL: time.Minute, MemorySize: 10})
+	defer store.Close()
+
+	record := &db.MemoryContextRecord{MemoryID: "mem-ctx", ScopeMachine: "gilfoyle"}
+	if err := store.SaveMemoryContext(record); err != nil {
+		t.Fatalf("SaveMemoryContext: %v", err)
+	}
+	if got := delegate.memoryContexts[record.MemoryID]; got == nil || got.ScopeMachine != "gilfoyle" {
+		t.Fatalf("expected context persistence to reach delegate, got %#v", got)
 	}
 }

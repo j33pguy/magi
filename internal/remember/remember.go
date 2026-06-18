@@ -3,6 +3,7 @@ package remember
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -213,23 +214,46 @@ func Persist(store db.Store, prepared *PreparedWrite, opts Options) (*Result, er
 		logger = slog.Default()
 	}
 
-	saved, err := store.SaveMemory(prepared.Memory)
-	if err != nil {
-		return nil, fmt.Errorf("saving memory: %w", err)
-	}
-
-	persistEnvelope(store, saved.ID, prepared.Envelope, logger)
-
+	var saved *db.Memory
 	var tagWarning string
-	if len(prepared.Tags) > 0 {
-		if err := store.SetTags(saved.ID, prepared.Tags); err != nil {
-			if opts.TagMode == TagModeWarn {
-				logger.Warn("setting tags failed (non-fatal)", "error", err, "memory_id", saved.ID)
-				tagWarning = err.Error()
-			} else {
-				return nil, fmt.Errorf("setting tags: %w", err)
+	if persister, ok := store.(preparedMemoryPersister); ok {
+		ctxRecord := envelopeRecord("", prepared.Envelope)
+		persisted, err := persister.PersistPreparedMemory(db.PersistPreparedMemoryInput{
+			Memory:  prepared.Memory,
+			Tags:    prepared.Tags,
+			Context: ctxRecord,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("saving memory: %w", err)
+		}
+		saved = persisted.Saved
+		tagWarning = persisted.TagWarning
+	} else {
+		var err error
+		saved, err = store.SaveMemory(prepared.Memory)
+		if err != nil {
+			return nil, fmt.Errorf("saving memory: %w", err)
+		}
+
+		persistEnvelope(store, saved.ID, prepared.Envelope, logger)
+
+		if len(prepared.Tags) > 0 {
+			if err := store.SetTags(saved.ID, prepared.Tags); err != nil {
+				if opts.TagMode == TagModeWarn {
+					logger.Warn("setting tags failed (non-fatal)", "error", err, "memory_id", saved.ID)
+					tagWarning = err.Error()
+				} else {
+					return nil, fmt.Errorf("setting tags: %w", err)
+				}
 			}
 		}
+	}
+
+	if tagWarning != "" && opts.TagMode != TagModeWarn {
+		return nil, fmt.Errorf("setting tags: %w", errors.New(tagWarning))
+	}
+	if tagWarning != "" && opts.TagMode == TagModeWarn {
+		logger.Warn("setting tags failed (non-fatal)", "error", tagWarning, "memory_id", saved.ID)
 	}
 
 	return &Result{
@@ -254,12 +278,12 @@ type memoryContextSaver interface {
 	SaveMemoryContext(record *db.MemoryContextRecord) error
 }
 
-func persistEnvelope(store db.Store, memoryID string, env Envelope, logger *slog.Logger) {
-	saver, ok := store.(memoryContextSaver)
-	if !ok {
-		return
-	}
-	record := &db.MemoryContextRecord{
+type preparedMemoryPersister interface {
+	PersistPreparedMemory(input db.PersistPreparedMemoryInput) (*db.PersistPreparedMemoryResult, error)
+}
+
+func envelopeRecord(memoryID string, env Envelope) *db.MemoryContextRecord {
+	return &db.MemoryContextRecord{
 		MemoryID: memoryID,
 		Repository: db.RepositoryRecord{
 			Host:          env.Repository.Host,
@@ -279,6 +303,14 @@ func persistEnvelope(store db.Store, memoryID string, env Envelope, logger *slog
 		ProvenanceHumanAuthored: env.Provenance.HumanAuthored,
 		DurableAt:               env.Provenance.DurableAt,
 	}
+}
+
+func persistEnvelope(store db.Store, memoryID string, env Envelope, logger *slog.Logger) {
+	saver, ok := store.(memoryContextSaver)
+	if !ok {
+		return
+	}
+	record := envelopeRecord(memoryID, env)
 	if err := saver.SaveMemoryContext(record); err != nil && logger != nil {
 		logger.Warn("persisting memory context failed (non-fatal)", "memory_id", memoryID, "error", err)
 	}

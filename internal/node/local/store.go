@@ -107,6 +107,17 @@ func (s *CoordinatedStore) Close() error {
 	return s.delegate.Close()
 }
 
+// SaveMemoryContext forwards redesign context persistence to the wrapped store when supported.
+func (s *CoordinatedStore) SaveMemoryContext(record *db.MemoryContextRecord) error {
+	type contextSaver interface {
+		SaveMemoryContext(record *db.MemoryContextRecord) error
+	}
+	if delegate, ok := s.delegate.(contextSaver); ok {
+		return delegate.SaveMemoryContext(record)
+	}
+	return nil
+}
+
 // Sync forwards to the delegate store when supported.
 func (s *CoordinatedStore) Sync() error {
 	type syncer interface {
@@ -116,4 +127,13 @@ func (s *CoordinatedStore) Sync() error {
 		return delegate.Sync()
 	}
 	return nil
+}
+func (s *CoordinatedStore) PersistPreparedMemory(input db.PersistPreparedMemoryInput) (*db.PersistPreparedMemoryResult, error) {
+	type preparedPersister interface {
+		PersistPreparedMemory(input db.PersistPreparedMemoryInput) (*db.PersistPreparedMemoryResult, error)
+	}
+	if delegate, ok := s.delegate.(preparedPersister); ok {
+		return delegate.PersistPreparedMemory(input)
+	}
+	return nil, nil
 }

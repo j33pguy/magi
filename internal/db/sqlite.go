@@ -51,8 +51,8 @@ func NewSQLiteClient(path string, logger *slog.Logger) (*SQLiteClient, error) {
 	}
 
 	// Connection pool: allow more concurrent readers with WAL mode.
-	db.SetMaxOpenConns(4)
-	db.SetMaxIdleConns(2)
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(10 * time.Minute)
 	db.SetConnMaxIdleTime(2 * time.Minute)
 

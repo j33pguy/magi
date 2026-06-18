@@ -26,6 +26,10 @@ type Store interface {
 	GetTags(memoryID string) ([]string, error)
 	SetTags(memoryID string, tags []string) error
 
+	// Context
+	SaveMemoryContext(record *MemoryContextRecord) error
+	PersistPreparedMemory(prepared PersistPreparedMemoryInput) (*PersistPreparedMemoryResult, error)
+
 	// Links
 	CreateLink(ctx context.Context, fromID, toID, relation string, weight float64, auto bool) (*MemoryLink, error)
 	GetLinks(ctx context.Context, memoryID string, direction string) ([]*MemoryLink, error)

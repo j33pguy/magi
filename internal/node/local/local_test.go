@@ -13,13 +13,17 @@ import (
 
 // mockStore implements db.Store for testing.
 type mockStore struct {
-	memories map[string]*db.Memory
-	mu       sync.RWMutex
-	nextID   int
+	memories       map[string]*db.Memory
+	memoryContexts map[string]*db.MemoryContextRecord
+	mu             sync.RWMutex
+	nextID         int
 }
 
 func newMockStore() *mockStore {
-	return &mockStore{memories: make(map[string]*db.Memory)}
+	return &mockStore{
+		memories:       make(map[string]*db.Memory),
+		memoryContexts: make(map[string]*db.MemoryContextRecord),
+	}
 }
 
 func (m *mockStore) SaveMemory(mem *db.Memory) (*db.Memory, error) {
@@ -102,6 +106,19 @@ func (m *mockStore) FindSimilar(_ []float32, _ float64) (*db.VectorResult, error
 func (m *mockStore) ExistsWithContentHash(_ string) (string, error) { return "", nil }
 func (m *mockStore) GetTags(_ string) ([]string, error)             { return nil, nil }
 func (m *mockStore) SetTags(_ string, _ []string) error             { return nil }
+func (m *mockStore) PersistPreparedMemory(input db.PersistPreparedMemoryInput) (*db.PersistPreparedMemoryResult, error) {
+	saved, err := m.SaveMemory(input.Memory)
+	if err != nil {
+		return nil, err
+	}
+	if input.Context != nil {
+		input.Context.MemoryID = saved.ID
+		if err := m.SaveMemoryContext(input.Context); err != nil {
+			return nil, err
+		}
+	}
+	return &db.PersistPreparedMemoryResult{Saved: saved}, nil
+}
 func (m *mockStore) CreateLink(_ context.Context, _, _, _ string, _ float64, _ bool) (*db.MemoryLink, error) {
 	return nil, nil
 }
@@ -117,6 +134,13 @@ func (m *mockStore) GetGraphData(_ context.Context, _ int) ([]*db.Memory, []*db.
 }
 func (m *mockStore) Migrate() error { return nil }
 func (m *mockStore) Close() error   { return nil }
+
+func (m *mockStore) SaveMemoryContext(record *db.MemoryContextRecord) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.memoryContexts[record.MemoryID] = record
+	return nil
+}
 
 func TestWriterWrite(t *testing.T) {
 	store := newMockStore()
@@ -368,6 +392,12 @@ func TestCoordinatedStoreDelegatedOps(t *testing.T) {
 	}
 	if err := cs.SetTags("x", []string{"a"}); err != nil {
 		t.Errorf("set tags: %v", err)
+	}
+	if err := cs.SaveMemoryContext(&db.MemoryContextRecord{MemoryID: "mem-ctx"}); err != nil {
+		t.Errorf("save memory context: %v", err)
+	}
+	if _, ok := store.memoryContexts["mem-ctx"]; !ok {
+		t.Fatalf("expected memory context to reach delegate")
 	}
 	if err := cs.Close(); err != nil {
 		t.Errorf("close: %v", err)

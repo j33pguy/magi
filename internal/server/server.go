@@ -13,6 +13,7 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/j33pguy/magi/internal/auth"
+	"github.com/j33pguy/magi/internal/buildinfo"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"google.golang.org/grpc"
@@ -177,7 +178,7 @@ func New(logger *slog.Logger) (*Server, error) {
 
 	s.mcp = mcpserver.NewMCPServer(
 		"magi",
-		"0.3.0",
+		buildinfo.Version,
 		mcpserver.WithToolCapabilities(false),
 		mcpserver.WithResourceCapabilities(false, false),
 		mcpserver.WithRecovery(),

@@ -110,8 +110,8 @@ func TestHandleHealth(t *testing.T) {
 	if resp["ok"] != true {
 		t.Errorf("ok = %v, want true", resp["ok"])
 	}
-	if resp["version"] != "0.3.0" {
-		t.Errorf("version = %v, want 0.3.0", resp["version"])
+	if resp["version"] != "0.5.0" {
+		t.Errorf("version = %v, want 0.5.0", resp["version"])
 	}
 	if resp["db_status"] != "ok" {
 		t.Errorf("db_status = %v, want ok", resp["db_status"])
@@ -193,7 +193,7 @@ func TestHandleRememberAsync(t *testing.T) {
 	}, s.logger))
 	defer s.pipeline.Close()
 
-	body := `{"content": "async memory content", "project": "test-proj", "type": "memory", "tags": ["alpha"]}`
+	body := `{"content":"async memory content","project":"github.com/j33pguy/magi","type":"memory","tags":["alpha"],"machine":"gilfoyle","transport":"http","human_authored":true}`
 	req := httptest.NewRequest("POST", "/remember", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -235,7 +235,7 @@ func TestHandleRememberAsync(t *testing.T) {
 		t.Fatalf("state = %s, want %s", status.State, pipeline.StateComplete)
 	}
 
-	memories, err := s.db.ListMemories(&db.MemoryFilter{Project: "test-proj"})
+	memories, err := s.db.ListMemories(&db.MemoryFilter{Project: "github.com/j33pguy/magi"})
 	if err != nil {
 		t.Fatalf("ListMemories: %v", err)
 	}
@@ -265,6 +265,59 @@ func TestHandleRememberAsync(t *testing.T) {
 	}
 	if !gotAlpha {
 		t.Fatalf("expected alpha tag, got %v", tags)
+	}
+
+	client, ok := s.db.(*db.Client)
+	if !ok {
+		t.Fatalf("expected *db.Client, got %T", s.db)
+	}
+
+	var repoCanonical, machine, transport string
+	var humanAuthored int
+	err = client.DB.QueryRow(`
+		SELECT COALESCE(r.canonical_name, ''), mc.scope_machine, mc.provenance_transport, mc.provenance_human_authored
+		FROM memory_contexts mc
+		LEFT JOIN repositories r ON r.id = mc.repository_id
+		WHERE mc.memory_id = ?
+	`, found.ID).Scan(&repoCanonical, &machine, &transport, &humanAuthored)
+	if err != nil {
+		t.Fatalf("QueryRow memory_contexts: %v", err)
+	}
+	if repoCanonical != "j33pguy/magi" || machine != "gilfoyle" || transport != "http" || humanAuthored != 1 {
+		t.Fatalf("unexpected async context: repo=%q machine=%q transport=%q human=%d", repoCanonical, machine, transport, humanAuthored)
+	}
+}
+
+func TestHandleSyncRememberBypassesAsyncPipeline(t *testing.T) {
+	s := newTestServer(t)
+	s.SetPipeline(pipeline.NewWriter(s.db, s.embedder, pipeline.Config{
+		Enabled:       true,
+		Workers:       1,
+		QueueSize:     4,
+		FlushInterval: 5 * time.Millisecond,
+		BatchMaxSize:  2,
+	}, s.logger))
+	defer s.pipeline.Close()
+
+	body := `{"content":"sync endpoint memory","project":"sync-proj","type":"memory"}`
+	req := httptest.NewRequest("POST", "/sync/memories", strings.NewReader(body))
+	req = req.WithContext(auth.NewContext(req.Context(), &auth.Identity{Kind: "machine", MachineID: "test-machine"}))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.handleSyncRemember(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusCreated, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp["async"] == true {
+		t.Fatalf("sync endpoint returned async response: %v", resp)
+	}
+	if resp["id"] == nil || resp["id"] == "" {
+		t.Fatalf("expected persisted memory id, got %v", resp)
 	}
 }
 

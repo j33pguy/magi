@@ -98,8 +98,8 @@ func TestHealth_Success(t *testing.T) {
 	if !resp.Ok {
 		t.Error("expected ok=true")
 	}
-	if resp.Version != "0.3.0" {
-		t.Errorf("version = %q, want 0.3.0", resp.Version)
+	if resp.Version != "0.5.0" {
+		t.Errorf("version = %q, want 0.5.0", resp.Version)
 	}
 }
 

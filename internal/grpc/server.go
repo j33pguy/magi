@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/j33pguy/magi/internal/auth"
+	"github.com/j33pguy/magi/internal/buildinfo"
 	"github.com/j33pguy/magi/internal/secretstore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -42,7 +43,7 @@ func NewServer(dbClient db.Store, embedder embeddings.Provider, logger *slog.Log
 }
 
 func (s *Server) Health(_ context.Context, _ *pb.HealthRequest) (*pb.HealthResponse, error) {
-	return &pb.HealthResponse{Ok: true, Version: "0.3.0"}, nil
+	return &pb.HealthResponse{Ok: true, Version: buildinfo.Version}, nil
 }
 
 func (s *Server) Remember(ctx context.Context, req *pb.RememberRequest) (*pb.RememberResponse, error) {

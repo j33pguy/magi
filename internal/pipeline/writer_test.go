@@ -43,6 +43,23 @@ func (m *mockStore) SetTags(id string, tags []string) error {
 	return nil
 }
 
+func (m *mockStore) SaveMemoryContext(_ *db.MemoryContextRecord) error {
+	return nil
+}
+
+func (m *mockStore) PersistPreparedMemory(input db.PersistPreparedMemoryInput) (*db.PersistPreparedMemoryResult, error) {
+	saved, err := m.SaveMemory(input.Memory)
+	if err != nil {
+		return nil, err
+	}
+	if len(input.Tags) > 0 {
+		if err := m.SetTags(saved.ID, input.Tags); err != nil {
+			return nil, err
+		}
+	}
+	return &db.PersistPreparedMemoryResult{Saved: saved}, nil
+}
+
 func (m *mockStore) FindSimilar(_ []float32, _ float64) (*db.VectorResult, error) {
 	return nil, nil
 }

@@ -8,8 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/j33pguy/magi/internal/cache"
 	"github.com/j33pguy/magi/internal/db"
+	"github.com/j33pguy/magi/internal/node"
+	localnode "github.com/j33pguy/magi/internal/node/local"
 	"github.com/j33pguy/magi/internal/secretstore"
 )
 
@@ -160,9 +164,9 @@ func TestBuildTagsAddsRepoFacet(t *testing.T) {
 	}
 }
 
-func TestRememberPersistsRepoFacet(t *testing.T) {
-	store := newRememberStore(t)
-	result, err := Remember(context.Background(), store, &testEmbedder{}, Input{
+func assertRememberRepoContextPersisted(t *testing.T, queryStore db.Store, inspectStore *db.Client) {
+	t.Helper()
+	result, err := Remember(context.Background(), queryStore, &testEmbedder{}, Input{
 		Content:       "remember repo-aware context",
 		Project:       "github.com/j33pguy/magi",
 		Machine:       "gilfoyle",
@@ -176,7 +180,7 @@ func TestRememberPersistsRepoFacet(t *testing.T) {
 		t.Fatalf("Remember: %v", err)
 	}
 
-	tags, err := store.GetTags(result.Saved.ID)
+	tags, err := inspectStore.GetTags(result.Saved.ID)
 	if err != nil {
 		t.Fatalf("GetTags: %v", err)
 	}
@@ -191,10 +195,34 @@ func TestRememberPersistsRepoFacet(t *testing.T) {
 		t.Fatalf("expected repo facet in persisted tags, got %v", tags)
 	}
 
-	canonicalName, scopeMachine, transport, humanAuthored := fetchRememberContextRow(t, store, result.Saved.ID)
+	canonicalName, scopeMachine, transport, humanAuthored := fetchRememberContextRow(t, inspectStore, result.Saved.ID)
 	if canonicalName != "j33pguy/magi" || scopeMachine != "gilfoyle" || transport != "http" || !humanAuthored {
 		t.Fatalf("unexpected persisted context: canonical=%q machine=%q transport=%q human=%v", canonicalName, scopeMachine, transport, humanAuthored)
 	}
+}
+
+func TestRememberPersistsRepoFacet(t *testing.T) {
+	store := newRememberStore(t)
+	assertRememberRepoContextPersisted(t, store, store)
+}
+
+func TestRememberPersistsRepoFacetThroughCoordinatedAndCacheWrappers(t *testing.T) {
+	base := newRememberStore(t)
+	cfg := node.DefaultConfig()
+	coord := localnode.NewCoordinator(cfg, base, slog.Default())
+	if err := coord.Start(context.Background()); err != nil {
+		t.Fatalf("Start coordinator: %v", err)
+	}
+	defer coord.Stop()
+
+	wrapped := cache.NewStore(localnode.NewCoordinatedStore(coord, base), cache.Config{
+		Enabled:    true,
+		QueryTTL:   time.Minute,
+		MemorySize: 16,
+	})
+	defer wrapped.Close()
+
+	assertRememberRepoContextPersisted(t, wrapped, base)
 }
 
 func TestBuildTagsNormalizesSSHRepoFacet(t *testing.T) {

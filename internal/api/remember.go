@@ -17,26 +17,36 @@ type rememberRequest struct {
 	Project string `json:"project"`
 	Type    string `json:"type"`
 	// Visibility: "private", "internal" (default), or "public"
-	Visibility string   `json:"visibility"`
-	Tags       []string `json:"tags"`
-	Source     string   `json:"source"`
-	Speaker    string   `json:"speaker"`
-	Area       string   `json:"area"`
-	SubArea    string   `json:"sub_area"`
+	Visibility    string   `json:"visibility"`
+	Tags          []string `json:"tags"`
+	Source        string   `json:"source"`
+	SourceFile    string   `json:"source_file"`
+	Speaker       string   `json:"speaker"`
+	Area          string   `json:"area"`
+	SubArea       string   `json:"sub_area"`
+	Owner         string   `json:"owner"`
+	Team          string   `json:"team"`
+	Workspace     string   `json:"workspace"`
+	Machine       string   `json:"machine"`
+	Agent         string   `json:"agent"`
+	Environment   string   `json:"environment"`
+	Transport     string   `json:"transport"`
+	ImportedFrom  string   `json:"imported_from"`
+	HumanAuthored bool     `json:"human_authored"`
 }
 
 func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
-	s.handleRememberWithDefaultSource(w, r, "api")
+	s.handleRememberWithDefaultSource(w, r, "api", true)
 }
 
 func (s *Server) handleSyncRemember(w http.ResponseWriter, r *http.Request) {
 	if !requireMachineOrAdminIdentity(w, r) {
 		return
 	}
-	s.handleRememberWithDefaultSource(w, r, "magi-sync")
+	s.handleRememberWithDefaultSource(w, r, "magi-sync", false)
 }
 
-func (s *Server) handleRememberWithDefaultSource(w http.ResponseWriter, r *http.Request, defaultSource string) {
+func (s *Server) handleRememberWithDefaultSource(w http.ResponseWriter, r *http.Request, defaultSource string, allowAsync bool) {
 	var req rememberRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
@@ -58,23 +68,12 @@ func (s *Server) handleRememberWithDefaultSource(w http.ResponseWriter, r *http.
 		req.Speaker = "assistant"
 	}
 
-	if s.pipeline != nil {
+	if allowAsync && s.pipeline != nil {
 		s.handleRememberAsync(w, req)
 		return
 	}
 
-	input := remember.Input{
-		Content:    req.Content,
-		Summary:    req.Summary,
-		Project:    req.Project,
-		Type:       req.Type,
-		Visibility: req.Visibility,
-		Source:     req.Source,
-		Speaker:    req.Speaker,
-		Area:       req.Area,
-		SubArea:    req.SubArea,
-		Tags:       req.Tags,
-	}
+	input := rememberInput(req)
 	result, err := remember.Remember(r.Context(), s.db, s.embedder, input, remember.Options{
 		TagMode:       remember.TagModeWarn,
 		Logger:        s.logger,
@@ -109,7 +108,7 @@ func (s *Server) handleRememberWithDefaultSource(w http.ResponseWriter, r *http.
 
 func (s *Server) handleRememberAsync(w http.ResponseWriter, req rememberRequest) {
 	mem := rememberMemory(req)
-	result, err := s.pipeline.Submit(pipelineWriteRequest(&mem, req.Tags))
+	result, err := s.pipeline.Submit(pipelineWriteRequest(&mem, rememberInput(req), req.Tags))
 	if err != nil {
 		s.logger.Error("remember async submit failed", "error", err)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
@@ -135,6 +134,7 @@ func rememberMemory(req rememberRequest) db.Memory {
 		Type:       req.Type,
 		Visibility: req.Visibility,
 		Source:     req.Source,
+		SourceFile: req.SourceFile,
 		Speaker:    req.Speaker,
 		Area:       req.Area,
 		SubArea:    req.SubArea,
@@ -142,8 +142,33 @@ func rememberMemory(req rememberRequest) db.Memory {
 	}
 }
 
-func pipelineWriteRequest(mem *db.Memory, tags []string) pipeline.WriteRequest {
-	return pipeline.WriteRequest{Memory: mem, Tags: tags}
+func rememberInput(req rememberRequest) remember.Input {
+	return remember.Input{
+		Content:       req.Content,
+		Summary:       req.Summary,
+		Project:       req.Project,
+		Type:          req.Type,
+		Visibility:    req.Visibility,
+		Source:        req.Source,
+		SourceFile:    req.SourceFile,
+		Speaker:       req.Speaker,
+		Area:          req.Area,
+		SubArea:       req.SubArea,
+		Tags:          append([]string(nil), req.Tags...),
+		Owner:         req.Owner,
+		Team:          req.Team,
+		Workspace:     req.Workspace,
+		Machine:       req.Machine,
+		Agent:         req.Agent,
+		Environment:   req.Environment,
+		Transport:     req.Transport,
+		ImportedFrom:  req.ImportedFrom,
+		HumanAuthored: req.HumanAuthored,
+	}
+}
+
+func pipelineWriteRequest(mem *db.Memory, input remember.Input, tags []string) pipeline.WriteRequest {
+	return pipeline.WriteRequest{Memory: mem, Input: &input, Tags: tags}
 }
 
 func pipelineStatePending() string {

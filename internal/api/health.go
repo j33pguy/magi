@@ -4,20 +4,23 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/j33pguy/magi/internal/buildinfo"
 	"github.com/j33pguy/magi/internal/db"
 )
-
-// version is the current MAGI version.
-const version = "0.3.0"
 
 // startTime records when the server started, used for uptime calculation.
 var startTime = time.Now()
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	build := buildinfo.Current()
 	resp := map[string]any{
 		"ok":      true,
-		"version": version,
+		"version": build.Version,
 		"uptime":  time.Since(startTime).String(),
+	}
+	if build.Revision != "" {
+		resp["revision"] = build.Revision
+		resp["build_modified"] = build.Modified
 	}
 
 	// Database status

@@ -42,6 +42,12 @@ func (contextOnlyStore) FindSimilar([]float32, float64) (*db.VectorResult, error
 func (contextOnlyStore) ExistsWithContentHash(string) (string, error)             { panic("unused") }
 func (contextOnlyStore) GetTags(string) ([]string, error)                         { panic("unused") }
 func (contextOnlyStore) SetTags(string, []string) error                           { panic("unused") }
+func (contextOnlyStore) SaveMemoryContext(*db.MemoryContextRecord) error {
+	panic("unused")
+}
+func (contextOnlyStore) PersistPreparedMemory(db.PersistPreparedMemoryInput) (*db.PersistPreparedMemoryResult, error) {
+	panic("unused")
+}
 func (contextOnlyStore) CreateLink(context.Context, string, string, string, float64, bool) (*db.MemoryLink, error) {
 	panic("unused")
 }

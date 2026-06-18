@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -113,7 +114,7 @@ func (bi *BatchInserter) flush() {
 			continue
 		}
 		bi.logger.Info("batch insert starting", "id", cw.id, "project", cw.prepared.Memory.Project, "parent_id", cw.prepared.Memory.ParentID, "tag_count", len(cw.prepared.Tags))
-		result, err := remember.Persist(bi.store, cw.prepared, remember.Options{TagMode: remember.TagModeWarn, Logger: bi.logger})
+		result, err := bi.persistWithRetry(cw)
 		if err != nil {
 			bi.logger.Error("batch insert failed", "id", cw.id, "project", cw.prepared.Memory.Project, "error", err)
 			bi.status.Set(cw.id, StateFailed, err.Error())
@@ -129,4 +130,30 @@ func (bi *BatchInserter) flush() {
 		}
 		bi.logger.Info("batch insert complete", "id", cw.id, "saved_id", result.Saved.ID, "project", result.Saved.Project)
 	}
+}
+func (bi *BatchInserter) persistWithRetry(cw completedWrite) (*remember.Result, error) {
+	var result *remember.Result
+	var err error
+	backoff := 25 * time.Millisecond
+	for attempt := 0; attempt < 6; attempt++ {
+		result, err = remember.Persist(bi.store, cw.prepared, remember.Options{TagMode: remember.TagModeWarn, Logger: bi.logger})
+		if err == nil {
+			return result, nil
+		}
+		if !isRetryableSQLiteBusy(err) {
+			return nil, err
+		}
+		bi.logger.Warn("batch insert retry after sqlite busy", "id", cw.id, "attempt", attempt+1, "backoff", backoff, "error", err)
+		time.Sleep(backoff)
+		backoff *= 2
+	}
+	return nil, err
+}
+
+func isRetryableSQLiteBusy(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "database is locked") || strings.Contains(msg, "database table is locked") || strings.Contains(msg, "SQLITE_BUSY")
 }

@@ -211,6 +211,37 @@ func (s *Store) Close() error {
 	return s.delegate.Close()
 }
 
+// SaveMemoryContext forwards redesign context persistence to the wrapped store when supported.
+func (s *Store) SaveMemoryContext(record *db.MemoryContextRecord) error {
+	type contextSaver interface {
+		SaveMemoryContext(record *db.MemoryContextRecord) error
+	}
+	if delegate, ok := s.delegate.(contextSaver); ok {
+		return delegate.SaveMemoryContext(record)
+	}
+	return nil
+}
+
+// PersistPreparedMemory forwards atomic prepared persistence and warms caches.
+func (s *Store) PersistPreparedMemory(input db.PersistPreparedMemoryInput) (*db.PersistPreparedMemoryResult, error) {
+	type preparedPersister interface {
+		PersistPreparedMemory(input db.PersistPreparedMemoryInput) (*db.PersistPreparedMemoryResult, error)
+	}
+	delegate, ok := s.delegate.(preparedPersister)
+	if !ok {
+		return nil, nil
+	}
+	result, err := delegate.PersistPreparedMemory(input)
+	if err != nil {
+		return nil, err
+	}
+	if result != nil && result.Saved != nil {
+		s.memories.Set(result.Saved.ID, result.Saved)
+	}
+	s.invalidateQueries("", "")
+	return result, nil
+}
+
 func (s *Store) invalidateQueries(project, area string) {
 	if s.queries != nil {
 		s.queries.InvalidateForProject(project, area)

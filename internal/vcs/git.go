@@ -45,7 +45,7 @@ type FileDiff struct {
 // Creates the directory structure and .magi-meta/version file if needed.
 func Init(cfg *Config) (*Repo, error) {
 	// Ensure directory structure
-	for _, dir := range []string{"memories", "links", ".magi-meta"} {
+	for _, dir := range []string{"memories", "links", "contexts", ".magi-meta"} {
 		if err := os.MkdirAll(filepath.Join(cfg.Path, dir), 0o755); err != nil {
 			return nil, fmt.Errorf("creating directory %s: %w", dir, err)
 		}

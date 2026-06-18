@@ -108,4 +108,43 @@ func TestLinksToJSON(t *testing.T) {
 	if parsed[1].Auto != true {
 		t.Error("link[1].Auto should be true")
 	}
+
+	restored, err := JSONToLinks("mem1", data)
+	if err != nil {
+		t.Fatalf("JSONToLinks: %v", err)
+	}
+	if len(restored) != 2 || restored[0].FromID != "mem1" || restored[1].ToID != "mem3" {
+		t.Fatalf("unexpected restored links: %+v", restored)
+	}
+}
+
+func TestContextRoundTrip(t *testing.T) {
+	record := &db.MemoryContextRecord{
+		MemoryID: "abc123",
+		Repository: db.RepositoryRecord{
+			Host:          "github.com",
+			Owner:         "j33pguy",
+			Name:          "magi",
+			CanonicalName: "j33pguy/magi",
+			DisplayName:   "j33pguy/magi",
+		},
+		ScopeMachine:            "gilfoyle",
+		ScopeAgent:              "codex",
+		ProvenanceTransport:     "http",
+		ProvenanceImportedFrom:  "discord",
+		ProvenanceHumanAuthored: true,
+		DurableAt:               "2026-04-15T23:00:00Z",
+	}
+
+	data, err := ContextToJSON(record)
+	if err != nil {
+		t.Fatalf("ContextToJSON: %v", err)
+	}
+	restored, err := JSONToContext(data)
+	if err != nil {
+		t.Fatalf("JSONToContext: %v", err)
+	}
+	if restored.MemoryID != record.MemoryID || restored.Repository.CanonicalName != record.Repository.CanonicalName || restored.ScopeMachine != record.ScopeMachine || restored.ProvenanceTransport != record.ProvenanceTransport || !restored.ProvenanceHumanAuthored {
+		t.Fatalf("unexpected restored context: %+v", restored)
+	}
 }

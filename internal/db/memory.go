@@ -596,7 +596,7 @@ func (c *Client) HybridSearch(embedding []float32, query string, filter *MemoryF
 	if topK <= 0 {
 		topK = 10
 	}
-	fetchK := topK * 3 // over-fetch to have enough for fusion
+	fetchK := hybridFetchK(topK)
 
 	// Run vector and BM25 searches concurrently.
 	var (

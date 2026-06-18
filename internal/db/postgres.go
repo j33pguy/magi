@@ -593,7 +593,7 @@ func (c *PostgresClient) HybridSearch(embedding []float32, query string, filter 
 	if topK <= 0 {
 		topK = 10
 	}
-	fetchK := topK * 3
+	fetchK := hybridFetchK(topK)
 
 	var (
 		vecResults  []*VectorResult
@@ -1073,4 +1073,8 @@ func pgScanLinks(rows *sql.Rows) ([]*MemoryLink, error) {
 		links = append(links, l)
 	}
 	return links, nil
+}
+
+func (c *PostgresClient) PersistPreparedMemory(input PersistPreparedMemoryInput) (*PersistPreparedMemoryResult, error) {
+	return persistPreparedMemoryGeneric(c, input)
 }

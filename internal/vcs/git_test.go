@@ -27,7 +27,7 @@ func TestInit(t *testing.T) {
 	defer repo.Close()
 
 	// Verify directory structure
-	for _, dir := range []string{"memories", "links", ".magi-meta"} {
+	for _, dir := range []string{"memories", "links", "contexts", ".magi-meta"} {
 		if _, err := os.Stat(filepath.Join(cfg.Path, dir)); err != nil {
 			t.Errorf("directory %s not created: %v", dir, err)
 		}

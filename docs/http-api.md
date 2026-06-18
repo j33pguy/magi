@@ -396,10 +396,14 @@ curl "http://localhost:8302/search?q=reverse-proxy+config&top_k=3" \
 |-------|----------|-------------|
 | `q` | yes | Search query |
 | `top_k` | no | Max results (default 5) |
+| `limit` | no | Backwards-compatible alias for `top_k` |
 | `recency_decay` | no | Recency weighting |
 | `tags` | no | Comma-separated tag filter |
 | `project` | no | Project filter |
 | `type` | no | Type filter |
+| `include_meta` | no | Return `{ "results": [...], "meta": { ... } }` instead of a bare array |
+
+**Response:** By default this endpoint returns a bare JSON array. If your client expects an object envelope, pass `include_meta=true` and read from `results`.
 
 ---
 
