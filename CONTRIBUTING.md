@@ -6,7 +6,7 @@ Thanks for your interest in contributing to MAGI! This guide will help you get s
 
 ### Prerequisites
 
-- **Go 1.23+** (check `go.mod` for exact version)
+- **Go 1.25+** (check `go.mod` for exact version)
 - **GCC/CGO** — required for SQLite (sqlite-vec uses CGO)
 - **Git** — for version control and the VCS module
 
