@@ -13,7 +13,7 @@ require (
 	github.com/tursodatabase/go-libsql v0.0.0-20260424063416-3051e37e6e04
 	github.com/yalue/onnxruntime_go v1.31.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260615183401-62b3387ff324
-	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc v1.82.0
 	google.golang.org/protobuf v1.36.11
 )
 
