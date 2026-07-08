@@ -1,0 +1,24 @@
+// Example output from upsert_network + upsert_firewall_rule.
+// Drop-in equivalent if you want to hand-write rather than call tools.
+
+resource "unifi_network" "iot" {
+  name          = "iot"
+  purpose       = "corporate"
+  subnet        = "10.0.30.1/24"
+  vlan_id       = 30
+  dhcp_enabled  = true
+  dhcp_start    = "10.0.30.10"
+  dhcp_stop     = "10.0.30.250"
+  domain_name   = "iot.lan"
+}
+
+resource "unifi_firewall_rule" "iot_block_to_lan" {
+  name       = "iot_block_to_lan"
+  action     = "drop"
+  ruleset    = "LAN_IN"
+  rule_index = 2010
+  protocol   = "all"
+  src_address = "10.0.30.0/24"
+  enabled    = true
+  logging    = false
+}
