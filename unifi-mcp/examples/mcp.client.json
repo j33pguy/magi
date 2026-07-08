@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "unifi": {
+      "command": "unifi-mcp",
+      "env": {
+        "UNIFI_API": "https://192.168.1.1",
+        "UNIFI_USERNAME": "tf-admin",
+        "UNIFI_PASSWORD": "REPLACE",
+        "UNIFI_SITE": "default",
+        "UNIFI_INSECURE": "true",
+        "UNIFI_API_KEY": "REPLACE",
+        "UNIFI_MCP_TF_DIR": "${HOME}/.unifi-mcp/terraform",
+        "UNIFI_MCP_AUTO_APPROVE": "false"
+      }
+    }
+  }
+}
