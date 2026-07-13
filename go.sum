@@ -105,8 +105,8 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/libsql/sqlite-antlr4-parser v0.0.0-20240721121621-c0bdc870f11c h1:WsJ6G+hkDXIMfQE8FIxnnziT26WmsRgZhdWQ0IQGlcc=
 github.com/libsql/sqlite-antlr4-parser v0.0.0-20240721121621-c0bdc870f11c/go.mod h1:gIcFddvsvPcRCO6QDmWH9/zcFd5U26QWWRMgZh4ddyo=
-github.com/mark3labs/mcp-go v0.55.1 h1:GLYqNm9qdMGPhCtK4g1t1y1vhAPfayOBuaibDi4mrSA=
-github.com/mark3labs/mcp-go v0.55.1/go.mod h1:+8WclSK1ZUweCP3hvktSji8n8ABG/95QaEkeVE/Uwas=
+github.com/mark3labs/mcp-go v0.56.0 h1:7aCj2wODCskMi08f923ADG+EfELZBdiKILny415cIS8=
+github.com/mark3labs/mcp-go v0.56.0/go.mod h1:+8WclSK1ZUweCP3hvktSji8n8ABG/95QaEkeVE/Uwas=
 github.com/microsoft/go-mssqldb v1.10.0 h1:pHEt+Qz6YFPWqREq10mqSE524QQo+/QremwTCQht7TY=
 github.com/microsoft/go-mssqldb v1.10.0/go.mod h1:mnG7lGa9iYJbzJqGCXyuQCegStKMr3kogDLD6+bmggg=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=

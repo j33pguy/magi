@@ -7,7 +7,7 @@ require (
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/mark3labs/mcp-go v0.55.1
+	github.com/mark3labs/mcp-go v0.56.0
 	github.com/microsoft/go-mssqldb v1.10.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/tursodatabase/go-libsql v0.0.0-20260424063416-3051e37e6e04
