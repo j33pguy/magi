@@ -4,6 +4,7 @@
 <h1 align="center">MAGI</h1>
 <p align="center"><strong>Multi-Agent Graph Intelligence</strong></p>
 <p align="center">AI agents shouldn't work in isolation. With MAGI, <strong>nothing important gets forgotten</strong>.</p>
+<p align="center"><em>Think of it as the Guide for your agents — a self-hosted book that remembers everything, with "Don't Panic" in large friendly letters on the cover.</em></p>
 
 <p align="center">
   <a href="https://github.com/j33pguy/magi/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/j33pguy/magi/actions/workflows/ci.yml/badge.svg"></a>
@@ -33,7 +34,11 @@ Different agents working on the same problem rarely share context, history, or d
 
 Switch machines and your agent has amnesia. Switch providers and your context is gone. Every session starts cold.
 
+In short: plenty to panic about.
+
 ## What Is MAGI?
+
+**Don't.**
 
 MAGI is a **universal memory server for AI agents**. It acts as a shared, persistent brain that any agent can read from and write to — regardless of framework, language, or orchestration model.
 
@@ -176,9 +181,13 @@ This project is dedicated to **Mary Margaret** — a dear friend who believed th
 
 ## ⚠️ Stability
 
-MAGI is not production-ready yet. It is useful today and improving fast, but expect breaking changes, rough edges, and the occasional surprise until a stable release is tagged. Back up your data, test in your own environment, and plan for things to break.
+MAGI is not production-ready yet. It is useful today and improving fast, but expect breaking changes, rough edges, and the occasional surprise until a stable release is tagged. Back up your data, test in your own environment, and plan for things to break. Bring a towel.
 SQLite is the most-tested backend; PostgreSQL, MySQL/MariaDB, and SQL Server backends exist but see less CI coverage. The distributed node mesh is architected but currently ships as a single-node embedded process. Git-backed history is optional and off by default.
 
 ## License
 
 [Elastic License 2.0 (ELv2)](LICENSE) — free to use, modify, and self-host. Cannot be offered as a managed/hosted service without a commercial license from the author.
+
+---
+
+<p align="center"><strong>Don't Panic.</strong></p>
