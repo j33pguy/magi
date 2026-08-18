@@ -190,4 +190,4 @@ SQLite is the most-tested backend; PostgreSQL, MySQL/MariaDB, and SQL Server bac
 
 ---
 
-<p align="center"><strong>Don't Panic.</strong></p>
+<p align="center"><strong>Don't Panic. Hack the Planet.</strong></p>
