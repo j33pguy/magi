@@ -80,7 +80,7 @@ Automatically links memories into a **knowledge graph** and surfaces behavioral 
 | Project | Description |
 |---------|-------------|
 | **[magi](https://github.com/j33pguy/magi)** | Memory server (this repo) — MCP, gRPC, REST API |
-| **[magi-sync](https://github.com/j33pguy/magi-sync)** | Cross-machine memory sync agent — watches Claude, OpenClaw, Codex files |
+| **[magi-sync](https://github.com/j33pguy/magi-sync)** | Cross-machine memory sync — the Sub-Etha for your Guide. Watches Claude, OpenClaw, Codex files |
 | **[magi-ui](https://github.com/j33pguy/magi-ui)** | Web dashboard (SPA) — memory browser, knowledge graph, analytics |
 
 ## Flexible Storage, Your Infrastructure
